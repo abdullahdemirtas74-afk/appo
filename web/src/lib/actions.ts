@@ -15,7 +15,7 @@ import {
   labelFor,
 } from "./db";
 import { etaMinutes, haversineKm } from "./geo";
-import type { MissionStatus, Role } from "./types";
+import type { Mission, MissionStatus, Role } from "./types";
 
 export async function login(email: string, password: string) {
   return mutate((db) => {
@@ -244,13 +244,13 @@ export async function createMission(userId: string, input: {
     const user = requireUser(db, userId, "client");
     const category = db.categories.find((c) => c.id === input.categoryId);
     if (!category || !category.active) throw new Error("INVALID_CATEGORY");
-    const mission = {
+    const mission: Mission = {
       id: nid("mis"),
       type: input.type,
       clientId: user.id,
       proId: input.proId ?? null,
       categoryId: input.categoryId,
-      status: "searching" as const,
+      status: "searching",
       address: input.address,
       city: input.city,
       lat: input.lat,
@@ -264,16 +264,16 @@ export async function createMission(userId: string, input: {
       pendingSupplementReason: null,
       commissionRate: db.settings.commissionRate,
       createdAt: new Date().toISOString(),
-      timeline: [] as { status: string; at: string; label: string }[],
-      candidateProIds: [] as string[],
-      declinedProIds: [] as string[],
-      offerProId: null as string | null,
-      offerExpiresAt: null as string | null,
-      etaMinutes: null as number | null,
-      startProLat: null as number | null,
-      startProLng: null as number | null,
-      paymentStatus: "none" as const,
-      paymentMethod: null as string | null,
+      timeline: [],
+      candidateProIds: [],
+      declinedProIds: [],
+      offerProId: null,
+      offerExpiresAt: null,
+      etaMinutes: null,
+      startProLat: null,
+      startProLng: null,
+      paymentStatus: "none",
+      paymentMethod: null,
     };
 
     if (input.proId) {

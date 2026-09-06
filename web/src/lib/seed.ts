@@ -187,9 +187,9 @@ export function createSeed(): DB {
       photos: [],
       certifications: ["Certiphyto"],
       documents: [
-        { id: "td1", type: "identite", name: "passeport.pdf", status: "pending" },
-        { id: "td2", type: "entreprise", name: "kbis.pdf", status: "pending" },
-        { id: "td3", type: "assurance", name: "rcpro.pdf", status: "pending" },
+        { id: "td1", type: "identite" as const, name: "passeport.pdf", status: "pending" as const },
+        { id: "td2", type: "entreprise" as const, name: "kbis.pdf", status: "pending" as const },
+        { id: "td3", type: "assurance" as const, name: "rcpro.pdf", status: "pending" as const },
       ],
       schedule: weekSchedule(),
       rating: 0,
