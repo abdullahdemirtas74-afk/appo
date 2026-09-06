@@ -46,6 +46,18 @@ export type ScheduleDay = {
   start: string;
   end: string;
   available: boolean;
+  breakStart?: string | null;
+  breakEnd?: string | null;
+};
+
+export type AbsenceReason = "conges" | "maladie" | "formation" | "pause" | "autre";
+
+export type ProAbsence = {
+  id: string;
+  startAt: string;
+  endAt: string;
+  reason: AbsenceReason;
+  note?: string;
 };
 
 export type ProProfile = {
@@ -68,6 +80,10 @@ export type ProProfile = {
   certifications: string[];
   documents: ProDocument[];
   schedule: ScheduleDay[];
+  absences: ProAbsence[];
+  bufferMinutes: number;
+  leadTimeHours: number;
+  maxMissionsPerDay: number;
   rating: number;
   reviewCount: number;
   missionCount: number;

@@ -1,6 +1,5 @@
 import { hashPassword, verifyPassword } from "./auth";
 import {
-  busyProIds,
   enrichMission,
   matchPros,
   mutate,
@@ -13,9 +12,15 @@ import {
   resetDb,
   STATUS_FLOW,
   labelFor,
+  availabilitySnapshot,
 } from "./db";
+import {
+  canReceiveNowOffer,
+  conflictingMissionsDuringAbsence,
+  getActiveAbsence,
+} from "./availability";
 import { etaMinutes, haversineKm } from "./geo";
-import type { Mission, MissionStatus, Role } from "./types";
+import type { AbsenceReason, Mission, MissionStatus, ProAbsence, Role, ScheduleDay } from "./types";
 
 export async function login(email: string, password: string) {
   return mutate((db) => {
@@ -127,7 +132,13 @@ export async function registerPro(input: {
         start: "08:00",
         end: "19:00",
         available: day !== 0,
+        breakStart: day !== 0 ? "12:00" : null,
+        breakEnd: day !== 0 ? "13:00" : null,
       })),
+      absences: [],
+      bufferMinutes: 30,
+      leadTimeHours: 2,
+      maxMissionsPerDay: 1,
       rating: 0,
       reviewCount: 0,
       missionCount: 0,
@@ -155,7 +166,9 @@ export async function getMe(userId: string) {
       favorites,
       unread: notifications.filter((n) => !n.read).length,
       settings: db.settings,
-      pro,
+      pro: pro
+        ? { ...pro, availability: availabilitySnapshot(db, pro) }
+        : null,
     };
   }, true);
 }
@@ -180,10 +193,8 @@ export async function listPros(params: {
       lat: params.lat ?? db.addresses.find((a) => a.userId === params.userId && a.isDefault)?.lat ?? 45.8782,
       lng: params.lng ?? db.addresses.find((a) => a.userId === params.userId && a.isDefault)?.lng ?? 6.0581,
     };
-    const busy = busyProIds(db);
     let list = db.pros.filter((p) => p.status === "verified");
     if (params.categoryId) list = list.filter((p) => p.categoryIds.includes(params.categoryId!));
-    if (params.available) list = list.filter((p) => p.online && !busy.has(p.id));
     if (params.minRating) list = list.filter((p) => p.rating >= params.minRating!);
     if (params.maxPrice) list = list.filter((p) => p.startingPrice <= params.maxPrice!);
     if (params.q) {
@@ -201,13 +212,16 @@ export async function listPros(params: {
       .map((p) => {
         const user = db.users.find((u) => u.id === p.userId)!;
         const distanceKm = haversineKm(origin.lat, origin.lng, p.lat, p.lng);
+        const availability = availabilitySnapshot(db, p);
         return {
           ...p,
           user: publicUser(user),
           distanceKm,
-          availableNow: p.online && !busy.has(p.id) && distanceKm <= p.radiusKm,
+          availableNow: availability.availableNow && distanceKm <= p.radiusKm,
+          availability,
         };
       })
+      .filter((p) => (params.available ? p.availableNow : true))
       .filter((p) => (params.maxKm ? p.distanceKm <= params.maxKm : true))
       .sort((a, b) => Number(b.availableNow) - Number(a.availableNow) || a.distanceKm - b.distanceKm);
   }, false);
@@ -224,7 +238,16 @@ export async function getPro(id: string, origin?: { lat: number; lng: number }) 
     }));
     const categories = db.categories.filter((c) => p.categoryIds.includes(c.id));
     const distanceKm = origin ? haversineKm(origin.lat, origin.lng, p.lat, p.lng) : null;
-    return { ...p, user: publicUser(user), reviews, categories, distanceKm };
+    const availability = availabilitySnapshot(db, p);
+    return {
+      ...p,
+      user: publicUser(user),
+      reviews,
+      categories,
+      distanceKm,
+      availability,
+      availableNow: availability.availableNow,
+    };
   }, false);
 }
 
@@ -279,6 +302,14 @@ export async function createMission(userId: string, input: {
     if (input.proId) {
       const pro = db.pros.find((p) => p.id === input.proId);
       if (!pro || pro.status !== "verified") throw new Error("PRO_UNAVAILABLE");
+      if (input.type === "now") {
+        if (!canReceiveNowOffer(db, pro)) throw new Error("PRO_UNAVAILABLE");
+      } else if (input.scheduledAt) {
+        const snap = availabilitySnapshot(db, pro, new Date(), {
+          forScheduledAt: new Date(input.scheduledAt),
+        });
+        if (!snap.bookable) throw new Error("PRO_UNAVAILABLE");
+      }
       mission.price = pro.startingPrice;
       mission.status = "offered";
       mission.offerProId = pro.id;
@@ -507,14 +538,50 @@ export async function updatePro(userId: string, patch: Record<string, unknown>) 
     requireUser(db, userId, "pro");
     const pro = proByUser(db, userId);
     if (!pro) throw new Error("NOT_FOUND");
-    if (typeof patch.online === "boolean") pro.online = patch.online && pro.verified;
+
+    if (patch.action === "addAbsence") {
+      const startAt = String(patch.startAt);
+      const endAt = String(patch.endAt);
+      if (!startAt || !endAt || new Date(endAt) <= new Date(startAt)) throw new Error("INVALID_ABSENCE");
+      const absence: ProAbsence = {
+        id: nid("abs"),
+        startAt,
+        endAt,
+        reason: (String(patch.reason || "conges") as AbsenceReason),
+        note: patch.note ? String(patch.note) : undefined,
+      };
+      pro.absences = [...(pro.absences ?? []), absence].sort((a, b) => a.startAt.localeCompare(b.startAt));
+      const conflicts = conflictingMissionsDuringAbsence(db, pro.id, startAt, endAt);
+      // If absence covers now, force offline for Now reception clarity
+      if (getActiveAbsence(pro)) {
+        pro.online = false;
+      }
+      return { pro, conflicts: conflicts.map((m) => enrichMission(db, m)), availability: availabilitySnapshot(db, pro) };
+    }
+
+    if (patch.action === "removeAbsence") {
+      const id = String(patch.absenceId);
+      pro.absences = (pro.absences ?? []).filter((a) => a.id !== id);
+      return { pro, availability: availabilitySnapshot(db, pro) };
+    }
+
+    if (typeof patch.online === "boolean") {
+      // Cannot go online while currently on absence
+      if (patch.online && getActiveAbsence(pro)) throw new Error("ON_ABSENCE");
+      pro.online = patch.online && pro.verified;
+    }
     if (typeof patch.radiusKm === "number") pro.radiusKm = patch.radiusKm;
     if (typeof patch.description === "string") pro.description = patch.description;
     if (typeof patch.startingPrice === "number") pro.startingPrice = patch.startingPrice;
-    if (Array.isArray(patch.schedule)) pro.schedule = patch.schedule as typeof pro.schedule;
+    if (Array.isArray(patch.schedule)) pro.schedule = patch.schedule as ScheduleDay[];
+    if (typeof patch.bufferMinutes === "number") pro.bufferMinutes = Math.max(0, patch.bufferMinutes);
+    if (typeof patch.leadTimeHours === "number") pro.leadTimeHours = Math.max(0, patch.leadTimeHours);
+    if (typeof patch.maxMissionsPerDay === "number") {
+      pro.maxMissionsPerDay = Math.max(1, Math.min(10, patch.maxMissionsPerDay));
+    }
     if (typeof patch.lat === "number") pro.lat = patch.lat;
     if (typeof patch.lng === "number") pro.lng = patch.lng;
-    return pro;
+    return { pro, availability: availabilitySnapshot(db, pro) };
   });
 }
 
@@ -550,7 +617,14 @@ export async function proStats(userId: string) {
       missions: db.missions.filter((m) => m.proId === pro.id).length,
       rating: pro.rating,
       online: pro.online,
+      availability: availabilitySnapshot(db, pro),
+      absences: pro.absences ?? [],
+      bufferMinutes: pro.bufferMinutes,
+      leadTimeHours: pro.leadTimeHours,
+      maxMissionsPerDay: pro.maxMissionsPerDay,
+      schedule: pro.schedule,
       offer: (() => {
+        if (!canReceiveNowOffer(db, pro)) return null;
         const raw = db.missions.find((m) => m.offerProId === pro.id && m.status === "offered") ?? null;
         return raw ? enrichMission(db, raw) : null;
       })(),

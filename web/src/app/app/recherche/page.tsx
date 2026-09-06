@@ -15,6 +15,7 @@ type Pro = {
   reviewCount: number;
   distanceKm: number;
   availableNow: boolean;
+  availability?: { label: string; reason: string; backAt: string | null };
   user: { firstName: string; lastName: string; avatar: string };
 };
 
@@ -97,7 +98,11 @@ function SearchInner() {
                 </div>
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
                   <span>📍 {km(p.distanceKm)}</span>
-                  {p.availableNow ? <Badge tone="green">🟢 Disponible maintenant</Badge> : <Badge>Hors ligne</Badge>}
+                  {p.availableNow ? (
+                    <Badge tone="green">🟢 Disponible maintenant</Badge>
+                  ) : (
+                    <Badge tone="orange">{p.availability?.label || "Indisponible"}</Badge>
+                  )}
                 </div>
               </div>
               <div className="text-right text-sm font-bold">{money(p.startingPrice)}</div>

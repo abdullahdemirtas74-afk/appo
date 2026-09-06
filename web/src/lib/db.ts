@@ -1,6 +1,12 @@
 import fs from "fs/promises";
 import path from "path";
-import { haversineKm, etaMinutes, interpolate } from "./geo";
+import {
+  availabilitySnapshot,
+  busyProIds,
+  canReceiveNowOffer,
+  normalizePro,
+} from "./availability";
+import { haversineKm, interpolate } from "./geo";
 import { createSeed } from "./seed";
 import type {
   DB,
@@ -16,10 +22,17 @@ const DB_PATH = path.join(process.cwd(), "data", "db.json");
 
 let chain: Promise<unknown> = Promise.resolve();
 
+function migrate(db: DB): DB {
+  db.pros = db.pros.map(normalizePro);
+  if (!db.settings.offerSeconds) db.settings.offerSeconds = 20;
+  if (db.settings.commissionRate == null) db.settings.commissionRate = 0.15;
+  return db;
+}
+
 async function readFile(): Promise<DB> {
   try {
     const raw = await fs.readFile(DB_PATH, "utf8");
-    return JSON.parse(raw) as DB;
+    return migrate(JSON.parse(raw) as DB);
   } catch {
     const seed = createSeed();
     await fs.mkdir(path.dirname(DB_PATH), { recursive: true });
@@ -69,29 +82,14 @@ export function publicUser(user: User): PublicUser {
   return rest;
 }
 
-export function busyProIds(db: DB) {
-  const busy = new Set<string>();
-  for (const m of db.missions) {
-    if (
-      ["offered", "accepted", "en_route", "arrived", "in_progress"].includes(m.status)
-    ) {
-      if (m.proId) busy.add(m.proId);
-      if (m.offerProId) busy.add(m.offerProId);
-    }
-  }
-  return busy;
-}
-
 export function matchPros(db: DB, categoryId: string, lat: number, lng: number) {
-  const busy = busyProIds(db);
   return db.pros
     .filter(
       (p) =>
         p.verified &&
         p.status === "verified" &&
-        p.online &&
         p.categoryIds.includes(categoryId) &&
-        !busy.has(p.id),
+        canReceiveNowOffer(db, p),
     )
     .map((p) => ({
       pro: p,
@@ -105,6 +103,8 @@ export function matchPros(db: DB, categoryId: string, lat: number, lng: number) 
         b.pro.acceptanceRate - a.pro.acceptanceRate,
     );
 }
+
+export { busyProIds, availabilitySnapshot, normalizePro };
 
 function notify(
   db: DB,
@@ -136,7 +136,11 @@ export function processDispatch(db: DB, now = Date.now()) {
       m.offerProId = null;
       m.offerExpiresAt = null;
     }
-    const next = m.candidateProIds.find((id) => !m.declinedProIds.includes(id));
+    const next = m.candidateProIds.find((id) => {
+      if (m.declinedProIds.includes(id)) return false;
+      const pro = db.pros.find((p) => p.id === id);
+      return pro ? canReceiveNowOffer(db, pro, new Date(now)) : false;
+    });
     if (!next) {
       m.status = "unmatched";
       notify(
@@ -155,13 +159,16 @@ export function processDispatch(db: DB, now = Date.now()) {
     m.offerProId = next;
     m.offerExpiresAt = new Date(now + db.settings.offerSeconds * 1000).toISOString();
     if (user) {
-      notify(
-        db,
-        user.id,
-        "Nouvelle mission disponible",
-        `${cat?.name ?? "Mission"} · ${m.city} · ${m.price} €`,
-        `/pro/missions/${m.id}`,
-      );
+      // Never notify if somehow unavailable (double-check)
+      if (pro && canReceiveNowOffer(db, pro, new Date(now))) {
+        notify(
+          db,
+          user.id,
+          "Nouvelle mission disponible",
+          `${cat?.name ?? "Mission"} · ${m.city} · ${m.price} €`,
+          `/pro/missions/${m.id}`,
+        );
+      }
     }
   }
 }

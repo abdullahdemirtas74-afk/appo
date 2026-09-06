@@ -20,7 +20,7 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const pro = await updatePro(session.userId, body);
-    return NextResponse.json({ pro });
+    return NextResponse.json(pro);
   } catch (e) {
     const { status, error } = errorStatus(e);
     return NextResponse.json({ error }, { status });

@@ -25,6 +25,10 @@ function ProInner() {
   const addr = me?.addresses?.find((a) => a.isDefault);
 
   async function book() {
+    if (mode === "now" && !p.availableNow) {
+      setMode("scheduled");
+      return;
+    }
     setLoading(true);
     try {
       const res = await api<{ mission: { id: string } }>("/api/missions", {
@@ -75,6 +79,9 @@ function ProInner() {
             ⭐ {stars(p.rating)} · {p.reviewCount} avis
           </Badge>
           <Badge>{p.missionCount} missions</Badge>
+          {p.availability ? (
+            <Badge tone={p.availableNow ? "green" : "orange"}>{p.availability.label}</Badge>
+          ) : null}
         </div>
         <p className="mt-4 text-sm leading-relaxed">{p.description}</p>
         <p className="mt-2 text-sm text-muted">
@@ -99,22 +106,44 @@ function ProInner() {
           <p className="mt-3 text-sm">Certifications : {p.certifications.join(", ")}</p>
         ) : null}
         <div className="mt-4 rounded-2xl bg-background p-4 text-sm">
-          {p.schedule?.map((s: { day: number; start: string; end: string; available: boolean }) => (
+          {p.schedule?.map((s: { day: number; start: string; end: string; available: boolean; breakStart?: string; breakEnd?: string }) => (
             <div key={s.day} className="flex justify-between py-0.5">
               <span>{DAY_LABELS[s.day]}</span>
-              <span className="text-muted">{s.available ? `${s.start}–${s.end}` : "indisponible"}</span>
+              <span className="text-muted">
+                {s.available
+                  ? `${s.start}–${s.end}${s.breakStart && s.breakEnd ? ` (pause ${s.breakStart}–${s.breakEnd})` : ""}`
+                  : "indisponible"}
+              </span>
             </div>
           ))}
         </div>
+        {p.absences?.length ? (
+          <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm">
+            <div className="font-semibold">Absences à venir</div>
+            {p.absences.slice(0, 3).map((a: { id: string; startAt: string; endAt: string; reason: string }) => (
+              <div key={a.id} className="mt-1 text-muted">
+                {a.reason} · {new Date(a.startAt).toLocaleDateString("fr-FR")} →{" "}
+                {new Date(a.endAt).toLocaleDateString("fr-FR")}
+              </div>
+            ))}
+          </div>
+        ) : null}
         <div className="mt-6 space-y-3">
           <div className="grid grid-cols-2 gap-2">
-            <button className={`rounded-2xl py-3 font-semibold ${mode === "now" ? "bg-appo text-white" : "bg-background"}`} onClick={() => setMode("now")}>
+            <button
+              className={`rounded-2xl py-3 font-semibold ${mode === "now" ? "bg-appo text-white" : "bg-background"} ${!p.availableNow ? "opacity-40" : ""}`}
+              disabled={!p.availableNow}
+              onClick={() => setMode("now")}
+            >
               Maintenant
             </button>
             <button className={`rounded-2xl py-3 font-semibold ${mode === "scheduled" ? "bg-ink text-white" : "bg-background"}`} onClick={() => setMode("scheduled")}>
               Planifier
             </button>
           </div>
+          {!p.availableNow && mode === "now" ? (
+            <p className="text-sm text-amber-700">{p.availability?.label || "Indisponible pour AppO Now"} — choisissez Planifier.</p>
+          ) : null}
           {mode === "scheduled" ? (
             <Field label="Date / heure">
               <input className={inputClass} type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} />

@@ -16,8 +16,24 @@ function weekSchedule(): ScheduleDay[] {
     start: "08:00",
     end: "19:00",
     available: day !== 0 && day !== 3,
+    breakStart: day !== 0 && day !== 3 ? "12:00" : null,
+    breakEnd: day !== 0 && day !== 3 ? "13:00" : null,
   }));
 }
+
+function daysFromNow(n: number, hour = 8) {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  d.setHours(hour, 0, 0, 0);
+  return d.toISOString();
+}
+
+const planningDefaults = {
+  absences: [] as { id: string; startAt: string; endAt: string; reason: "conges" | "maladie" | "formation" | "pause" | "autre"; note?: string }[],
+  bufferMinutes: 30,
+  leadTimeHours: 2,
+  maxMissionsPerDay: 1,
+};
 
 export function createSeed(): DB {
   const passwordHash = hashPassword(DEMO_PASSWORD);
@@ -88,6 +104,7 @@ export function createSeed(): DB {
       certifications: ["Qualibat", "RGE"],
       documents: docsOk,
       schedule: weekSchedule(),
+      ...planningDefaults,
       rating: 4.9,
       reviewCount: 127,
       missionCount: 37,
@@ -113,6 +130,7 @@ export function createSeed(): DB {
       certifications: ["Qualifelec"],
       documents: docsOk,
       schedule: weekSchedule(),
+      ...planningDefaults,
       rating: 4.8,
       reviewCount: 64,
       missionCount: 22,
@@ -138,6 +156,7 @@ export function createSeed(): DB {
       certifications: ["APSAD"],
       documents: docsOk,
       schedule: weekSchedule().map((d) => ({ ...d, available: d.day !== 0 })),
+      ...planningDefaults,
       rating: 4.7,
       reviewCount: 210,
       missionCount: 80,
@@ -154,7 +173,7 @@ export function createSeed(): DB {
       lat: 45.862,
       lng: 6.041,
       city: "Rumilly",
-      online: true,
+      online: false,
       verified: true,
       status: "verified" as const,
       startingPrice: 120,
@@ -163,6 +182,16 @@ export function createSeed(): DB {
       certifications: [],
       documents: docsOk,
       schedule: weekSchedule(),
+      ...planningDefaults,
+      absences: [
+        {
+          id: "abs_chloe",
+          startAt: daysFromNow(-1, 0),
+          endAt: daysFromNow(7, 23),
+          reason: "conges" as const,
+          note: "Congés annuels",
+        },
+      ],
       rating: 4.6,
       reviewCount: 41,
       missionCount: 18,
@@ -192,6 +221,7 @@ export function createSeed(): DB {
         { id: "td3", type: "assurance" as const, name: "rcpro.pdf", status: "pending" as const },
       ],
       schedule: weekSchedule(),
+      ...planningDefaults,
       rating: 0,
       reviewCount: 0,
       missionCount: 0,
@@ -217,6 +247,7 @@ export function createSeed(): DB {
       certifications: [],
       documents: docsOk,
       schedule: weekSchedule(),
+      ...planningDefaults,
       rating: 4.9,
       reviewCount: 96,
       missionCount: 54,
@@ -242,6 +273,7 @@ export function createSeed(): DB {
       certifications: ["RGE QualiPAC", "PG"],
       documents: docsOk,
       schedule: weekSchedule(),
+      ...planningDefaults,
       rating: 4.8,
       reviewCount: 73,
       missionCount: 29,

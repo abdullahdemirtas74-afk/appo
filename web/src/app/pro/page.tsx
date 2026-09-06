@@ -4,18 +4,28 @@ import { BadgeCheck } from "lucide-react";
 import { useMe } from "@/components/guard";
 import { Badge, Button } from "@/components/ui";
 import { api, usePoll } from "@/lib/hooks";
-import { money, stars } from "@/lib/format";
+import { formatDate, money, stars } from "@/lib/format";
 
 export default function ProHome() {
   const { data: me, reload: reloadMe } = useMe();
   const { data, reload } = usePoll<any>("/api/pro", 3000);
-  const pro = me?.pro;
+  const pro = me?.pro as any;
   const pending = pro && pro.status !== "verified";
+  const availability = pro?.availability ?? data?.availability;
+  const onAbsence = availability?.reason === "absence";
 
   async function toggle() {
-    await api("/api/pro", { online: !pro?.online });
-    reload();
-    reloadMe();
+    try {
+      await api("/api/pro", { online: !pro?.online });
+      reload();
+      reloadMe();
+    } catch (e) {
+      alert(
+        e instanceof Error && e.message === "ON_ABSENCE"
+          ? "Impossible : vous êtes en congé / absence. Modifiez votre planning d’abord."
+          : "Action impossible",
+      );
+    }
   }
 
   return (
@@ -25,14 +35,42 @@ export default function ProHome() {
       {pending ? (
         <div className="mt-6 rounded-3xl border border-amber-200 bg-amber-50 p-4">
           <div className="font-bold">Compte en cours de vérification</div>
-          <p className="mt-1 text-sm">Un administrateur valide vos documents. Vous recevrez le badge Pro vérifié ensuite.</p>
+          <p className="mt-1 text-sm">
+            Un administrateur valide vos documents. Vous recevrez le badge Pro vérifié ensuite.
+          </p>
         </div>
       ) : (
         <>
-          <button onClick={toggle} className={`mt-4 w-full rounded-3xl p-5 text-left text-white ${pro?.online ? "bg-green" : "bg-zinc-700"}`}>
-            <div className="text-xs uppercase tracking-wide opacity-80">{pro?.online ? "En ligne" : "Hors ligne"}</div>
-            <div className="text-2xl font-black">{pro?.online ? "🟢 DISPONIBLE" : "⚫ HORS LIGNE"}</div>
-            <div className="text-sm opacity-90">Recevez des missions AppO Now près de chez vous.</div>
+          {onAbsence ? (
+            <div className="mt-4 rounded-3xl border border-amber-200 bg-amber-50 p-4">
+              <div className="font-bold">{availability?.label}</div>
+              <p className="mt-1 text-sm">
+                Aucune alerte AppO Now pendant cette période.
+                {availability?.backAt ? ` Reprise : ${formatDate(availability.backAt)}.` : ""}
+              </p>
+              <Button href="/pro/planning" className="mt-3" variant="secondary">
+                Gérer mes absences
+              </Button>
+            </div>
+          ) : null}
+          <button
+            onClick={toggle}
+            disabled={onAbsence}
+            className={`mt-4 w-full rounded-3xl p-5 text-left text-white disabled:opacity-60 ${
+              availability?.availableNow ? "bg-green" : "bg-zinc-700"
+            }`}
+          >
+            <div className="text-xs uppercase tracking-wide opacity-80">
+              {availability?.availableNow ? "En ligne" : availability?.label || "Hors ligne"}
+            </div>
+            <div className="text-2xl font-black">
+              {availability?.availableNow ? "🟢 DISPONIBLE" : "⚫ INDISPONIBLE"}
+            </div>
+            <div className="text-sm opacity-90">
+              {availability?.availableNow
+                ? "Recevez des missions AppO Now près de chez vous."
+                : "Activez la dispo seulement si vous pouvez accepter maintenant."}
+            </div>
           </button>
           <div className="mt-4 grid grid-cols-2 gap-3">
             <div className="rounded-3xl bg-ink p-4 text-white">
@@ -44,7 +82,7 @@ export default function ProHome() {
               <div className="text-2xl font-black">{money(data?.month ?? 0)}</div>
             </div>
           </div>
-          <div className="mt-3 flex gap-3 text-sm">
+          <div className="mt-3 flex flex-wrap gap-3 text-sm">
             <Badge>{data?.missions ?? 0} missions</Badge>
             <Badge tone="green">⭐ {stars(data?.rating ?? 0)}</Badge>
             {pro?.verified ? (
@@ -59,7 +97,9 @@ export default function ProHome() {
               {[5, 10, 25, 50].map((n) => (
                 <button
                   key={n}
-                  className={`rounded-full px-3 py-2 text-sm font-semibold ${pro?.radiusKm === n ? "bg-ink text-white" : "bg-background"}`}
+                  className={`rounded-full px-3 py-2 text-sm font-semibold ${
+                    pro?.radiusKm === n ? "bg-ink text-white" : "bg-background"
+                  }`}
                   onClick={async () => {
                     await api("/api/pro", { radiusKm: n });
                     reloadMe();
@@ -70,7 +110,10 @@ export default function ProHome() {
               ))}
             </div>
           </div>
-          <Button href="/pro/missions" className="mt-8 w-full" variant="secondary">
+          <Button href="/pro/planning" className="mt-6 w-full" variant="secondary">
+            Planning & congés
+          </Button>
+          <Button href="/pro/missions" className="mt-3 w-full" variant="secondary">
             Voir les missions
           </Button>
         </>
