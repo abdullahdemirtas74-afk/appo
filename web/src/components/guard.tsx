@@ -43,7 +43,7 @@ export function Guard({
 
   if (loading || !data?.user || data.user.role !== role) {
     return (
-      <div className="phone-app grid min-h-dvh place-items-center text-sm text-muted">
+      <div className="grid min-h-dvh place-items-center bg-background text-sm text-muted">
         Chargement…
       </div>
     );

@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { Logo } from "@/components/logo";
+import { AuthShell } from "@/components/shell";
 import { Button, Field, inputClass } from "@/components/ui";
 import { api } from "@/lib/hooks";
 import { DEMO_ACCOUNTS } from "@/lib/demo";
@@ -30,9 +31,11 @@ function LoginForm() {
   }
 
   return (
-    <div className="phone-app flex min-h-dvh flex-col px-6 py-8">
-      <Logo />
-      <h1 className="mt-10 text-3xl font-extrabold">Connexion</h1>
+    <AuthShell>
+      <div className="lg:hidden">
+        <Logo />
+      </div>
+      <h1 className="mt-8 text-3xl font-extrabold lg:mt-0">Connexion</h1>
       <p className="mt-2 text-muted">Particulier, Pro ou Admin — un seul espace d’entrée.</p>
       <form onSubmit={submit} className="mt-8 space-y-4">
         <Field label="E-mail">
@@ -47,14 +50,17 @@ function LoginForm() {
         </Button>
       </form>
       <p className="mt-6 text-sm text-muted">
-        Pas encore de compte ? <a className="font-semibold text-appo" href="/register">Créer un compte</a>
+        Pas encore de compte ?{" "}
+        <a className="font-semibold text-appo" href="/register">
+          Créer un compte
+        </a>
       </p>
       <div className="mt-8 space-y-2">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted">Comptes démo</p>
         {DEMO_ACCOUNTS.map((a) => (
           <button
             key={a.email}
-            className="flex w-full items-center justify-between rounded-2xl border border-line px-4 py-3 text-left text-sm"
+            className="flex w-full items-center justify-between rounded-2xl border border-line bg-card px-4 py-3 text-left text-sm"
             onClick={() => {
               setEmail(a.email);
               setPassword(a.password);
@@ -68,7 +74,7 @@ function LoginForm() {
           </button>
         ))}
       </div>
-    </div>
+    </AuthShell>
   );
 }
 

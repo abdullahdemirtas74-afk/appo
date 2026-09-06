@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { Logo } from "@/components/logo";
+import { AuthShell } from "@/components/shell";
 import { Button, Field, inputClass } from "@/components/ui";
 import { api, usePoll } from "@/lib/hooks";
 import { RUMILLY } from "@/lib/geo";
@@ -72,9 +73,11 @@ function RegisterForm() {
   }
 
   return (
-    <div className="phone-app px-6 py-8">
-      <Logo />
-      <h1 className="mt-8 text-3xl font-extrabold">Créer un compte</h1>
+    <AuthShell>
+      <div className="lg:hidden">
+        <Logo />
+      </div>
+      <h1 className="mt-8 text-3xl font-extrabold lg:mt-0">Créer un compte</h1>
       <div className="mt-4 grid grid-cols-2 gap-2 rounded-2xl bg-background p-1">
         <button className={`rounded-xl py-2 text-sm font-semibold ${role === "client" ? "bg-white shadow" : "text-muted"}`} onClick={() => setRole("client")}>
           Particulier
@@ -83,7 +86,7 @@ function RegisterForm() {
           AppO Pro
         </button>
       </div>
-      <form onSubmit={submit} className="mt-6 space-y-3 pb-10">
+      <form onSubmit={submit} className="mt-6 space-y-3 pb-4">
         <div className="grid grid-cols-2 gap-3">
           <Field label="Prénom">
             <input className={inputClass} required value={form.firstName} onChange={(e) => set("firstName", e.target.value)} />
@@ -118,12 +121,14 @@ function RegisterForm() {
                 ))}
               </select>
             </Field>
-            <Field label="Rayon d’intervention (km)">
-              <input className={inputClass} type="number" value={form.radiusKm} onChange={(e) => set("radiusKm", Number(e.target.value))} />
-            </Field>
-            <Field label="Prix de départ (€)">
-              <input className={inputClass} type="number" value={form.startingPrice} onChange={(e) => set("startingPrice", Number(e.target.value))} />
-            </Field>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Rayon d’intervention (km)">
+                <input className={inputClass} type="number" value={form.radiusKm} onChange={(e) => set("radiusKm", Number(e.target.value))} />
+              </Field>
+              <Field label="Prix de départ (€)">
+                <input className={inputClass} type="number" value={form.startingPrice} onChange={(e) => set("startingPrice", Number(e.target.value))} />
+              </Field>
+            </div>
             <Field label="Description">
               <textarea className={inputClass} rows={3} value={form.description} onChange={(e) => set("description", e.target.value)} />
             </Field>
@@ -137,10 +142,13 @@ function RegisterForm() {
           {loading ? "Création…" : role === "pro" ? "Créer mon compte Pro" : "Créer mon compte"}
         </Button>
         <p className="text-center text-sm text-muted">
-          Déjà inscrit ? <a className="font-semibold text-appo" href="/login">Se connecter</a>
+          Déjà inscrit ?{" "}
+          <a className="font-semibold text-appo" href="/login">
+            Se connecter
+          </a>
         </p>
       </form>
-    </div>
+    </AuthShell>
   );
 }
 

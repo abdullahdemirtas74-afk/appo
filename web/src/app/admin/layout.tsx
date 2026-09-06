@@ -21,8 +21,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const router = useRouter();
   return (
     <Guard role="admin">
-      <div className="min-h-dvh bg-[#f3eee6]">
-        <aside className="fixed inset-y-0 left-0 hidden w-60 border-r border-line bg-white p-5 md:block">
+      <div className="min-h-dvh overflow-x-hidden bg-[#f3eee6]">
+        <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 border-r border-line bg-white p-5 lg:block">
           <Logo size="sm" />
           <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-muted">Admin AppO</p>
           <nav className="mt-6 space-y-1">
@@ -30,7 +30,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <Link
                 key={href}
                 href={href}
-                className={`block rounded-xl px-3 py-2 text-sm font-semibold ${path === href ? "bg-ink text-white" : "text-ink/70 hover:bg-background"}`}
+                className={`block rounded-xl px-3 py-2 text-sm font-semibold ${
+                  path === href ? "bg-ink text-white" : "text-ink/70 hover:bg-background"
+                }`}
               >
                 {label}
               </Link>
@@ -46,15 +48,35 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             Déconnexion
           </button>
         </aside>
-        <div className="md:pl-60">
-          <div className="flex gap-2 overflow-x-auto border-b border-line bg-white px-4 py-3 md:hidden">
-            {links.map(([href, label]) => (
-              <Link key={href} href={href} className="shrink-0 rounded-full bg-background px-3 py-1 text-xs font-semibold">
-                {label}
-              </Link>
-            ))}
+        <div className="lg:pl-60">
+          <div className="sticky top-0 z-20 border-b border-line bg-white/95 px-4 py-3 backdrop-blur lg:hidden">
+            <div className="mb-2 flex items-center justify-between">
+              <Logo size="sm" />
+              <button
+                className="text-sm text-muted"
+                onClick={async () => {
+                  await api("/api/auth/logout", {});
+                  router.replace("/");
+                }}
+              >
+                Déconnexion
+              </button>
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {links.map(([href, label]) => (
+                <Link
+                  key={href}
+                  href={href}
+                  className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold ${
+                    path === href ? "bg-ink text-white" : "bg-background text-ink"
+                  }`}
+                >
+                  {label}
+                </Link>
+              ))}
+            </div>
           </div>
-          <div className="p-6">{children}</div>
+          <div className="p-4 sm:p-6 md:p-8">{children}</div>
         </div>
       </div>
     </Guard>

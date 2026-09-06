@@ -106,9 +106,9 @@ export default function PlanningPage() {
       ) : null}
 
       <h2 className="mt-8 text-sm font-bold uppercase tracking-wide text-muted">Horaires hebdo</h2>
-      <div className="mt-3 divide-y divide-line rounded-3xl border border-line">
+      <div className="mt-3 divide-y divide-line rounded-3xl border border-line bg-card md:grid md:grid-cols-2 md:divide-y-0 lg:grid-cols-3">
         {schedule.map((s: any) => (
-          <div key={s.day} className="px-4 py-3">
+          <div key={s.day} className="border-line px-4 py-3 md:border-b">
             <div className="flex items-center justify-between">
               <div>
                 <div className="font-semibold">{DAY_LABELS[s.day]}</div>
@@ -171,10 +171,11 @@ export default function PlanningPage() {
         ))}
       </div>
 
-      <h2 className="mt-8 text-sm font-bold uppercase tracking-wide text-muted">
+      <h2 className="mt-8 text-sm font-bold uppercase tracking-wide text-muted md:mt-10">
         Congés & absences
       </h2>
-      <div className="mt-3 space-y-3 rounded-3xl border border-line p-4">
+      <div className="mt-3 grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+      <div className="space-y-3 rounded-3xl border border-line bg-card p-4">
         <Field label="Début">
           <input
             className={inputClass}
@@ -217,8 +218,9 @@ export default function PlanningPage() {
         </p>
       </div>
 
+      <div className="space-y-4">
       {conflicts.length ? (
-        <div className="mt-4 rounded-3xl border border-orange-200 bg-orange-50 p-4 text-sm">
+        <div className="rounded-3xl border border-orange-200 bg-orange-50 p-4 text-sm">
           <div className="font-bold">Attention — missions déjà acceptées sur cette période</div>
           <ul className="mt-2 space-y-1">
             {conflicts.map((m) => (
@@ -233,12 +235,12 @@ export default function PlanningPage() {
         </div>
       ) : null}
 
-      <div className="mt-4 space-y-2">
+      <div className="space-y-2">
         {absences.length === 0 ? (
           <p className="text-sm text-muted">Aucune absence planifiée.</p>
         ) : (
           absences.map((a: any) => (
-            <div key={a.id} className="flex items-start justify-between rounded-2xl border border-line p-3">
+            <div key={a.id} className="flex items-start justify-between rounded-2xl border border-line bg-card p-3">
               <div>
                 <div className="font-semibold">
                   {REASONS.find((r) => r.id === a.reason)?.label ?? a.reason}
@@ -260,6 +262,8 @@ export default function PlanningPage() {
             </div>
           ))
         )}
+      </div>
+      </div>
       </div>
 
       <h2 className="mt-8 text-sm font-bold uppercase tracking-wide text-muted">Règles</h2>

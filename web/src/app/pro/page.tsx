@@ -29,9 +29,9 @@ export default function ProHome() {
   }
 
   return (
-    <div className="px-5 py-6">
-      <div className="text-sm text-muted">AppO Pro</div>
-      <h1 className="text-2xl font-extrabold">Bonjour {me?.user?.firstName} 👋</h1>
+    <div className="px-5 py-6 md:px-8 md:py-8">
+      <div className="text-sm text-muted md:hidden">AppO Pro</div>
+      <h1 className="text-2xl font-extrabold md:text-3xl">Bonjour {me?.user?.firstName}</h1>
       {pending ? (
         <div className="mt-6 rounded-3xl border border-amber-200 bg-amber-50 p-4">
           <div className="font-bold">Compte en cours de vérification</div>
@@ -56,7 +56,7 @@ export default function ProHome() {
           <button
             onClick={toggle}
             disabled={onAbsence}
-            className={`mt-4 w-full rounded-3xl p-5 text-left text-white disabled:opacity-60 ${
+            className={`mt-4 w-full rounded-3xl p-5 text-left text-white disabled:opacity-60 md:max-w-xl ${
               availability?.availableNow ? "bg-green" : "bg-zinc-700"
             }`}
           >
@@ -72,7 +72,7 @@ export default function ProHome() {
                 : "Activez la dispo seulement si vous pouvez accepter maintenant."}
             </div>
           </button>
-          <div className="mt-4 grid grid-cols-2 gap-3">
+          <div className="mt-4 grid grid-cols-2 gap-3 md:max-w-xl">
             <div className="rounded-3xl bg-ink p-4 text-white">
               <div className="text-xs opacity-70">Aujourd’hui</div>
               <div className="text-2xl font-black">{money(data?.today ?? 0)}</div>

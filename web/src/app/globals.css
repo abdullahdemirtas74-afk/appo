@@ -29,35 +29,48 @@
   box-sizing: border-box;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 html,
 body {
+  max-width: 100%;
+  overflow-x: hidden;
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-appo), ui-sans-serif, system-ui, sans-serif;
 }
 
+img,
+video,
+iframe,
+svg {
+  max-width: 100%;
+  height: auto;
+}
+
 button,
 a {
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
-.phone-app {
+input,
+select,
+textarea {
+  font-size: 16px; /* avoid iOS zoom on focus */
+  max-width: 100%;
+}
+
+.app-shell,
+.page-frame {
+  min-width: 0;
+}
+
+.app-shell {
   min-height: 100dvh;
-  max-width: 430px;
-  margin: 0 auto;
-  background: var(--card);
-  box-shadow: 0 0 0 1px var(--line), 0 20px 80px rgba(18, 20, 26, 0.08);
-}
-
-@media (min-width: 900px) {
-  body:has(.phone-app) {
-    background: #ece6dc;
-  }
-  .phone-app {
-    min-height: 100dvh;
-    border-left: 1px solid var(--line);
-    border-right: 1px solid var(--line);
-  }
 }
 
 .pulse-ring {
@@ -72,5 +85,12 @@ a {
   100% {
     transform: scale(1.6);
     opacity: 0;
+  }
+}
+
+/* Prefer readable content width on very large screens */
+@media (min-width: 1536px) {
+  .page-frame {
+    max-width: 72rem;
   }
 }

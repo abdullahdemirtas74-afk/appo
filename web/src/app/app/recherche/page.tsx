@@ -42,16 +42,16 @@ function SearchInner() {
   const when = params.get("when");
 
   return (
-    <div className="px-5 py-6">
-      <h1 className="text-2xl font-extrabold">Professionnels</h1>
+    <div className="px-5 py-6 md:px-8 md:py-8">
+      <h1 className="text-2xl font-extrabold md:text-3xl">Professionnels</h1>
       <input
-        className="mt-4 w-full rounded-2xl border border-line px-4 py-3"
+        className="mt-4 w-full rounded-2xl border border-line bg-card px-4 py-3 md:max-w-xl"
         placeholder="Rechercher un nom, une entreprise…"
         value={q}
         onChange={(e) => setQ(e.target.value)}
       />
       <div className="mt-3 flex gap-2 overflow-x-auto pb-2 text-sm">
-        <select className="rounded-full border border-line px-3 py-2" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+        <select className="rounded-full border border-line bg-card px-3 py-2" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
           <option value="">Catégorie</option>
           {(cats?.categories ?? []).map((c) => (
             <option key={c.id} value={c.id}>
@@ -59,35 +59,35 @@ function SearchInner() {
             </option>
           ))}
         </select>
-        <button className={`rounded-full border px-3 py-2 ${available ? "border-green bg-emerald-50" : "border-line"}`} onClick={() => setAvailable((v) => !v)}>
+        <button className={`rounded-full border px-3 py-2 ${available ? "border-green bg-emerald-50" : "border-line bg-card"}`} onClick={() => setAvailable((v) => !v)}>
           Dispo maintenant
         </button>
-        <select className="rounded-full border border-line px-3 py-2" value={maxKm} onChange={(e) => setMaxKm(e.target.value)}>
+        <select className="rounded-full border border-line bg-card px-3 py-2" value={maxKm} onChange={(e) => setMaxKm(e.target.value)}>
           <option value="">Distance</option>
           <option value="5">5 km</option>
           <option value="10">10 km</option>
           <option value="25">25 km</option>
         </select>
-        <select className="rounded-full border border-line px-3 py-2" value={minRating} onChange={(e) => setMinRating(e.target.value)}>
+        <select className="rounded-full border border-line bg-card px-3 py-2" value={minRating} onChange={(e) => setMinRating(e.target.value)}>
           <option value="">Note</option>
           <option value="4">4+</option>
           <option value="4.5">4,5+</option>
         </select>
-        <select className="rounded-full border border-line px-3 py-2" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)}>
+        <select className="rounded-full border border-line bg-card px-3 py-2" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)}>
           <option value="">Prix</option>
           <option value="50">≤ 50 €</option>
           <option value="80">≤ 80 €</option>
           <option value="120">≤ 120 €</option>
         </select>
       </div>
-      <div className="mt-4 space-y-3 pb-8">
+      <div className="mt-4 grid gap-3 pb-8 sm:grid-cols-2 lg:grid-cols-3">
         {(data?.pros ?? []).map((p) => (
-          <Link key={p.id} href={`/app/pros/${p.id}${when ? `?when=${encodeURIComponent(when)}` : ""}`} className="block rounded-3xl border border-line bg-white p-4">
+          <Link key={p.id} href={`/app/pros/${p.id}${when ? `?when=${encodeURIComponent(when)}` : ""}`} className="block rounded-3xl border border-line bg-card p-4 transition hover:border-appo/30 hover:shadow-sm">
             <div className="flex gap-3">
-              <div className="grid h-14 w-14 place-items-center rounded-full bg-ink font-bold text-white">
+              <div className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-ink font-bold text-white">
                 {p.user.avatar}
               </div>
-              <div className="flex-1">
+              <div className="min-w-0 flex-1">
                 <div className="font-bold">
                   {p.user.firstName} {p.user.lastName.charAt(0)}. — {p.company}
                 </div>
@@ -104,8 +104,8 @@ function SearchInner() {
                     <Badge tone="orange">{p.availability?.label || "Indisponible"}</Badge>
                   )}
                 </div>
+                <div className="mt-2 text-sm font-bold">{money(p.startingPrice)}</div>
               </div>
-              <div className="text-right text-sm font-bold">{money(p.startingPrice)}</div>
             </div>
           </Link>
         ))}
