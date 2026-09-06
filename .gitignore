@@ -1,0 +1,18 @@
+# Installed tooling (local only)
+.tools/
+
+# Dependencies / build
+web/node_modules/
+web/.next/
+web/data/db.json
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Env
+.env
+.env.*
+!.env.example

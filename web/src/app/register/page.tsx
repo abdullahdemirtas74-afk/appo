@@ -1,0 +1,153 @@
+"use client";
+
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { Logo } from "@/components/logo";
+import { Button, Field, inputClass } from "@/components/ui";
+import { api, usePoll } from "@/lib/hooks";
+import { RUMILLY } from "@/lib/geo";
+
+function RegisterForm() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const [role, setRole] = useState<"client" | "pro">(params.get("role") === "pro" ? "pro" : "client");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const { data } = usePoll<{ categories: { id: string; name: string }[] }>("/api/categories", 0);
+  const [form, setForm] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    password: "appo123",
+    company: "",
+    siret: "",
+    categoryId: "cat_plomberie",
+    radiusKm: 25,
+    startingPrice: 59,
+    description: "",
+  });
+
+  useEffect(() => {
+    if (params.get("role") === "pro") setRole("pro");
+  }, [params]);
+
+  function set<K extends keyof typeof form>(k: K, v: (typeof form)[K]) {
+    setForm((f) => ({ ...f, [k]: v }));
+  }
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError("");
+    try {
+      const body =
+        role === "pro"
+          ? {
+              role: "pro",
+              ...form,
+              categoryIds: [form.categoryId],
+              city: RUMILLY.city,
+              lat: RUMILLY.lat,
+              lng: RUMILLY.lng,
+            }
+          : {
+              role: "client",
+              ...form,
+              address: {
+                line: "12 rue de la République",
+                city: RUMILLY.city,
+                zip: "74150",
+                lat: RUMILLY.lat,
+                lng: RUMILLY.lng,
+              },
+            };
+      const res = await api<{ user: { role: string } }>("/api/auth/register", body);
+      router.replace(res.user.role === "pro" ? "/pro" : "/app");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="phone-app px-6 py-8">
+      <Logo />
+      <h1 className="mt-8 text-3xl font-extrabold">Créer un compte</h1>
+      <div className="mt-4 grid grid-cols-2 gap-2 rounded-2xl bg-background p-1">
+        <button className={`rounded-xl py-2 text-sm font-semibold ${role === "client" ? "bg-white shadow" : "text-muted"}`} onClick={() => setRole("client")}>
+          Particulier
+        </button>
+        <button className={`rounded-xl py-2 text-sm font-semibold ${role === "pro" ? "bg-white shadow" : "text-muted"}`} onClick={() => setRole("pro")}>
+          AppO Pro
+        </button>
+      </div>
+      <form onSubmit={submit} className="mt-6 space-y-3 pb-10">
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Prénom">
+            <input className={inputClass} required value={form.firstName} onChange={(e) => set("firstName", e.target.value)} />
+          </Field>
+          <Field label="Nom">
+            <input className={inputClass} required value={form.lastName} onChange={(e) => set("lastName", e.target.value)} />
+          </Field>
+        </div>
+        <Field label="E-mail">
+          <input className={inputClass} type="email" required value={form.email} onChange={(e) => set("email", e.target.value)} />
+        </Field>
+        <Field label="Téléphone">
+          <input className={inputClass} required value={form.phone} onChange={(e) => set("phone", e.target.value)} />
+        </Field>
+        <Field label="Mot de passe">
+          <input className={inputClass} type="password" required value={form.password} onChange={(e) => set("password", e.target.value)} />
+        </Field>
+        {role === "pro" ? (
+          <>
+            <Field label="Entreprise">
+              <input className={inputClass} required value={form.company} onChange={(e) => set("company", e.target.value)} />
+            </Field>
+            <Field label="SIRET">
+              <input className={inputClass} required value={form.siret} onChange={(e) => set("siret", e.target.value)} />
+            </Field>
+            <Field label="Métier">
+              <select className={inputClass} value={form.categoryId} onChange={(e) => set("categoryId", e.target.value)}>
+                {(data?.categories ?? []).map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Rayon d’intervention (km)">
+              <input className={inputClass} type="number" value={form.radiusKm} onChange={(e) => set("radiusKm", Number(e.target.value))} />
+            </Field>
+            <Field label="Prix de départ (€)">
+              <input className={inputClass} type="number" value={form.startingPrice} onChange={(e) => set("startingPrice", Number(e.target.value))} />
+            </Field>
+            <Field label="Description">
+              <textarea className={inputClass} rows={3} value={form.description} onChange={(e) => set("description", e.target.value)} />
+            </Field>
+            <p className="text-xs text-muted">
+              Documents (identité, Kbis, RC Pro) : simulés et envoyés pour validation admin.
+            </p>
+          </>
+        ) : null}
+        {error ? <p className="text-sm text-red-600">{error === "EMAIL_TAKEN" ? "Cet e-mail existe déjà" : error}</p> : null}
+        <Button type="submit" variant="now" className="w-full" disabled={loading}>
+          {loading ? "Création…" : role === "pro" ? "Créer mon compte Pro" : "Créer mon compte"}
+        </Button>
+        <p className="text-center text-sm text-muted">
+          Déjà inscrit ? <a className="font-semibold text-appo" href="/login">Se connecter</a>
+        </p>
+      </form>
+    </div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense>
+      <RegisterForm />
+    </Suspense>
+  );
+}

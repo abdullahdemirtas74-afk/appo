@@ -1,0 +1,118 @@
+"use client";
+
+import Link from "next/link";
+import { Suspense, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Badge, Stars } from "@/components/ui";
+import { usePoll } from "@/lib/hooks";
+import { km, money, stars } from "@/lib/format";
+
+type Pro = {
+  id: string;
+  company: string;
+  startingPrice: number;
+  rating: number;
+  reviewCount: number;
+  distanceKm: number;
+  availableNow: boolean;
+  user: { firstName: string; lastName: string; avatar: string };
+};
+
+function SearchInner() {
+  const params = useSearchParams();
+  const [q, setQ] = useState(params.get("q") ?? "");
+  const [categoryId, setCategoryId] = useState(params.get("categoryId") ?? "");
+  const [available, setAvailable] = useState(false);
+  const [maxKm, setMaxKm] = useState("");
+  const [minRating, setMinRating] = useState("");
+  const [maxPrice, setMaxPrice] = useState("");
+  const qs = useMemo(() => {
+    const p = new URLSearchParams();
+    if (q) p.set("q", q);
+    if (categoryId) p.set("categoryId", categoryId);
+    if (available) p.set("available", "1");
+    if (maxKm) p.set("maxKm", maxKm);
+    if (minRating) p.set("minRating", minRating);
+    if (maxPrice) p.set("maxPrice", maxPrice);
+    return `/api/pros?${p.toString()}`;
+  }, [q, categoryId, available, maxKm, minRating, maxPrice]);
+  const { data } = usePoll<{ pros: Pro[] }>(qs, 4000);
+  const { data: cats } = usePoll<{ categories: { id: string; name: string }[] }>("/api/categories", 0);
+  const when = params.get("when");
+
+  return (
+    <div className="px-5 py-6">
+      <h1 className="text-2xl font-extrabold">Professionnels</h1>
+      <input
+        className="mt-4 w-full rounded-2xl border border-line px-4 py-3"
+        placeholder="Rechercher un nom, une entreprise…"
+        value={q}
+        onChange={(e) => setQ(e.target.value)}
+      />
+      <div className="mt-3 flex gap-2 overflow-x-auto pb-2 text-sm">
+        <select className="rounded-full border border-line px-3 py-2" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+          <option value="">Catégorie</option>
+          {(cats?.categories ?? []).map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+        <button className={`rounded-full border px-3 py-2 ${available ? "border-green bg-emerald-50" : "border-line"}`} onClick={() => setAvailable((v) => !v)}>
+          Dispo maintenant
+        </button>
+        <select className="rounded-full border border-line px-3 py-2" value={maxKm} onChange={(e) => setMaxKm(e.target.value)}>
+          <option value="">Distance</option>
+          <option value="5">5 km</option>
+          <option value="10">10 km</option>
+          <option value="25">25 km</option>
+        </select>
+        <select className="rounded-full border border-line px-3 py-2" value={minRating} onChange={(e) => setMinRating(e.target.value)}>
+          <option value="">Note</option>
+          <option value="4">4+</option>
+          <option value="4.5">4,5+</option>
+        </select>
+        <select className="rounded-full border border-line px-3 py-2" value={maxPrice} onChange={(e) => setMaxPrice(e.target.value)}>
+          <option value="">Prix</option>
+          <option value="50">≤ 50 €</option>
+          <option value="80">≤ 80 €</option>
+          <option value="120">≤ 120 €</option>
+        </select>
+      </div>
+      <div className="mt-4 space-y-3 pb-8">
+        {(data?.pros ?? []).map((p) => (
+          <Link key={p.id} href={`/app/pros/${p.id}${when ? `?when=${encodeURIComponent(when)}` : ""}`} className="block rounded-3xl border border-line bg-white p-4">
+            <div className="flex gap-3">
+              <div className="grid h-14 w-14 place-items-center rounded-full bg-ink font-bold text-white">
+                {p.user.avatar}
+              </div>
+              <div className="flex-1">
+                <div className="font-bold">
+                  {p.user.firstName} {p.user.lastName.charAt(0)}. — {p.company}
+                </div>
+                <div className="mt-0.5 flex items-center gap-2 text-sm">
+                  <Stars value={p.rating} />
+                  <span className="font-semibold">{stars(p.rating)}</span>
+                  <span className="text-muted">{p.reviewCount} avis</span>
+                </div>
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
+                  <span>📍 {km(p.distanceKm)}</span>
+                  {p.availableNow ? <Badge tone="green">🟢 Disponible maintenant</Badge> : <Badge>Hors ligne</Badge>}
+                </div>
+              </div>
+              <div className="text-right text-sm font-bold">{money(p.startingPrice)}</div>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default function RecherchePage() {
+  return (
+    <Suspense>
+      <SearchInner />
+    </Suspense>
+  );
+}

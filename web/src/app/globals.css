@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f4f0ea;
+  --foreground: #12141a;
+  --appo: #ff4d1c;
+  --appo-dark: #e03e12;
+  --ink: #12141a;
+  --muted: #6b645c;
+  --line: #e7e1d8;
+  --card: #fffdf9;
+  --green: #16a34a;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-appo: var(--appo);
+  --color-appo-dark: var(--appo-dark);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-card: var(--card);
+  --color-green: var(--green);
+  --font-sans: var(--font-appo);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-appo), ui-sans-serif, system-ui, sans-serif;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.phone-app {
+  min-height: 100dvh;
+  max-width: 430px;
+  margin: 0 auto;
+  background: var(--card);
+  box-shadow: 0 0 0 1px var(--line), 0 20px 80px rgba(18, 20, 26, 0.08);
+}
+
+@media (min-width: 900px) {
+  body:has(.phone-app) {
+    background: #ece6dc;
+  }
+  .phone-app {
+    min-height: 100dvh;
+    border-left: 1px solid var(--line);
+    border-right: 1px solid var(--line);
+  }
+}
+
+.pulse-ring {
+  animation: pulse-ring 1.6s ease-out infinite;
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.7);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
