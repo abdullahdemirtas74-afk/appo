@@ -1,3 +1,5 @@
+"use client";
+
 import { Guard } from "@/components/guard";
 import { CLIENT_NAV } from "@/components/nav";
 import { AppShell } from "@/components/shell";
