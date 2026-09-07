@@ -14,6 +14,7 @@ import {
   offerBonusSeconds,
   withTierSettings,
 } from "./premium";
+import { withRfqSettings } from "./rfq";
 import { createSeed } from "./seed";
 import type {
   DB,
@@ -31,11 +32,13 @@ let chain: Promise<unknown> = Promise.resolve();
 
 function migrate(db: DB): DB {
   db.pros = db.pros.map(normalizePro);
-  db.settings = withTierSettings(db.settings);
+  db.settings = withRfqSettings(withTierSettings(db.settings));
   if (!db.settings.offerSeconds) db.settings.offerSeconds = 20;
   if (db.settings.commissionRate == null) db.settings.commissionRate = 0.15;
   if (!db.quotes) db.quotes = [];
   if (!db.invoices) db.invoices = [];
+  if (!db.requests) db.requests = [];
+  if (!db.offers) db.offers = [];
   db.missions = db.missions.map((m) => ({
     ...m,
     assigneeMemberId: m.assigneeMemberId ?? null,
@@ -78,6 +81,7 @@ export function mutate<T>(fn: (db: DB) => T | Promise<T>, persist = true) {
   const run = chain.then(async () => {
     const db = await readFile();
     processDispatch(db);
+    broadcastRfqToFreePros(db);
     const result = await fn(db);
     if (persist) await writeFile(db);
     return result;
@@ -145,6 +149,28 @@ function notify(
     href,
     createdAt: new Date().toISOString(),
   });
+}
+
+function broadcastRfqToFreePros(db: DB, now = Date.now()) {
+  for (const req of db.requests ?? []) {
+    if (req.status !== "open" || req.broadcastDone) continue;
+    if (now < new Date(req.primeOnlyUntil).getTime()) continue;
+    const cat = db.categories.find((c) => c.id === req.categoryId);
+    for (const proId of req.candidateProIds) {
+      const pro = db.pros.find((p) => p.id === proId);
+      if (!pro) continue;
+      const tier = effectiveTier(pro, new Date(now));
+      if (tier === "prime" || tier === "elite") continue;
+      notify(
+        db,
+        pro.userId,
+        "Nouvelle demande client",
+        `${cat?.name ?? "Service"} · ${req.city} · ${req.availabilityNote}`,
+        `/pro/demandes/${req.id}`,
+      );
+    }
+    req.broadcastDone = true;
+  }
 }
 
 export function processDispatch(db: DB, now = Date.now()) {

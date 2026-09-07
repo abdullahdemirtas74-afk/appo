@@ -265,6 +265,51 @@ export type Settings = {
   urgencePriceMultiplier: number;
   commissionPrime: number;
   commissionElite: number;
+  /** Minutes where Prime/Elite see RFQ before free Pros */
+  rfqPrimeExclusiveMinutes: number;
+  /** Hours until an open RFQ expires */
+  rfqExpiresHours: number;
+};
+
+export type ServiceRequestStatus = "open" | "awarded" | "cancelled" | "expired";
+
+export type ServiceRequest = {
+  id: string;
+  clientId: string;
+  categoryId: string;
+  description: string;
+  photos: string[];
+  address: string;
+  city: string;
+  lat: number;
+  lng: number;
+  /** Free text: "demain après-midi", "cette semaine" */
+  availabilityNote: string;
+  preferredAt: string | null;
+  status: ServiceRequestStatus;
+  candidateProIds: string[];
+  awardedOfferId: string | null;
+  missionId: string | null;
+  /** Until this ISO, only Prime/Elite can see & bid */
+  primeOnlyUntil: string;
+  /** Free Pros notified after Prime window */
+  broadcastDone: boolean;
+  createdAt: string;
+  expiresAt: string;
+};
+
+export type ProOffer = {
+  id: string;
+  requestId: string;
+  proId: string;
+  price: number;
+  proposedAt: string;
+  durationMinutes: number;
+  message: string;
+  materialsIncluded: "yes" | "no" | "partial";
+  materialsNote?: string;
+  status: "pending" | "accepted" | "rejected" | "withdrawn";
+  createdAt: string;
 };
 
 export type DB = {
@@ -281,6 +326,8 @@ export type DB = {
   disputes: Dispute[];
   quotes: Quote[];
   invoices: Invoice[];
+  requests: ServiceRequest[];
+  offers: ProOffer[];
   settings: Settings;
 };
 

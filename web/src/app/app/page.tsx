@@ -59,14 +59,18 @@ export default function ClientHome() {
         Plombier, électricien, ménage…
       </button>
 
-      <div className="mt-5 grid max-w-2xl grid-cols-1 gap-3 min-[420px]:grid-cols-2 md:mt-6">
+      <div className="mt-5 grid max-w-2xl grid-cols-1 gap-3 min-[420px]:grid-cols-3 md:mt-6">
         <Button href="/app/now" variant="now" className="h-24 flex-col md:h-28">
-          <span className="text-lg">AppO Now</span>
-          <span className="text-xs font-medium opacity-90">Besoin immédiat</span>
+          <span className="text-lg">Maintenant</span>
+          <span className="text-xs font-medium opacity-90">Urgence / immédiat</span>
         </Button>
-        <Button href="/app/planifier" variant="dark" className="h-24 flex-col md:h-28">
+        <Button href="/app/demandes/nouvelle" variant="dark" className="h-24 flex-col md:h-28">
+          <span className="text-lg">Comparer</span>
+          <span className="text-xs font-medium opacity-80">Recevoir des offres</span>
+        </Button>
+        <Button href="/app/planifier" variant="secondary" className="h-24 flex-col md:h-28">
           <span className="text-lg">Planifier</span>
-          <span className="text-xs font-medium opacity-80">Choisir un créneau</span>
+          <span className="text-xs font-medium opacity-80">Choisir un pro</span>
         </Button>
       </div>
 

@@ -989,6 +989,18 @@ export async function proStats(userId: string) {
         const raw = db.missions.find((m) => m.offerProId === pro.id && m.status === "offered") ?? null;
         return raw ? enrichMission(db, raw) : null;
       })(),
+      offerStats: (() => {
+        const mine = (db.offers ?? []).filter((o) => o.proId === pro.id);
+        const accepted = mine.filter((o) => o.status === "accepted").length;
+        return {
+          total: mine.length,
+          accepted,
+          pending: mine.filter((o) => o.status === "pending").length,
+          rejected: mine.filter((o) => o.status === "rejected").length,
+          winRate: mine.length ? accepted / mine.length : 0,
+          avgPrice: mine.length ? mine.reduce((a, o) => a + o.price, 0) / mine.length : 0,
+        };
+      })(),
     };
   }, true);
 }
@@ -1162,6 +1174,9 @@ export function errorStatus(e: unknown) {
     INVALID_CREDENTIALS: 401,
     EMAIL_TAKEN: 409,
     SUSPENDED: 403,
+    INVALID_PRICE: 400,
+    INVALID_DATE: 400,
+    INVALID_STATE: 409,
     NOT_VERIFIED: 403,
   };
   return { status: map[msg] ?? 400, error: msg };
