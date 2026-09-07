@@ -35,6 +35,14 @@ const planningDefaults = {
   maxMissionsPerDay: 1,
   premiumUntil: null as string | null,
   premiumPlan: "none" as const,
+  subscriptionTier: "pro" as const,
+  primeUntil: null as string | null,
+  primePlan: "none" as const,
+  boostUntil: null as string | null,
+  loyaltyPoints: 0,
+  loyaltyBadge: "none" as const,
+  businessEnabled: false,
+  team: [] as { id: string; name: string; phone: string; role: "owner" | "intervenant"; active: boolean }[],
 };
 
 export function createSeed(): DB {
@@ -109,6 +117,17 @@ export function createSeed(): DB {
       ...planningDefaults,
       premiumUntil: daysFromNow(60, 23),
       premiumPlan: "monthly" as const,
+      subscriptionTier: "prime" as const,
+      primeUntil: daysFromNow(60, 23),
+      primePlan: "monthly" as const,
+      boostUntil: daysFromNow(1, 23),
+      loyaltyPoints: 420,
+      loyaltyBadge: "gold" as const,
+      businessEnabled: true,
+      team: [
+        { id: "tm_kevin_owner", name: "Kevin Petit", phone: "06 45 67 89 01", role: "owner" as const, active: true },
+        { id: "tm_kevin_1", name: "Julien Martin", phone: "06 01 02 03 04", role: "intervenant" as const, active: true },
+      ],
       rating: 4.9,
       reviewCount: 127,
       missionCount: 37,
@@ -161,6 +180,8 @@ export function createSeed(): DB {
       documents: docsOk,
       schedule: weekSchedule().map((d) => ({ ...d, available: d.day !== 0 })),
       ...planningDefaults,
+      loyaltyPoints: 520,
+      loyaltyBadge: "elite" as const,
       rating: 4.7,
       reviewCount: 210,
       missionCount: 80,
@@ -503,6 +524,9 @@ export function createSeed(): DB {
     startProLng: null,
     paymentStatus: "paid" as const,
     paymentMethod: p.method,
+    assigneeMemberId: null,
+    quoteId: null,
+    invoiceId: null,
   }));
 
   const extraMonth = [210, 175, 240, 130, 190, 155, 200, 110, 145].map((amount, i) =>
@@ -539,14 +563,25 @@ export function createSeed(): DB {
     startProLng: null,
     paymentStatus: "paid" as const,
     paymentMethod: "card",
+    assigneeMemberId: null,
+    quoteId: null,
+    invoiceId: null,
   }));
+
+  const withMissionExtras = <T extends Record<string, unknown>>(list: T[]) =>
+    list.map((m) => ({
+      assigneeMemberId: null,
+      quoteId: null,
+      invoiceId: null,
+      ...m,
+    }));
 
   return {
     users,
     addresses,
     categories,
     pros,
-    missions: [...missions, ...extraMissions, ...extraMonthMissions],
+    missions: withMissionExtras([...missions, ...extraMissions, ...extraMonthMissions]),
     messages: [
       {
         id: "msg1",
@@ -624,6 +659,8 @@ export function createSeed(): DB {
         createdAt: daysAgo(4, 9),
       },
     ],
+    quotes: [],
+    invoices: [],
     settings: {
       commissionRate: 0.15,
       offerSeconds: 20,
@@ -631,6 +668,16 @@ export function createSeed(): DB {
       premiumYearlyPrice: 399,
       premiumExclusiveSeconds: 45,
       premiumOfferBonusSeconds: 10,
+      primeMonthlyPrice: 49,
+      primeYearlyPrice: 399,
+      eliteExclusiveSeconds: 20,
+      primeExclusiveSeconds: 45,
+      boost24hPrice: 9,
+      boost7dPrice: 29,
+      urgenceCommissionBonus: 0.03,
+      urgencePriceMultiplier: 1.25,
+      commissionPrime: 0.12,
+      commissionElite: 0.1,
     },
   };
 }

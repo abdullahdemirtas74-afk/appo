@@ -21,12 +21,27 @@ import {
 } from "./availability";
 import { etaMinutes, haversineKm } from "./geo";
 import {
-  extendPremiumUntil,
-  isPremiumActive,
-  premiumDaysLeft,
-  withPremiumSettings,
+  commissionForPro,
+  computeLoyaltyBadge,
+  effectiveTier,
+  extendBoostUntil,
+  extendPrimeUntil,
+  isBoostActive,
+  isPrimeActive,
+  matchingScore,
+  primeDaysLeft,
+  verifiedComplete,
+  withTierSettings,
 } from "./premium";
-import type { AbsenceReason, Mission, MissionStatus, ProAbsence, Role, ScheduleDay } from "./types";
+import type {
+  AbsenceReason,
+  Mission,
+  MissionStatus,
+  ProAbsence,
+  QuoteLine,
+  Role,
+  ScheduleDay,
+} from "./types";
 
 export async function login(email: string, password: string) {
   return mutate((db) => {
@@ -147,6 +162,22 @@ export async function registerPro(input: {
       maxMissionsPerDay: 1,
       premiumUntil: null,
       premiumPlan: "none",
+      subscriptionTier: "pro",
+      primeUntil: null,
+      primePlan: "none",
+      boostUntil: null,
+      loyaltyPoints: 0,
+      loyaltyBadge: "none",
+      businessEnabled: false,
+      team: [
+        {
+          id: nid("tm"),
+          name: `${input.firstName} ${input.lastName}`.trim(),
+          phone: input.phone,
+          role: "owner",
+          active: true,
+        },
+      ],
       rating: 0,
       reviewCount: 0,
       missionCount: 0,
@@ -173,13 +204,18 @@ export async function getMe(userId: string) {
       notifications,
       favorites,
       unread: notifications.filter((n) => !n.read).length,
-      settings: db.settings,
+      settings: withTierSettings(db.settings),
       pro: pro
         ? {
             ...pro,
             availability: availabilitySnapshot(db, pro),
-            premiumActive: isPremiumActive(pro),
-            premiumDaysLeft: premiumDaysLeft(pro),
+            premiumActive: isPrimeActive(pro),
+            premiumDaysLeft: primeDaysLeft(pro),
+            tier: effectiveTier(pro),
+            boostActive: isBoostActive(pro),
+            loyaltyBadge: computeLoyaltyBadge(pro),
+            verifiedComplete: verifiedComplete(pro),
+            primeDaysLeft: primeDaysLeft(pro),
           }
         : null,
     };
@@ -226,7 +262,8 @@ export async function listPros(params: {
         const user = db.users.find((u) => u.id === p.userId)!;
         const distanceKm = haversineKm(origin.lat, origin.lng, p.lat, p.lng);
         const availability = availabilitySnapshot(db, p);
-        const premiumActive = isPremiumActive(p);
+        const premiumActive = isPrimeActive(p);
+        const boostActive = isBoostActive(p);
         return {
           ...p,
           user: publicUser(user),
@@ -234,13 +271,17 @@ export async function listPros(params: {
           availableNow: availability.availableNow && distanceKm <= p.radiusKm,
           availability,
           premiumActive,
+          boostActive,
+          tier: effectiveTier(p),
+          verifiedComplete: verifiedComplete(p),
+          score: matchingScore(p),
         };
       })
       .filter((p) => (params.available ? p.availableNow : true))
       .filter((p) => (params.maxKm ? p.distanceKm <= params.maxKm : true))
       .sort(
         (a, b) =>
-          Number(b.premiumActive) - Number(a.premiumActive) ||
+          b.score - a.score ||
           Number(b.availableNow) - Number(a.availableNow) ||
           a.distanceKm - b.distanceKm,
       );
@@ -259,7 +300,7 @@ export async function getPro(id: string, origin?: { lat: number; lng: number }) 
     const categories = db.categories.filter((c) => p.categoryIds.includes(c.id));
     const distanceKm = origin ? haversineKm(origin.lat, origin.lng, p.lat, p.lng) : null;
     const availability = availabilitySnapshot(db, p);
-    const premiumActive = isPremiumActive(p);
+    const premiumActive = isPrimeActive(p);
     return {
       ...p,
       user: publicUser(user),
@@ -269,12 +310,17 @@ export async function getPro(id: string, origin?: { lat: number; lng: number }) 
       availability,
       availableNow: availability.availableNow,
       premiumActive,
+      boostActive: isBoostActive(p),
+      tier: effectiveTier(p),
+      verifiedComplete: verifiedComplete(p),
+      loyaltyBadge: computeLoyaltyBadge(p),
+      primeDaysLeft: primeDaysLeft(p),
     };
   }, false);
 }
 
 export async function createMission(userId: string, input: {
-  type: "now" | "scheduled";
+  type: "now" | "scheduled" | "urgence";
   categoryId: string;
   description: string;
   photos: string[];
@@ -289,6 +335,10 @@ export async function createMission(userId: string, input: {
     const user = requireUser(db, userId, "client");
     const category = db.categories.find((c) => c.id === input.categoryId);
     if (!category || !category.active) throw new Error("INVALID_CATEGORY");
+    const settings = withTierSettings(db.settings);
+    const isUrgence = input.type === "urgence";
+    let price = category.indicativePrice;
+    if (isUrgence) price = Math.round(price * settings.urgencePriceMultiplier * 100) / 100;
     const mission: Mission = {
       id: nid("mis"),
       type: input.type,
@@ -303,11 +353,13 @@ export async function createMission(userId: string, input: {
       description: input.description,
       photos: input.photos ?? [],
       scheduledAt: input.scheduledAt ?? null,
-      price: category.indicativePrice,
+      price,
       supplement: 0,
       pendingSupplement: null,
       pendingSupplementReason: null,
-      commissionRate: db.settings.commissionRate,
+      commissionRate: isUrgence
+        ? Math.min(0.35, settings.commissionRate + settings.urgenceCommissionBonus)
+        : settings.commissionRate,
       createdAt: new Date().toISOString(),
       timeline: [],
       candidateProIds: [],
@@ -319,12 +371,15 @@ export async function createMission(userId: string, input: {
       startProLng: null,
       paymentStatus: "none",
       paymentMethod: null,
+      assigneeMemberId: null,
+      quoteId: null,
+      invoiceId: null,
     };
 
     if (input.proId) {
       const pro = db.pros.find((p) => p.id === input.proId);
       if (!pro || pro.status !== "verified") throw new Error("PRO_UNAVAILABLE");
-      if (input.type === "now") {
+      if (input.type === "now" || input.type === "urgence") {
         if (!canReceiveNowOffer(db, pro)) throw new Error("PRO_UNAVAILABLE");
       } else if (input.scheduledAt) {
         const snap = availabilitySnapshot(db, pro, new Date(), {
@@ -332,7 +387,10 @@ export async function createMission(userId: string, input: {
         });
         if (!snap.bookable) throw new Error("PRO_UNAVAILABLE");
       }
-      mission.price = pro.startingPrice;
+      mission.price = isUrgence
+        ? Math.round(pro.startingPrice * settings.urgencePriceMultiplier * 100) / 100
+        : pro.startingPrice;
+      mission.commissionRate = commissionForPro(pro, settings, isUrgence);
       mission.status = "offered";
       mission.offerProId = pro.id;
       mission.candidateProIds = [pro.id];
@@ -341,15 +399,26 @@ export async function createMission(userId: string, input: {
         notify(
           db,
           proUser.id,
-          input.type === "now" ? "Nouvelle mission AppO Now" : "Nouvelle réservation planifiée",
+          input.type === "urgence"
+            ? "Urgence AppO"
+            : input.type === "now"
+              ? "Nouvelle mission AppO Now"
+              : "Nouvelle réservation planifiée",
           `${category.name} · ${input.city}`,
           `/pro/missions/${mission.id}`,
         );
       }
     } else {
-      const matched = matchPros(db, input.categoryId, input.lat, input.lng);
+      const matched = matchPros(db, input.categoryId, input.lat, input.lng, {
+        urgence: isUrgence,
+      });
       mission.candidateProIds = matched.map((m) => m.pro.id);
-      if (matched[0]) mission.price = matched[0].pro.startingPrice;
+      if (matched[0]) {
+        const base = matched[0].pro.startingPrice;
+        mission.price = isUrgence
+          ? Math.round(base * settings.urgencePriceMultiplier * 100) / 100
+          : base;
+      }
     }
 
     db.missions.unshift(mission);
@@ -405,6 +474,7 @@ export async function missionAction(userId: string, id: string, action: string, 
       m.offerProId = null;
       m.offerExpiresAt = null;
       m.status = "accepted";
+      m.commissionRate = commissionForPro(pro, db.settings, m.type === "urgence");
       m.etaMinutes = etaMinutes(haversineKm(m.lat, m.lng, pro.lat, pro.lng));
       m.startProLat = pro.lat;
       m.startProLng = pro.lng;
@@ -479,12 +549,13 @@ export async function missionAction(userId: string, id: string, action: string, 
       if (m.status !== "completed" || m.paymentStatus === "paid") throw new Error("INVALID_STATE");
       const amount = m.price + m.supplement;
       const commission = Math.round(amount * m.commissionRate * 100) / 100;
+      const proAmount = Math.round((amount - commission) * 100) / 100;
       db.payments.push({
         id: nid("pay"),
         missionId: m.id,
         amount,
         commission,
-        proAmount: Math.round((amount - commission) * 100) / 100,
+        proAmount,
         status: "paid",
         method: String(payload.method ?? "card"),
         createdAt: now,
@@ -492,9 +563,60 @@ export async function missionAction(userId: string, id: string, action: string, 
       });
       m.paymentStatus = "paid";
       m.paymentMethod = String(payload.method ?? "card");
-      if (pro) {
-        const proUser = db.users.find((u) => u.id === pro.userId);
+      const missionPro = m.proId ? db.pros.find((p) => p.id === m.proId) : null;
+      if (missionPro) {
+        if (!m.invoiceId) {
+          if (!db.invoices) db.invoices = [];
+          const invoice = {
+            id: nid("inv"),
+            number: `FAC-${new Date().getFullYear()}-${String(db.invoices.length + 1).padStart(4, "0")}`,
+            missionId: m.id,
+            quoteId: m.quoteId,
+            proId: missionPro.id,
+            clientId: m.clientId,
+            total: amount,
+            commission,
+            proAmount,
+            createdAt: now,
+          };
+          db.invoices.push(invoice);
+          m.invoiceId = invoice.id;
+        }
+        const ratingBonus = Math.max(0, Math.round(missionPro.rating));
+        missionPro.loyaltyPoints = (missionPro.loyaltyPoints ?? 0) + 10 + ratingBonus;
+        missionPro.loyaltyBadge = computeLoyaltyBadge(missionPro);
+        const proUser = db.users.find((u) => u.id === missionPro.userId);
         if (proUser) notify(db, proUser.id, "Paiement reçu", `${amount} € encaissés via AppO`, `/pro/revenus`);
+      }
+    } else if (action === "signQuote") {
+      if (m.clientId !== user.id) throw new Error("FORBIDDEN");
+      if (!m.quoteId) throw new Error("INVALID_STATE");
+      if (!db.quotes) db.quotes = [];
+      const quote = db.quotes.find((q) => q.id === m.quoteId);
+      if (!quote || quote.status !== "sent") throw new Error("INVALID_STATE");
+      quote.status = "signed";
+      quote.signedAt = now;
+      m.price = quote.total;
+      const missionPro = m.proId ? db.pros.find((p) => p.id === m.proId) : null;
+      if (missionPro) {
+        const proUser = db.users.find((u) => u.id === missionPro.userId);
+        if (proUser) {
+          notify(db, proUser.id, "Devis signé", `Le client a accepté le devis (${quote.total} €)`, `/pro/missions/${m.id}`);
+        }
+      }
+    } else if (action === "rejectQuote") {
+      if (m.clientId !== user.id) throw new Error("FORBIDDEN");
+      if (!m.quoteId) throw new Error("INVALID_STATE");
+      if (!db.quotes) db.quotes = [];
+      const quote = db.quotes.find((q) => q.id === m.quoteId);
+      if (!quote || quote.status !== "sent") throw new Error("INVALID_STATE");
+      quote.status = "rejected";
+      const missionPro = m.proId ? db.pros.find((p) => p.id === m.proId) : null;
+      if (missionPro) {
+        const proUser = db.users.find((u) => u.id === missionPro.userId);
+        if (proUser) {
+          notify(db, proUser.id, "Devis refusé", "Le client a refusé le devis", `/pro/missions/${m.id}`);
+        }
       }
     } else if (action === "review") {
       if (m.clientId !== user.id) throw new Error("FORBIDDEN");
@@ -512,11 +634,13 @@ export async function missionAction(userId: string, id: string, action: string, 
         photos: Array.isArray(payload.photos) ? (payload.photos as string[]) : [],
         createdAt: now,
       });
-      if (pro) {
-        const total = pro.rating * pro.reviewCount + rating;
-        pro.reviewCount += 1;
-        pro.rating = Math.round((total / pro.reviewCount) * 10) / 10;
-        const proUser = db.users.find((u) => u.id === pro.userId);
+      const missionPro = m.proId ? db.pros.find((p) => p.id === m.proId) : null;
+      if (missionPro) {
+        const total = missionPro.rating * missionPro.reviewCount + rating;
+        missionPro.reviewCount += 1;
+        missionPro.rating = Math.round((total / missionPro.reviewCount) * 10) / 10;
+        missionPro.loyaltyBadge = computeLoyaltyBadge(missionPro);
+        const proUser = db.users.find((u) => u.id === missionPro.userId);
         if (proUser) notify(db, proUser.id, "Nouvel avis", `${rating}/5 — ${String(payload.comment ?? "")}`, `/pro/profil`);
       }
     } else if (action === "cancel") {
@@ -587,17 +711,24 @@ export async function updatePro(userId: string, patch: Record<string, unknown>) 
       return { pro, availability: availabilitySnapshot(db, pro) };
     }
 
-    if (patch.action === "subscribePremium") {
+    if (patch.action === "subscribePremium" || patch.action === "subscribePrime") {
       if (pro.status !== "verified") throw new Error("NOT_VERIFIED");
       const plan = patch.plan === "yearly" ? "yearly" : "monthly";
-      const settings = withPremiumSettings(db.settings);
-      const amount = plan === "yearly" ? settings.premiumYearlyPrice : settings.premiumMonthlyPrice;
-      pro.premiumUntil = extendPremiumUntil(pro.premiumUntil, plan);
+      const settings = withTierSettings(db.settings);
+      const amount =
+        plan === "yearly"
+          ? settings.primeYearlyPrice ?? settings.premiumYearlyPrice
+          : settings.primeMonthlyPrice ?? settings.premiumMonthlyPrice;
+      const until = extendPrimeUntil(pro.primeUntil || pro.premiumUntil, plan);
+      pro.primeUntil = until;
+      pro.premiumUntil = until;
+      pro.primePlan = plan;
       pro.premiumPlan = plan;
+      pro.subscriptionTier = "prime";
       // Simulated marketplace payment (no card charge)
       db.payments.unshift({
         id: nid("pay"),
-        missionId: `premium_${pro.id}`,
+        missionId: `prime_${pro.id}`,
         amount,
         commission: amount,
         proAmount: 0,
@@ -609,19 +740,158 @@ export async function updatePro(userId: string, patch: Record<string, unknown>) 
       notify(
         db,
         pro.userId,
-        "AppO Premium activé",
+        "AppO Prime activé",
         plan === "yearly"
-          ? "Vous êtes Premium 12 mois : annonces prioritaires + mise en avant."
-          : "Vous êtes Premium 30 jours : annonces prioritaires + mise en avant.",
+          ? "Vous êtes Prime 12 mois : priorités matching + avantages Elite-ready."
+          : "Vous êtes Prime 30 jours : priorités matching + mise en avant.",
         "/pro/premium",
       );
       return {
         pro,
         premiumActive: true,
-        premiumDaysLeft: premiumDaysLeft(pro),
+        premiumDaysLeft: primeDaysLeft(pro),
+        primeDaysLeft: primeDaysLeft(pro),
+        tier: effectiveTier(pro),
         amount,
         plan,
       };
+    }
+
+    if (patch.action === "buyBoost") {
+      if (pro.status !== "verified") throw new Error("NOT_VERIFIED");
+      const plan = patch.plan === "7d" ? "7d" : "24h";
+      const settings = withTierSettings(db.settings);
+      const hours = plan === "7d" ? 168 : 24;
+      const amount = plan === "7d" ? settings.boost7dPrice : settings.boost24hPrice;
+      pro.boostUntil = extendBoostUntil(pro.boostUntil, hours);
+      db.payments.unshift({
+        id: nid("pay"),
+        missionId: `boost_${pro.id}`,
+        amount,
+        commission: amount,
+        proAmount: 0,
+        method: "card",
+        status: "paid",
+        createdAt: new Date().toISOString(),
+        paidAt: new Date().toISOString(),
+      });
+      notify(
+        db,
+        pro.userId,
+        "Boost activé",
+        plan === "7d" ? "Votre profil est boosté 7 jours." : "Votre profil est boosté 24 h.",
+        "/pro/premium",
+      );
+      return {
+        pro,
+        boostActive: true,
+        boostUntil: pro.boostUntil,
+        amount,
+        plan,
+      };
+    }
+
+    if (patch.action === "setBusiness") {
+      pro.businessEnabled = Boolean(patch.businessEnabled);
+      if (pro.businessEnabled && (!pro.team || pro.team.length === 0)) {
+        const ownerUser = db.users.find((u) => u.id === pro.userId);
+        pro.team = [
+          {
+            id: nid("tm"),
+            name: ownerUser ? `${ownerUser.firstName} ${ownerUser.lastName}`.trim() : pro.company,
+            phone: ownerUser?.phone ?? "",
+            role: "owner",
+            active: true,
+          },
+        ];
+      }
+      return { pro };
+    }
+
+    if (patch.action === "addTeamMember") {
+      if (!pro.businessEnabled) throw new Error("BUSINESS_DISABLED");
+      const name = String(patch.name ?? "").trim();
+      const phone = String(patch.phone ?? "").trim();
+      if (!name || !phone) throw new Error("INVALID_MEMBER");
+      if (!pro.team) pro.team = [];
+      const member = {
+        id: nid("tm"),
+        name,
+        phone,
+        role: "intervenant" as const,
+        active: true,
+      };
+      pro.team.push(member);
+      return { pro, member };
+    }
+
+    if (patch.action === "removeTeamMember") {
+      const memberId = String(patch.memberId ?? "");
+      if (!pro.team) pro.team = [];
+      const member = pro.team.find((t) => t.id === memberId);
+      if (!member) throw new Error("NOT_FOUND");
+      if (member.role === "owner") throw new Error("FORBIDDEN");
+      pro.team = pro.team.filter((t) => t.id !== memberId);
+      for (const mission of db.missions) {
+        if (mission.proId === pro.id && mission.assigneeMemberId === memberId) {
+          mission.assigneeMemberId = null;
+        }
+      }
+      return { pro };
+    }
+
+    if (patch.action === "assignMission") {
+      const missionId = String(patch.missionId ?? "");
+      const memberId = String(patch.memberId ?? "");
+      const mission = db.missions.find((x) => x.id === missionId && x.proId === pro.id);
+      if (!mission) throw new Error("NOT_FOUND");
+      if (!pro.businessEnabled) throw new Error("BUSINESS_DISABLED");
+      const member = (pro.team ?? []).find((t) => t.id === memberId && t.active);
+      if (!member) throw new Error("NOT_FOUND");
+      mission.assigneeMemberId = member.id;
+      return { pro, mission: enrichMission(db, mission) };
+    }
+
+    if (patch.action === "createQuote") {
+      const missionId = String(patch.missionId ?? "");
+      const mission = db.missions.find((x) => x.id === missionId && x.proId === pro.id);
+      if (!mission) throw new Error("NOT_FOUND");
+      const rawLines = Array.isArray(patch.lines) ? patch.lines : [];
+      const lines: QuoteLine[] = rawLines
+        .map((l) => {
+          const row = l as { label?: unknown; amount?: unknown };
+          return {
+            label: String(row.label ?? "").trim(),
+            amount: Number(row.amount ?? 0),
+          };
+        })
+        .filter((l) => l.label && Number.isFinite(l.amount));
+      if (!lines.length) throw new Error("INVALID_QUOTE");
+      const total = Math.round(lines.reduce((a, l) => a + l.amount, 0) * 100) / 100;
+      if (!db.quotes) db.quotes = [];
+      const quote = {
+        id: nid("qte"),
+        missionId: mission.id,
+        proId: pro.id,
+        clientId: mission.clientId,
+        lines,
+        total,
+        status: "sent" as const,
+        note: patch.note ? String(patch.note) : undefined,
+        createdAt: new Date().toISOString(),
+        sentAt: new Date().toISOString(),
+        signedAt: null,
+      };
+      db.quotes.push(quote);
+      mission.quoteId = quote.id;
+      notify(
+        db,
+        mission.clientId,
+        "Nouveau devis",
+        `${pro.company} vous a envoyé un devis de ${total} €`,
+        `/app/missions/${mission.id}`,
+      );
+      return { pro, quote, mission: enrichMission(db, mission) };
     }
 
     if (typeof patch.online === "boolean") {
@@ -649,6 +919,9 @@ export async function proStats(userId: string) {
     requireUser(db, userId, "pro");
     const pro = proByUser(db, userId);
     if (!pro) throw new Error("NOT_FOUND");
+    const settings = withTierSettings(db.settings);
+    const myMissions = db.missions.filter((m) => m.proId === pro.id);
+    const missionsCompleted = myMissions.filter((m) => m.status === "completed").length;
     const pays = db.payments.filter((p) => {
       const m = db.missions.find((x) => x.id === p.missionId);
       return m?.proId === pro.id && p.status === "paid";
@@ -663,17 +936,26 @@ export async function proStats(userId: string) {
       pays.filter((p) => new Date(p.paidAt ?? p.createdAt).getTime() >= from).reduce((a, p) => a + p.amount, 0);
     const fees = (from: number) =>
       pays.filter((p) => new Date(p.paidAt ?? p.createdAt).getTime() >= from).reduce((a, p) => a + p.commission, 0);
+    const offeredOrAssigned = db.missions.filter(
+      (m) => m.proId === pro.id || m.candidateProIds.includes(pro.id) || m.offerProId === pro.id,
+    ).length;
+    const quotes = (db.quotes ?? []).filter((q) => q.proId === pro.id);
     return {
       today: sum(today),
       week: sum(week),
       month: sum(month),
       grossMonth: gross(month),
       feesMonth: fees(month),
+      commissionPaidMonth: fees(month),
+      averageBasket: pays.length ? gross(0) / pays.length : 0,
+      conversionRate: offeredOrAssigned ? missionsCompleted / offeredOrAssigned : 0,
+      missionsCompleted,
+      reviewCount: pro.reviewCount,
       upcoming: db.missions
         .filter((m) => m.proId === pro.id && m.status === "completed" && m.paymentStatus === "pending")
         .reduce((a, m) => a + (m.price + m.supplement) * (1 - m.commissionRate), 0),
       payments: pays.sort((a, b) => (b.paidAt ?? "").localeCompare(a.paidAt ?? "")),
-      missions: db.missions.filter((m) => m.proId === pro.id).length,
+      missions: myMissions.length,
       rating: pro.rating,
       online: pro.online,
       availability: availabilitySnapshot(db, pro),
@@ -682,11 +964,26 @@ export async function proStats(userId: string) {
       leadTimeHours: pro.leadTimeHours,
       maxMissionsPerDay: pro.maxMissionsPerDay,
       schedule: pro.schedule,
-      premiumActive: isPremiumActive(pro),
+      premiumActive: isPrimeActive(pro),
       premiumUntil: pro.premiumUntil,
       premiumPlan: pro.premiumPlan,
-      premiumDaysLeft: premiumDaysLeft(pro),
-      premium: withPremiumSettings(db.settings),
+      premiumDaysLeft: primeDaysLeft(pro),
+      primeUntil: pro.primeUntil,
+      primePlan: pro.primePlan,
+      primeDaysLeft: primeDaysLeft(pro),
+      subscriptionTier: pro.subscriptionTier ?? "pro",
+      tier: effectiveTier(pro),
+      boostActive: isBoostActive(pro),
+      boostUntil: pro.boostUntil,
+      loyaltyBadge: computeLoyaltyBadge(pro),
+      loyaltyPoints: pro.loyaltyPoints ?? 0,
+      quotes: quotes.length,
+      quotesList: quotes.slice(0, 20),
+      team: pro.team ?? [],
+      businessEnabled: !!pro.businessEnabled,
+      verifiedComplete: verifiedComplete(pro),
+      premium: settings,
+      settings,
       offer: (() => {
         if (!canReceiveNowOffer(db, pro)) return null;
         const raw = db.missions.find((m) => m.offerProId === pro.id && m.status === "offered") ?? null;
@@ -784,7 +1081,25 @@ export async function adminAction(userId: string, action: string, payload: Recor
       if (payload.premiumOfferBonusSeconds != null) {
         db.settings.premiumOfferBonusSeconds = Number(payload.premiumOfferBonusSeconds);
       }
-      db.settings = withPremiumSettings(db.settings);
+      if (payload.primeMonthlyPrice != null) db.settings.primeMonthlyPrice = Number(payload.primeMonthlyPrice);
+      if (payload.primeYearlyPrice != null) db.settings.primeYearlyPrice = Number(payload.primeYearlyPrice);
+      if (payload.eliteExclusiveSeconds != null) {
+        db.settings.eliteExclusiveSeconds = Number(payload.eliteExclusiveSeconds);
+      }
+      if (payload.primeExclusiveSeconds != null) {
+        db.settings.primeExclusiveSeconds = Number(payload.primeExclusiveSeconds);
+      }
+      if (payload.boost24hPrice != null) db.settings.boost24hPrice = Number(payload.boost24hPrice);
+      if (payload.boost7dPrice != null) db.settings.boost7dPrice = Number(payload.boost7dPrice);
+      if (payload.urgenceCommissionBonus != null) {
+        db.settings.urgenceCommissionBonus = Number(payload.urgenceCommissionBonus);
+      }
+      if (payload.urgencePriceMultiplier != null) {
+        db.settings.urgencePriceMultiplier = Number(payload.urgencePriceMultiplier);
+      }
+      if (payload.commissionPrime != null) db.settings.commissionPrime = Number(payload.commissionPrime);
+      if (payload.commissionElite != null) db.settings.commissionElite = Number(payload.commissionElite);
+      db.settings = withTierSettings(db.settings);
       return db.settings;
     }
     if (action === "resolveDispute") {
@@ -819,16 +1134,22 @@ export async function adminLists() {
     pros: db.pros.map((p) => ({
       ...p,
       user: publicUser(db.users.find((u) => u.id === p.userId)!),
-      premiumActive: isPremiumActive(p),
+      premiumActive: isPrimeActive(p),
+      boostActive: isBoostActive(p),
+      tier: effectiveTier(p),
+      verifiedComplete: verifiedComplete(p),
+      loyaltyBadge: computeLoyaltyBadge(p),
     })),
     missions: db.missions.map((m) => enrichMission(db, m)),
     payments: db.payments,
+    quotes: db.quotes ?? [],
+    invoices: db.invoices ?? [],
     disputes: db.disputes.map((d) => ({
       ...d,
       mission: db.missions.find((m) => m.id === d.missionId),
     })),
     categories: db.categories,
-    settings: withPremiumSettings(db.settings),
+    settings: withTierSettings(db.settings),
   }), false);
 }
 

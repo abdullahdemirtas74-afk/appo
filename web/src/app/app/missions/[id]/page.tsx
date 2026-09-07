@@ -37,9 +37,11 @@ export default function MissionClientPage() {
           </div>
           <h1 className="mt-6 text-xl font-extrabold">Recherche des professionnels…</h1>
           <p className="mt-2 text-sm text-muted">
-            {m.status === "offered"
-              ? `Un pro a ${m.remainingOffer}s pour accepter`
-              : "AppO sélectionne les professionnels vérifiés autour de vous."}
+            {m.type === "urgence"
+              ? "Urgence ⚡ — AppO contacte les pros disponibles près de vous."
+              : m.status === "offered"
+                ? `Un pro a ${m.remainingOffer}s pour accepter`
+                : "AppO sélectionne les professionnels vérifiés autour de vous."}
           </p>
         </div>
       ) : m.status === "unmatched" ? (
@@ -96,6 +98,33 @@ export default function MissionClientPage() {
         </>
       )}
 
+      {m.quote && m.quote.status === "sent" ? (
+        <div className="mt-6 rounded-3xl border border-amber-200 bg-amber-50 p-4">
+          <div className="font-bold">Devis à signer 🧾</div>
+          <div className="mt-1 text-2xl font-black">{money(m.quote.total)}</div>
+          <ul className="mt-2 space-y-1 text-sm">
+            {(m.quote.lines ?? []).map((l: any, i: number) => (
+              <li key={i} className="flex justify-between">
+                <span>{l.label}</span>
+                <b>{money(l.amount)}</b>
+              </li>
+            ))}
+          </ul>
+          <Button className="mt-3 w-full" variant="now" onClick={() => act("signQuote")}>
+            Signer le devis
+          </Button>
+          <Button className="mt-2 w-full" variant="secondary" onClick={() => act("rejectQuote")}>
+            Refuser
+          </Button>
+        </div>
+      ) : null}
+
+      {m.quote?.status === "signed" ? (
+        <div className="mt-4 rounded-2xl border border-green/30 bg-emerald-50 p-3 text-sm">
+          Devis signé · {money(m.quote.total)}
+        </div>
+      ) : null}
+
       {m.pendingSupplement != null ? (
         <div className="mt-6 rounded-3xl border border-orange-200 bg-orange-50 p-4">
           <div className="font-bold">Supplément demandé : +{m.pendingSupplement} €</div>
@@ -146,7 +175,15 @@ export default function MissionClientPage() {
 
       {m.paymentStatus === "paid" ? (
         <div className="mt-4 rounded-2xl bg-background p-4 text-sm">
-          Facture {m.id} · {money(m.total)} · {m.paymentMethod}
+          {m.invoice ? (
+            <>
+              Facture {m.invoice.number} · {money(m.invoice.total)} · générée automatiquement
+            </>
+          ) : (
+            <>
+              Facture {m.id} · {money(m.total)} · {m.paymentMethod}
+            </>
+          )}
         </div>
       ) : null}
 

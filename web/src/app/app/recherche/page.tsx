@@ -16,6 +16,10 @@ type Pro = {
   distanceKm: number;
   availableNow: boolean;
   premiumActive?: boolean;
+  boostActive?: boolean;
+  tier?: string;
+  verifiedComplete?: boolean;
+  loyaltyBadge?: string;
   availability?: { label: string; reason: string; backAt: string | null };
   user: { firstName: string; lastName: string; avatar: string };
 };
@@ -93,7 +97,16 @@ function SearchInner() {
                   {p.user.firstName} {p.user.lastName.charAt(0)}. — {p.company}
                 </div>
                 <div className="mt-0.5 flex flex-wrap items-center gap-2 text-sm">
-                  {p.premiumActive ? <Badge tone="premium">★ Premium</Badge> : null}
+                  {p.verifiedComplete || p.tier ? (
+                    <Badge tone="green">⭐ Vérifié</Badge>
+                  ) : null}
+                  {p.tier === "elite" ? (
+                    <Badge tone="premium">Elite</Badge>
+                  ) : p.tier === "prime" || p.premiumActive ? (
+                    <Badge tone="premium">★ Prime</Badge>
+                  ) : null}
+                  {p.boostActive ? <Badge tone="orange">🚀 Boost</Badge> : null}
+                  {p.loyaltyBadge === "gold" ? <Badge tone="premium">Gold</Badge> : null}
                   <Stars value={p.rating} />
                   <span className="font-semibold">{stars(p.rating)}</span>
                   <span className="text-muted">{p.reviewCount} avis</span>

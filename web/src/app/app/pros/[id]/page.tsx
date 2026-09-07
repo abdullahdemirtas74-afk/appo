@@ -70,12 +70,15 @@ function ProInner() {
         </h1>
         <p className="text-muted">{p.company}</p>
         <div className="mt-2 flex flex-wrap gap-2">
-          {p.premiumActive ? (
-            <Badge tone="premium">★ Premium · mis en avant</Badge>
+          {p.tier === "elite" ? (
+            <Badge tone="premium">AppO Elite</Badge>
+          ) : p.tier === "prime" || p.premiumActive ? (
+            <Badge tone="premium">★ AppO Prime</Badge>
           ) : null}
-          {p.verified ? (
+          {p.boostActive ? <Badge tone="orange">🚀 Boost</Badge> : null}
+          {p.verifiedComplete || p.verified ? (
             <Badge tone="green">
-              <BadgeCheck size={12} /> Pro vérifié
+              <BadgeCheck size={12} /> Pro vérifié ⭐
             </Badge>
           ) : null}
           <Badge>

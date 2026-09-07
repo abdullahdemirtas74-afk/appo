@@ -113,8 +113,15 @@ export default function ProHome() {
           <Button href="/pro/planning" className="mt-6 w-full" variant="secondary">
             Planning & congés
           </Button>
-          <Button href="/pro/premium" className="mt-3 w-full" variant={(pro as any)?.premiumActive ? "secondary" : "now"}>
-            {(pro as any)?.premiumActive ? "Gérer Premium" : "Passer AppO Premium"}
+          <Button href="/pro/premium" className="mt-3 w-full" variant={(pro as any)?.tier === "pro" ? "now" : "secondary"}>
+            {(pro as any)?.tier === "elite"
+              ? "Espace Elite"
+              : (pro as any)?.tier === "prime" || (pro as any)?.premiumActive
+                ? "Gérer Prime / Boost"
+                : "Passer AppO Prime"}
+          </Button>
+          <Button href="/pro/business" className="mt-3 w-full" variant="secondary">
+            AppO Business
           </Button>
           <Button href="/pro/missions" className="mt-3 w-full" variant="secondary">
             Voir les missions

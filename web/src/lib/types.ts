@@ -60,6 +60,21 @@ export type ProAbsence = {
   note?: string;
 };
 
+/** Commercial subscription: free Pro or paid Prime */
+export type SubscriptionTier = "pro" | "prime";
+/** Loyalty / performance badge */
+export type LoyaltyBadge = "none" | "gold" | "elite";
+/** Effective commercial tier used for matching & commission */
+export type EffectiveTier = "pro" | "prime" | "elite";
+
+export type TeamMember = {
+  id: string;
+  name: string;
+  phone: string;
+  role: "owner" | "intervenant";
+  active: boolean;
+};
+
 export type ProProfile = {
   id: string;
   userId: string;
@@ -88,9 +103,18 @@ export type ProProfile = {
   reviewCount: number;
   missionCount: number;
   acceptanceRate: number;
-  /** ISO date — active while in the future */
+  /** @deprecated migrated → primeUntil */
   premiumUntil: string | null;
+  /** @deprecated migrated → subscriptionTier */
   premiumPlan: "none" | "monthly" | "yearly";
+  subscriptionTier: SubscriptionTier;
+  primeUntil: string | null;
+  primePlan: "none" | "monthly" | "yearly";
+  boostUntil: string | null;
+  loyaltyPoints: number;
+  loyaltyBadge: LoyaltyBadge;
+  businessEnabled: boolean;
+  team: TeamMember[];
 };
 
 export type MissionStatus =
@@ -109,7 +133,7 @@ export type TimelineEvent = { status: string; at: string; label: string };
 
 export type Mission = {
   id: string;
-  type: "now" | "scheduled";
+  type: "now" | "scheduled" | "urgence";
   clientId: string;
   proId: string | null;
   categoryId: string;
@@ -137,6 +161,38 @@ export type Mission = {
   startProLng: number | null;
   paymentStatus: "none" | "pending" | "paid" | "refunded";
   paymentMethod: string | null;
+  assigneeMemberId: string | null;
+  quoteId: string | null;
+  invoiceId: string | null;
+};
+
+export type QuoteLine = { label: string; amount: number };
+
+export type Quote = {
+  id: string;
+  missionId: string;
+  proId: string;
+  clientId: string;
+  lines: QuoteLine[];
+  total: number;
+  status: "draft" | "sent" | "signed" | "rejected";
+  note?: string;
+  createdAt: string;
+  sentAt: string | null;
+  signedAt: string | null;
+};
+
+export type Invoice = {
+  id: string;
+  number: string;
+  missionId: string;
+  quoteId: string | null;
+  proId: string;
+  clientId: string;
+  total: number;
+  commission: number;
+  proAmount: number;
+  createdAt: string;
 };
 
 export type Message = {
@@ -197,10 +253,18 @@ export type Settings = {
   offerSeconds: number;
   premiumMonthlyPrice: number;
   premiumYearlyPrice: number;
-  /** First N seconds of AppO Now: only Premium pros get offers (if any) */
   premiumExclusiveSeconds: number;
-  /** Extra seconds on offer timer for Premium */
   premiumOfferBonusSeconds: number;
+  primeMonthlyPrice: number;
+  primeYearlyPrice: number;
+  eliteExclusiveSeconds: number;
+  primeExclusiveSeconds: number;
+  boost24hPrice: number;
+  boost7dPrice: number;
+  urgenceCommissionBonus: number;
+  urgencePriceMultiplier: number;
+  commissionPrime: number;
+  commissionElite: number;
 };
 
 export type DB = {
@@ -215,6 +279,8 @@ export type DB = {
   notifications: AppNotification[];
   favorites: Favorite[];
   disputes: Dispute[];
+  quotes: Quote[];
+  invoices: Invoice[];
   settings: Settings;
 };
 

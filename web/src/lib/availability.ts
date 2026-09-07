@@ -293,14 +293,34 @@ export function conflictingMissionsDuringAbsence(db: DB, proId: string, startAt:
 }
 
 export function normalizePro(pro: ProProfile): ProProfile {
+  const primeUntil = pro.primeUntil ?? pro.premiumUntil ?? null;
+  const primePlan = pro.primePlan ?? (pro.premiumPlan === "none" ? "none" : pro.premiumPlan) ?? "none";
+  const subscriptionTier =
+    pro.subscriptionTier ?? (primeUntil && new Date(primeUntil) > new Date() ? "prime" : "pro");
   return {
     ...pro,
     absences: pro.absences ?? [],
     bufferMinutes: pro.bufferMinutes ?? 30,
     leadTimeHours: pro.leadTimeHours ?? 2,
     maxMissionsPerDay: pro.maxMissionsPerDay ?? 1,
-    premiumUntil: pro.premiumUntil ?? null,
-    premiumPlan: pro.premiumPlan ?? "none",
+    premiumUntil: primeUntil,
+    premiumPlan: primePlan === "none" ? "none" : primePlan,
+    subscriptionTier: subscriptionTier as ProProfile["subscriptionTier"],
+    primeUntil,
+    primePlan: primePlan as ProProfile["primePlan"],
+    boostUntil: pro.boostUntil ?? null,
+    loyaltyPoints: pro.loyaltyPoints ?? Math.round((pro.missionCount ?? 0) * 10),
+    loyaltyBadge: pro.loyaltyBadge ?? "none",
+    businessEnabled: pro.businessEnabled ?? false,
+    team: pro.team ?? [
+      {
+        id: `tm_${pro.id}_owner`,
+        name: "Titulaire",
+        phone: "",
+        role: "owner",
+        active: true,
+      },
+    ],
     schedule: (pro.schedule ?? []).map((d) => ({
       ...d,
       breakStart: d.breakStart ?? (d.available ? "12:00" : null),

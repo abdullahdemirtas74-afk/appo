@@ -7,7 +7,13 @@ import {
   normalizePro,
 } from "./availability";
 import { haversineKm, interpolate } from "./geo";
-import { isPremiumActive, withPremiumSettings } from "./premium";
+import {
+  effectiveTier,
+  isBoostActive,
+  matchingScore,
+  offerBonusSeconds,
+  withTierSettings,
+} from "./premium";
 import { createSeed } from "./seed";
 import type {
   DB,
@@ -25,9 +31,17 @@ let chain: Promise<unknown> = Promise.resolve();
 
 function migrate(db: DB): DB {
   db.pros = db.pros.map(normalizePro);
-  db.settings = withPremiumSettings(db.settings);
+  db.settings = withTierSettings(db.settings);
   if (!db.settings.offerSeconds) db.settings.offerSeconds = 20;
   if (db.settings.commissionRate == null) db.settings.commissionRate = 0.15;
+  if (!db.quotes) db.quotes = [];
+  if (!db.invoices) db.invoices = [];
+  db.missions = db.missions.map((m) => ({
+    ...m,
+    assigneeMemberId: m.assigneeMemberId ?? null,
+    quoteId: m.quoteId ?? null,
+    invoiceId: m.invoiceId ?? null,
+  }));
   return db;
 }
 
@@ -84,7 +98,7 @@ export function publicUser(user: User): PublicUser {
   return rest;
 }
 
-export function matchPros(db: DB, categoryId: string, lat: number, lng: number) {
+export function matchPros(db: DB, categoryId: string, lat: number, lng: number, opts?: { urgence?: boolean }) {
   return db.pros
     .filter(
       (p) =>
@@ -96,12 +110,17 @@ export function matchPros(db: DB, categoryId: string, lat: number, lng: number) 
     .map((p) => ({
       pro: p,
       distance: haversineKm(lat, lng, p.lat, p.lng),
-      premium: isPremiumActive(p),
+      score: matchingScore(p),
+      tier: effectiveTier(p),
+      boosted: isBoostActive(p),
     }))
-    .filter(({ pro, distance }) => distance <= pro.radiusKm)
+    .filter(({ pro, distance }) => {
+      const maxKm = opts?.urgence ? Math.min(pro.radiusKm, 15) : pro.radiusKm;
+      return distance <= maxKm;
+    })
     .sort(
       (a, b) =>
-        Number(b.premium) - Number(a.premium) ||
+        b.score - a.score ||
         a.distance - b.distance ||
         b.pro.rating - a.pro.rating ||
         b.pro.acceptanceRate - a.pro.acceptanceRate,
@@ -129,9 +148,9 @@ function notify(
 }
 
 export function processDispatch(db: DB, now = Date.now()) {
-  const settings = withPremiumSettings(db.settings);
+  const settings = withTierSettings(db.settings);
   for (const m of db.missions) {
-    if (m.type !== "now") continue;
+    if (m.type !== "now" && m.type !== "urgence") continue;
     if (m.status !== "searching" && m.status !== "offered") continue;
     if (m.offerProId) {
       if (!m.offerExpiresAt) continue;
@@ -142,23 +161,31 @@ export function processDispatch(db: DB, now = Date.now()) {
       m.offerExpiresAt = null;
     }
 
-    const exclusiveMs = settings.premiumExclusiveSeconds * 1000;
     const age = now - new Date(m.createdAt).getTime();
-    const inExclusiveWindow = age < exclusiveMs;
+    const eliteMs = settings.eliteExclusiveSeconds * 1000;
+    const primeMs = settings.primeExclusiveSeconds * 1000;
 
     const eligible = m.candidateProIds
       .filter((id) => !m.declinedProIds.includes(id))
       .map((id) => db.pros.find((p) => p.id === id))
       .filter((pro): pro is ProProfile => !!pro && canReceiveNowOffer(db, pro, new Date(now)));
 
-    const premiumLeft = eligible.filter((p) => isPremiumActive(p, new Date(now)));
-    const pool =
-      inExclusiveWindow && premiumLeft.length > 0
-        ? premiumLeft
-        : eligible;
+    const eliteLeft = eligible.filter((p) => effectiveTier(p, new Date(now)) === "elite");
+    const primePlus = eligible.filter((p) => {
+      const t = effectiveTier(p, new Date(now));
+      return t === "elite" || t === "prime";
+    });
 
-    // Prefer premium order already in candidateProIds; keep that order within pool
-    const next = m.candidateProIds.find((id) => pool.some((p) => p.id === id));
+    let pool = eligible;
+    if (age < eliteMs && eliteLeft.length > 0) pool = eliteLeft;
+    else if (age < primeMs && primePlus.length > 0) pool = primePlus;
+
+    // Urgence: only currently available (already filtered) — prefer boosted + elite
+    pool = [...pool].sort(
+      (a, b) => matchingScore(b, new Date(now)) - matchingScore(a, new Date(now)),
+    );
+
+    const next = m.candidateProIds.find((id) => pool.some((p) => p.id === id)) ?? pool[0]?.id;
 
     if (!next) {
       if (eligible.length > 0) {
@@ -170,7 +197,9 @@ export function processDispatch(db: DB, now = Date.now()) {
         db,
         m.clientId,
         "Aucun professionnel disponible",
-        "Essayez de planifier ou d’élargir la recherche.",
+        m.type === "urgence"
+          ? "Aucun pro dispo en urgence. Essayez AppO Now classique ou planifiez."
+          : "Essayez de planifier ou d’élargir la recherche.",
         `/app/missions/${m.id}`,
       );
       continue;
@@ -178,21 +207,27 @@ export function processDispatch(db: DB, now = Date.now()) {
     const pro = db.pros.find((p) => p.id === next);
     const user = pro ? db.users.find((u) => u.id === pro.userId) : null;
     const cat = db.categories.find((c) => c.id === m.categoryId);
-    const bonus = pro && isPremiumActive(pro, new Date(now)) ? settings.premiumOfferBonusSeconds : 0;
+    const bonus = pro ? offerBonusSeconds(pro, settings) : 0;
     m.status = "offered";
     m.offerProId = next;
     m.offerExpiresAt = new Date(now + (settings.offerSeconds + bonus) * 1000).toISOString();
-    if (user) {
-      if (pro && canReceiveNowOffer(db, pro, new Date(now))) {
-        const priority = isPremiumActive(pro, new Date(now)) ? " · Priorité Premium" : "";
-        notify(
-          db,
-          user.id,
-          "Nouvelle mission disponible",
-          `${cat?.name ?? "Mission"} · ${m.city} · ${m.price} €${priority}`,
-          `/pro/missions/${m.id}`,
-        );
-      }
+    if (user && pro && canReceiveNowOffer(db, pro, new Date(now))) {
+      const tier = effectiveTier(pro, new Date(now));
+      const tag =
+        m.type === "urgence"
+          ? " · Urgence ⚡"
+          : tier === "elite"
+            ? " · Priorité Elite"
+            : tier === "prime"
+              ? " · Priorité Prime"
+              : "";
+      notify(
+        db,
+        user.id,
+        m.type === "urgence" ? "Urgence AppO" : "Nouvelle mission disponible",
+        `${cat?.name ?? "Mission"} · ${m.city} · ${m.price} €${tag}`,
+        `/pro/missions/${m.id}`,
+      );
     }
   }
 }
@@ -278,6 +313,9 @@ export function enrichMission(db: DB, m: Mission) {
     messages,
     review,
     payment,
+    quote: m.quoteId ? (db.quotes ?? []).find((q) => q.id === m.quoteId) ?? null : null,
+    invoice: m.invoiceId ? (db.invoices ?? []).find((i) => i.id === m.invoiceId) ?? null : null,
+    team: pro?.team ?? [],
   };
 }
 

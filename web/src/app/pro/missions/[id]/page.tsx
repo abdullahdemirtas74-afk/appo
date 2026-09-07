@@ -31,7 +31,9 @@ export default function ProMissionPage() {
 
   return (
     <div className="px-5 py-6 pb-10">
-      <div className="text-xs font-bold uppercase text-appo">{m.type === "now" ? "AppO Now" : "Planifiée"}</div>
+      <div className="text-xs font-bold uppercase text-appo">
+        {m.type === "urgence" ? "Urgence ⚡" : m.type === "now" ? "AppO Now" : "Planifiée"}
+      </div>
       <h1 className="text-2xl font-extrabold">{m.category?.name}</h1>
       <p className="text-muted">{STATUS_LABELS[m.status]}</p>
       <div className="mt-4 rounded-3xl border border-line p-4">
@@ -40,6 +42,65 @@ export default function ProMissionPage() {
         <p className="mt-1 text-sm">{m.description}</p>
         <p className="mt-1 text-sm">Client : {m.client?.firstName} {m.client?.lastName?.charAt(0)}.</p>
       </div>
+
+      {["accepted", "en_route", "arrived", "in_progress"].includes(m.status) ? (
+        <div className="mt-4 rounded-3xl border border-line bg-card p-4">
+          <div className="font-bold">Devis AppO 🧾</div>
+          {m.quote ? (
+            <div className="mt-2 text-sm">
+              <div>Statut : <b>{m.quote.status}</b> · Total {money(m.quote.total)}</div>
+              <ul className="mt-1 text-muted">
+                {(m.quote.lines ?? []).map((l: any, i: number) => (
+                  <li key={i}>{l.label} — {money(l.amount)}</li>
+                ))}
+              </ul>
+            </div>
+          ) : (
+            <Button
+              className="mt-3 w-full"
+              variant="secondary"
+              onClick={async () => {
+                await api("/api/pro", {
+                  action: "createQuote",
+                  missionId: m.id,
+                  lines: [
+                    { label: m.category?.name ?? "Intervention", amount: m.price },
+                    ...(m.supplement ? [{ label: "Supplément", amount: m.supplement }] : []),
+                  ],
+                });
+                reload();
+              }}
+            >
+              Envoyer un devis au client
+            </Button>
+          )}
+          {m.invoice ? (
+            <div className="mt-3 text-sm font-semibold text-green">Facture {m.invoice.number} générée</div>
+          ) : null}
+        </div>
+      ) : null}
+
+      {m.status !== "offered" && m.status !== "searching" ? (
+        <div className="mt-4 rounded-3xl border border-line p-4">
+          <div className="font-bold">Attribution équipe</div>
+          <select
+            className={inputClass + " mt-2"}
+            value={m.assigneeMemberId ?? ""}
+            onChange={async (e) => {
+              await api("/api/pro", { action: "assignMission", missionId: m.id, memberId: e.target.value || null });
+              reload();
+            }}
+          >
+            <option value="">Non assigné</option>
+            {/* members loaded via optional field */}
+            {(m.team ?? []).map((t: any) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
       <div className="mt-4">
         <MiniMap lat={m.lat} lng={m.lng} />
       </div>

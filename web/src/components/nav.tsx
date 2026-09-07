@@ -1,4 +1,5 @@
 import {
+  Building2,
   Calendar,
   CircleUser,
   ClipboardList,
@@ -21,7 +22,8 @@ export const PRO_NAV: NavItem[] = [
   { href: "/pro", label: "Accueil", icon: LayoutDashboard },
   { href: "/pro/missions", label: "Missions", icon: ClipboardList },
   { href: "/pro/planning", label: "Planning", icon: Calendar },
-  { href: "/pro/premium", label: "Premium", icon: Crown },
-  { href: "/pro/revenus", label: "Revenus", icon: Wallet },
+  { href: "/pro/premium", label: "Offres", icon: Crown },
+  { href: "/pro/business", label: "Business", icon: Building2 },
+  { href: "/pro/revenus", label: "Dashboard", icon: Wallet },
   { href: "/pro/profil", label: "Profil", icon: CircleUser },
 ];
