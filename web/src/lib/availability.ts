@@ -299,6 +299,8 @@ export function normalizePro(pro: ProProfile): ProProfile {
     bufferMinutes: pro.bufferMinutes ?? 30,
     leadTimeHours: pro.leadTimeHours ?? 2,
     maxMissionsPerDay: pro.maxMissionsPerDay ?? 1,
+    premiumUntil: pro.premiumUntil ?? null,
+    premiumPlan: pro.premiumPlan ?? "none",
     schedule: (pro.schedule ?? []).map((d) => ({
       ...d,
       breakStart: d.breakStart ?? (d.available ? "12:00" : null),

@@ -7,6 +7,7 @@ import {
   normalizePro,
 } from "./availability";
 import { haversineKm, interpolate } from "./geo";
+import { isPremiumActive, withPremiumSettings } from "./premium";
 import { createSeed } from "./seed";
 import type {
   DB,
@@ -24,6 +25,7 @@ let chain: Promise<unknown> = Promise.resolve();
 
 function migrate(db: DB): DB {
   db.pros = db.pros.map(normalizePro);
+  db.settings = withPremiumSettings(db.settings);
   if (!db.settings.offerSeconds) db.settings.offerSeconds = 20;
   if (db.settings.commissionRate == null) db.settings.commissionRate = 0.15;
   return db;
@@ -94,10 +96,12 @@ export function matchPros(db: DB, categoryId: string, lat: number, lng: number) 
     .map((p) => ({
       pro: p,
       distance: haversineKm(lat, lng, p.lat, p.lng),
+      premium: isPremiumActive(p),
     }))
     .filter(({ pro, distance }) => distance <= pro.radiusKm)
     .sort(
       (a, b) =>
+        Number(b.premium) - Number(a.premium) ||
         a.distance - b.distance ||
         b.pro.rating - a.pro.rating ||
         b.pro.acceptanceRate - a.pro.acceptanceRate,
@@ -125,6 +129,7 @@ function notify(
 }
 
 export function processDispatch(db: DB, now = Date.now()) {
+  const settings = withPremiumSettings(db.settings);
   for (const m of db.missions) {
     if (m.type !== "now") continue;
     if (m.status !== "searching" && m.status !== "offered") continue;
@@ -136,12 +141,30 @@ export function processDispatch(db: DB, now = Date.now()) {
       m.offerProId = null;
       m.offerExpiresAt = null;
     }
-    const next = m.candidateProIds.find((id) => {
-      if (m.declinedProIds.includes(id)) return false;
-      const pro = db.pros.find((p) => p.id === id);
-      return pro ? canReceiveNowOffer(db, pro, new Date(now)) : false;
-    });
+
+    const exclusiveMs = settings.premiumExclusiveSeconds * 1000;
+    const age = now - new Date(m.createdAt).getTime();
+    const inExclusiveWindow = age < exclusiveMs;
+
+    const eligible = m.candidateProIds
+      .filter((id) => !m.declinedProIds.includes(id))
+      .map((id) => db.pros.find((p) => p.id === id))
+      .filter((pro): pro is ProProfile => !!pro && canReceiveNowOffer(db, pro, new Date(now)));
+
+    const premiumLeft = eligible.filter((p) => isPremiumActive(p, new Date(now)));
+    const pool =
+      inExclusiveWindow && premiumLeft.length > 0
+        ? premiumLeft
+        : eligible;
+
+    // Prefer premium order already in candidateProIds; keep that order within pool
+    const next = m.candidateProIds.find((id) => pool.some((p) => p.id === id));
+
     if (!next) {
+      if (eligible.length > 0) {
+        m.status = "searching";
+        continue;
+      }
       m.status = "unmatched";
       notify(
         db,
@@ -155,17 +178,18 @@ export function processDispatch(db: DB, now = Date.now()) {
     const pro = db.pros.find((p) => p.id === next);
     const user = pro ? db.users.find((u) => u.id === pro.userId) : null;
     const cat = db.categories.find((c) => c.id === m.categoryId);
+    const bonus = pro && isPremiumActive(pro, new Date(now)) ? settings.premiumOfferBonusSeconds : 0;
     m.status = "offered";
     m.offerProId = next;
-    m.offerExpiresAt = new Date(now + db.settings.offerSeconds * 1000).toISOString();
+    m.offerExpiresAt = new Date(now + (settings.offerSeconds + bonus) * 1000).toISOString();
     if (user) {
-      // Never notify if somehow unavailable (double-check)
       if (pro && canReceiveNowOffer(db, pro, new Date(now))) {
+        const priority = isPremiumActive(pro, new Date(now)) ? " · Priorité Premium" : "";
         notify(
           db,
           user.id,
           "Nouvelle mission disponible",
-          `${cat?.name ?? "Mission"} · ${m.city} · ${m.price} €`,
+          `${cat?.name ?? "Mission"} · ${m.city} · ${m.price} €${priority}`,
           `/pro/missions/${m.id}`,
         );
       }

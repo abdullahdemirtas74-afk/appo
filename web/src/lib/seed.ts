@@ -33,6 +33,8 @@ const planningDefaults = {
   bufferMinutes: 30,
   leadTimeHours: 2,
   maxMissionsPerDay: 1,
+  premiumUntil: null as string | null,
+  premiumPlan: "none" as const,
 };
 
 export function createSeed(): DB {
@@ -105,6 +107,8 @@ export function createSeed(): DB {
       documents: docsOk,
       schedule: weekSchedule(),
       ...planningDefaults,
+      premiumUntil: daysFromNow(60, 23),
+      premiumPlan: "monthly" as const,
       rating: 4.9,
       reviewCount: 127,
       missionCount: 37,
@@ -620,7 +624,14 @@ export function createSeed(): DB {
         createdAt: daysAgo(4, 9),
       },
     ],
-    settings: { commissionRate: 0.15, offerSeconds: 20 },
+    settings: {
+      commissionRate: 0.15,
+      offerSeconds: 20,
+      premiumMonthlyPrice: 49,
+      premiumYearlyPrice: 399,
+      premiumExclusiveSeconds: 45,
+      premiumOfferBonusSeconds: 10,
+    },
   };
 }
 

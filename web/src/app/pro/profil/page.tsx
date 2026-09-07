@@ -38,8 +38,15 @@ export default function ProProfil() {
           Enregistrer
         </Button>
       </div>
+        <Button
+          className="mt-8 w-full"
+          variant="secondary"
+          href="/pro/premium"
+        >
+          AppO Premium
+        </Button>
       <Button
-        className="mt-8 w-full"
+        className="mt-3 w-full"
         variant="secondary"
         onClick={async () => {
           await api("/api/auth/logout", {});

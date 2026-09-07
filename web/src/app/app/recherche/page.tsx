@@ -15,6 +15,7 @@ type Pro = {
   reviewCount: number;
   distanceKm: number;
   availableNow: boolean;
+  premiumActive?: boolean;
   availability?: { label: string; reason: string; backAt: string | null };
   user: { firstName: string; lastName: string; avatar: string };
 };
@@ -91,7 +92,8 @@ function SearchInner() {
                 <div className="font-bold">
                   {p.user.firstName} {p.user.lastName.charAt(0)}. — {p.company}
                 </div>
-                <div className="mt-0.5 flex items-center gap-2 text-sm">
+                <div className="mt-0.5 flex flex-wrap items-center gap-2 text-sm">
+                  {p.premiumActive ? <Badge tone="premium">★ Premium</Badge> : null}
                   <Stars value={p.rating} />
                   <span className="font-semibold">{stars(p.rating)}</span>
                   <span className="text-muted">{p.reviewCount} avis</span>

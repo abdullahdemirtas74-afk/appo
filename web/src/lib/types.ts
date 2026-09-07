@@ -88,6 +88,9 @@ export type ProProfile = {
   reviewCount: number;
   missionCount: number;
   acceptanceRate: number;
+  /** ISO date — active while in the future */
+  premiumUntil: string | null;
+  premiumPlan: "none" | "monthly" | "yearly";
 };
 
 export type MissionStatus =
@@ -192,6 +195,12 @@ export type Dispute = {
 export type Settings = {
   commissionRate: number;
   offerSeconds: number;
+  premiumMonthlyPrice: number;
+  premiumYearlyPrice: number;
+  /** First N seconds of AppO Now: only Premium pros get offers (if any) */
+  premiumExclusiveSeconds: number;
+  /** Extra seconds on offer timer for Premium */
+  premiumOfferBonusSeconds: number;
 };
 
 export type DB = {

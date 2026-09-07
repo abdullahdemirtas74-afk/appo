@@ -1,9 +1,8 @@
-"use client";
-
 import {
   Calendar,
   CircleUser,
   ClipboardList,
+  Crown,
   Home,
   LayoutDashboard,
   MessageCircle,
@@ -22,6 +21,7 @@ export const PRO_NAV: NavItem[] = [
   { href: "/pro", label: "Accueil", icon: LayoutDashboard },
   { href: "/pro/missions", label: "Missions", icon: ClipboardList },
   { href: "/pro/planning", label: "Planning", icon: Calendar },
+  { href: "/pro/premium", label: "Premium", icon: Crown },
   { href: "/pro/revenus", label: "Revenus", icon: Wallet },
   { href: "/pro/profil", label: "Profil", icon: CircleUser },
 ];

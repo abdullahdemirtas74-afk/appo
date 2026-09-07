@@ -113,6 +113,9 @@ export default function ProHome() {
           <Button href="/pro/planning" className="mt-6 w-full" variant="secondary">
             Planning & congés
           </Button>
+          <Button href="/pro/premium" className="mt-3 w-full" variant={(pro as any)?.premiumActive ? "secondary" : "now"}>
+            {(pro as any)?.premiumActive ? "Gérer Premium" : "Passer AppO Premium"}
+          </Button>
           <Button href="/pro/missions" className="mt-3 w-full" variant="secondary">
             Voir les missions
           </Button>

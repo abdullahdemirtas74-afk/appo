@@ -70,6 +70,9 @@ function ProInner() {
         </h1>
         <p className="text-muted">{p.company}</p>
         <div className="mt-2 flex flex-wrap gap-2">
+          {p.premiumActive ? (
+            <Badge tone="premium">★ Premium · mis en avant</Badge>
+          ) : null}
           {p.verified ? (
             <Badge tone="green">
               <BadgeCheck size={12} /> Pro vérifié

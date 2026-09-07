@@ -20,6 +20,12 @@ import {
   getActiveAbsence,
 } from "./availability";
 import { etaMinutes, haversineKm } from "./geo";
+import {
+  extendPremiumUntil,
+  isPremiumActive,
+  premiumDaysLeft,
+  withPremiumSettings,
+} from "./premium";
 import type { AbsenceReason, Mission, MissionStatus, ProAbsence, Role, ScheduleDay } from "./types";
 
 export async function login(email: string, password: string) {
@@ -139,6 +145,8 @@ export async function registerPro(input: {
       bufferMinutes: 30,
       leadTimeHours: 2,
       maxMissionsPerDay: 1,
+      premiumUntil: null,
+      premiumPlan: "none",
       rating: 0,
       reviewCount: 0,
       missionCount: 0,
@@ -167,7 +175,12 @@ export async function getMe(userId: string) {
       unread: notifications.filter((n) => !n.read).length,
       settings: db.settings,
       pro: pro
-        ? { ...pro, availability: availabilitySnapshot(db, pro) }
+        ? {
+            ...pro,
+            availability: availabilitySnapshot(db, pro),
+            premiumActive: isPremiumActive(pro),
+            premiumDaysLeft: premiumDaysLeft(pro),
+          }
         : null,
     };
   }, true);
@@ -213,17 +226,24 @@ export async function listPros(params: {
         const user = db.users.find((u) => u.id === p.userId)!;
         const distanceKm = haversineKm(origin.lat, origin.lng, p.lat, p.lng);
         const availability = availabilitySnapshot(db, p);
+        const premiumActive = isPremiumActive(p);
         return {
           ...p,
           user: publicUser(user),
           distanceKm,
           availableNow: availability.availableNow && distanceKm <= p.radiusKm,
           availability,
+          premiumActive,
         };
       })
       .filter((p) => (params.available ? p.availableNow : true))
       .filter((p) => (params.maxKm ? p.distanceKm <= params.maxKm : true))
-      .sort((a, b) => Number(b.availableNow) - Number(a.availableNow) || a.distanceKm - b.distanceKm);
+      .sort(
+        (a, b) =>
+          Number(b.premiumActive) - Number(a.premiumActive) ||
+          Number(b.availableNow) - Number(a.availableNow) ||
+          a.distanceKm - b.distanceKm,
+      );
   }, false);
 }
 
@@ -239,6 +259,7 @@ export async function getPro(id: string, origin?: { lat: number; lng: number }) 
     const categories = db.categories.filter((c) => p.categoryIds.includes(c.id));
     const distanceKm = origin ? haversineKm(origin.lat, origin.lng, p.lat, p.lng) : null;
     const availability = availabilitySnapshot(db, p);
+    const premiumActive = isPremiumActive(p);
     return {
       ...p,
       user: publicUser(user),
@@ -247,6 +268,7 @@ export async function getPro(id: string, origin?: { lat: number; lng: number }) 
       distanceKm,
       availability,
       availableNow: availability.availableNow,
+      premiumActive,
     };
   }, false);
 }
@@ -565,6 +587,43 @@ export async function updatePro(userId: string, patch: Record<string, unknown>) 
       return { pro, availability: availabilitySnapshot(db, pro) };
     }
 
+    if (patch.action === "subscribePremium") {
+      if (pro.status !== "verified") throw new Error("NOT_VERIFIED");
+      const plan = patch.plan === "yearly" ? "yearly" : "monthly";
+      const settings = withPremiumSettings(db.settings);
+      const amount = plan === "yearly" ? settings.premiumYearlyPrice : settings.premiumMonthlyPrice;
+      pro.premiumUntil = extendPremiumUntil(pro.premiumUntil, plan);
+      pro.premiumPlan = plan;
+      // Simulated marketplace payment (no card charge)
+      db.payments.unshift({
+        id: nid("pay"),
+        missionId: `premium_${pro.id}`,
+        amount,
+        commission: amount,
+        proAmount: 0,
+        method: "card",
+        status: "paid",
+        createdAt: new Date().toISOString(),
+        paidAt: new Date().toISOString(),
+      });
+      notify(
+        db,
+        pro.userId,
+        "AppO Premium activé",
+        plan === "yearly"
+          ? "Vous êtes Premium 12 mois : annonces prioritaires + mise en avant."
+          : "Vous êtes Premium 30 jours : annonces prioritaires + mise en avant.",
+        "/pro/premium",
+      );
+      return {
+        pro,
+        premiumActive: true,
+        premiumDaysLeft: premiumDaysLeft(pro),
+        amount,
+        plan,
+      };
+    }
+
     if (typeof patch.online === "boolean") {
       // Cannot go online while currently on absence
       if (patch.online && getActiveAbsence(pro)) throw new Error("ON_ABSENCE");
@@ -623,6 +682,11 @@ export async function proStats(userId: string) {
       leadTimeHours: pro.leadTimeHours,
       maxMissionsPerDay: pro.maxMissionsPerDay,
       schedule: pro.schedule,
+      premiumActive: isPremiumActive(pro),
+      premiumUntil: pro.premiumUntil,
+      premiumPlan: pro.premiumPlan,
+      premiumDaysLeft: premiumDaysLeft(pro),
+      premium: withPremiumSettings(db.settings),
       offer: (() => {
         if (!canReceiveNowOffer(db, pro)) return null;
         const raw = db.missions.find((m) => m.offerProId === pro.id && m.status === "offered") ?? null;
@@ -712,6 +776,15 @@ export async function adminAction(userId: string, action: string, payload: Recor
     if (action === "settings") {
       if (payload.commissionRate != null) db.settings.commissionRate = Number(payload.commissionRate);
       if (payload.offerSeconds != null) db.settings.offerSeconds = Number(payload.offerSeconds);
+      if (payload.premiumMonthlyPrice != null) db.settings.premiumMonthlyPrice = Number(payload.premiumMonthlyPrice);
+      if (payload.premiumYearlyPrice != null) db.settings.premiumYearlyPrice = Number(payload.premiumYearlyPrice);
+      if (payload.premiumExclusiveSeconds != null) {
+        db.settings.premiumExclusiveSeconds = Number(payload.premiumExclusiveSeconds);
+      }
+      if (payload.premiumOfferBonusSeconds != null) {
+        db.settings.premiumOfferBonusSeconds = Number(payload.premiumOfferBonusSeconds);
+      }
+      db.settings = withPremiumSettings(db.settings);
       return db.settings;
     }
     if (action === "resolveDispute") {
@@ -746,6 +819,7 @@ export async function adminLists() {
     pros: db.pros.map((p) => ({
       ...p,
       user: publicUser(db.users.find((u) => u.id === p.userId)!),
+      premiumActive: isPremiumActive(p),
     })),
     missions: db.missions.map((m) => enrichMission(db, m)),
     payments: db.payments,
@@ -754,7 +828,7 @@ export async function adminLists() {
       mission: db.missions.find((m) => m.id === d.missionId),
     })),
     categories: db.categories,
-    settings: db.settings,
+    settings: withPremiumSettings(db.settings),
   }), false);
 }
 
@@ -767,6 +841,7 @@ export function errorStatus(e: unknown) {
     INVALID_CREDENTIALS: 401,
     EMAIL_TAKEN: 409,
     SUSPENDED: 403,
+    NOT_VERIFIED: 403,
   };
   return { status: map[msg] ?? 400, error: msg };
 }

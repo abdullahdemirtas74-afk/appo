@@ -18,9 +18,10 @@ export default function AdminPros() {
                   {p.user.firstName} {p.user.lastName} — {p.company}
                 </div>
                 <div className="text-sm text-muted">SIRET {p.siret} · {p.city} · {p.user.email}</div>
-                <div className="mt-2 flex gap-2">
+                <div className="mt-2 flex flex-wrap gap-2">
                   <Badge tone={p.status === "verified" ? "green" : p.status === "pending" ? "orange" : "red"}>{p.status}</Badge>
                   {p.online ? <Badge tone="green">En ligne</Badge> : <Badge>Hors ligne</Badge>}
+                  {p.premiumActive ? <Badge tone="premium">★ Premium</Badge> : null}
                 </div>
                 <div className="mt-2 text-xs text-muted">
                   Docs : {p.documents.map((d: any) => `${d.type} (${d.status})`).join(" · ")}
