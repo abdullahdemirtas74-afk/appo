@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/auth";
+import { clearSession, getSession } from "@/lib/auth";
 import {
   addClientAddress,
+  deleteMyAccount,
   errorStatus,
+  exportPersonalData,
   getMe,
   markNotificationsRead,
   setDefaultAddress,
@@ -42,6 +44,15 @@ export async function POST(req: Request) {
     if (body.action === "addAddress") {
       const addresses = await addClientAddress(session.userId, body);
       return NextResponse.json({ addresses });
+    }
+    if (body.action === "exportMyData") {
+      const data = await exportPersonalData(session.userId);
+      return NextResponse.json(data);
+    }
+    if (body.action === "deleteAccount") {
+      const result = await deleteMyAccount(session.userId, String(body.confirm ?? ""));
+      await clearSession();
+      return NextResponse.json(result);
     }
     const user = await updateClientProfile(session.userId, body);
     return NextResponse.json({ user });

@@ -65,7 +65,7 @@ export function createSeed(): DB {
   ];
 
   const users = [
-    { id: "usr_admin", role: "admin" as const, email: "admin@appo.fr", passwordHash, firstName: "Léa", lastName: "Moreau", phone: "04 50 00 00 01", avatar: "LM", createdAt: daysAgo(120), suspended: false },
+    { id: "usr_admin", role: "admin" as const, email: "admin@appo.fr", passwordHash, firstName: "Léa", lastName: "Moreau", phone: "04 50 00 00 01", avatar: "LM", createdAt: daysAgo(120), suspended: false, privacyConsentAt: now, deletedAt: null },
     {
       id: "usr_sarah",
       role: "client" as const,
@@ -82,6 +82,8 @@ export function createSeed(): DB {
       organizationSiret: null,
       clientPlusUntil: daysFromNow(20, 12),
       clientPlusPlan: "monthly" as const,
+      privacyConsentAt: now,
+      deletedAt: null,
     },
     {
       id: "usr_marc",
@@ -97,6 +99,8 @@ export function createSeed(): DB {
       clientKind: "entreprise" as const,
       organizationName: "Dupont & Fils",
       organizationSiret: "812 334 556 00018",
+      privacyConsentAt: now,
+      deletedAt: null,
     },
     {
       id: "usr_claire",
@@ -112,14 +116,16 @@ export function createSeed(): DB {
       clientKind: "syndicat" as const,
       organizationName: "Syndic Les Alpes — Résidence du Lac",
       organizationSiret: "901 223 445 00029",
+      privacyConsentAt: now,
+      deletedAt: null,
     },
-    { id: "usr_kevin", role: "pro" as const, email: "kevin@appo.fr", passwordHash, firstName: "Kevin", lastName: "Petit", phone: "06 45 67 89 01", avatar: "KP", createdAt: daysAgo(90), suspended: false },
-    { id: "usr_amina", role: "pro" as const, email: "amina@appo.fr", passwordHash, firstName: "Amina", lastName: "Benali", phone: "06 11 22 33 44", avatar: "AB", createdAt: daysAgo(70), suspended: false },
-    { id: "usr_lucas", role: "pro" as const, email: "lucas@appo.fr", passwordHash, firstName: "Lucas", lastName: "Morel", phone: "06 98 76 54 32", avatar: "LM", createdAt: daysAgo(55), suspended: false },
-    { id: "usr_chloe", role: "pro" as const, email: "chloe@appo.fr", passwordHash, firstName: "Chloé", lastName: "Roux", phone: "06 55 44 33 22", avatar: "CR", createdAt: daysAgo(48), suspended: false },
-    { id: "usr_thomas", role: "pro" as const, email: "thomas@appo.fr", passwordHash, firstName: "Thomas", lastName: "Durand", phone: "06 77 88 99 00", avatar: "TD", createdAt: daysAgo(1), suspended: false },
-    { id: "usr_nadia", role: "pro" as const, email: "nadia@appo.fr", passwordHash, firstName: "Nadia", lastName: "Khelifi", phone: "06 14 15 16 17", avatar: "NK", createdAt: daysAgo(30), suspended: false },
-    { id: "usr_hugo", role: "pro" as const, email: "hugo@appo.fr", passwordHash, firstName: "Hugo", lastName: "Leroy", phone: "06 18 19 20 21", avatar: "HL", createdAt: daysAgo(25), suspended: false },
+    { id: "usr_kevin", role: "pro" as const, email: "kevin@appo.fr", passwordHash, firstName: "Kevin", lastName: "Petit", phone: "06 45 67 89 01", avatar: "KP", createdAt: daysAgo(90), suspended: false, privacyConsentAt: now, deletedAt: null },
+    { id: "usr_amina", role: "pro" as const, email: "amina@appo.fr", passwordHash, firstName: "Amina", lastName: "Benali", phone: "06 11 22 33 44", avatar: "AB", createdAt: daysAgo(70), suspended: false, privacyConsentAt: now, deletedAt: null },
+    { id: "usr_lucas", role: "pro" as const, email: "lucas@appo.fr", passwordHash, firstName: "Lucas", lastName: "Morel", phone: "06 98 76 54 32", avatar: "LM", createdAt: daysAgo(55), suspended: false, privacyConsentAt: now, deletedAt: null },
+    { id: "usr_chloe", role: "pro" as const, email: "chloe@appo.fr", passwordHash, firstName: "Chloé", lastName: "Roux", phone: "06 55 44 33 22", avatar: "CR", createdAt: daysAgo(48), suspended: false, privacyConsentAt: now, deletedAt: null },
+    { id: "usr_thomas", role: "pro" as const, email: "thomas@appo.fr", passwordHash, firstName: "Thomas", lastName: "Durand", phone: "06 77 88 99 00", avatar: "TD", createdAt: daysAgo(1), suspended: false, privacyConsentAt: now, deletedAt: null },
+    { id: "usr_nadia", role: "pro" as const, email: "nadia@appo.fr", passwordHash, firstName: "Nadia", lastName: "Khelifi", phone: "06 14 15 16 17", avatar: "NK", createdAt: daysAgo(30), suspended: false, privacyConsentAt: now, deletedAt: null },
+    { id: "usr_hugo", role: "pro" as const, email: "hugo@appo.fr", passwordHash, firstName: "Hugo", lastName: "Leroy", phone: "06 18 19 20 21", avatar: "HL", createdAt: daysAgo(25), suspended: false, privacyConsentAt: now, deletedAt: null },
   ];
 
   const addresses = [

@@ -23,11 +23,13 @@ export default function ComptePage() {
   const user = me?.user;
   const kind = (user?.clientKind ?? "particulier") as ClientKind;
   const paid = (missionsData?.missions ?? []).filter((m) => m.paymentStatus === "paid" && m.invoice);
-  const [section, setSection] = useState<"menu" | "profile" | "addresses" | "favorites" | "invoices">("menu");
+  const [section, setSection] = useState<"menu" | "profile" | "addresses" | "favorites" | "invoices" | "privacy">("menu");
   const [firstName, setFirstName] = useState(user?.firstName ?? "");
   const [lastName, setLastName] = useState(user?.lastName ?? "");
   const [phone, setPhone] = useState(user?.phone ?? "");
   const [msg, setMsg] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [privacyBusy, setPrivacyBusy] = useState(false);
   const [newAddr, setNewAddr] = useState({ label: "Autre", line: "", city: "Rumilly", zip: "74150" });
 
   async function saveProfile() {
@@ -193,6 +195,83 @@ export default function ComptePage() {
     );
   }
 
+  if (section === "privacy") {
+    return (
+      <div className="px-5 py-6">
+        <button className="text-sm font-semibold text-appo" onClick={() => setSection("menu")}>
+          ← Retour
+        </button>
+        <h1 className="mt-2 text-2xl font-extrabold">Confidentialité & RGPD</h1>
+        <p className="mt-2 text-sm text-muted">
+          Vos téléphones et adresses sont chiffrés au repos. Exportez ou supprimez votre compte à tout moment.
+        </p>
+        <div className="mt-4 space-y-3">
+          <Button
+            className="w-full"
+            variant="secondary"
+            disabled={privacyBusy}
+            onClick={async () => {
+              setPrivacyBusy(true);
+              setMsg("");
+              try {
+                const data = await api<Record<string, unknown>>("/api/me", { action: "exportMyData" });
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `appo-mes-donnees-${new Date().toISOString().slice(0, 10)}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                setMsg("Export téléchargé");
+              } catch {
+                setMsg("Erreur lors de l’export");
+              } finally {
+                setPrivacyBusy(false);
+              }
+            }}
+          >
+            Exporter mes données
+          </Button>
+          <Link href="/confidentialite" className="block rounded-2xl border border-line px-4 py-3 text-sm font-semibold">
+            Lire la politique de confidentialité
+          </Link>
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
+            <div className="font-bold text-red-800">Supprimer mon compte</div>
+            <p className="mt-1 text-sm text-red-700/80">
+              Anonymise vos données personnelles. Tapez <span className="font-mono font-bold">SUPPRIMER</span> pour
+              confirmer.
+            </p>
+            <input
+              className={`${inputClass} mt-3`}
+              placeholder="SUPPRIMER"
+              value={deleteConfirm}
+              onChange={(e) => setDeleteConfirm(e.target.value)}
+            />
+            <Button
+              className="mt-3 w-full"
+              variant="secondary"
+              disabled={privacyBusy || deleteConfirm !== "SUPPRIMER"}
+              onClick={async () => {
+                setPrivacyBusy(true);
+                setMsg("");
+                try {
+                  await api("/api/me", { action: "deleteAccount", confirm: "SUPPRIMER" });
+                  router.replace("/");
+                } catch {
+                  setMsg("Impossible de supprimer le compte");
+                  setPrivacyBusy(false);
+                }
+              }}
+            >
+              Supprimer définitivement
+            </Button>
+          </div>
+          {msg ? <p className="text-center text-sm text-muted">{msg}</p> : null}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="px-5 py-6">
       <h1 className="text-2xl font-extrabold">Mon compte</h1>
@@ -223,6 +302,7 @@ export default function ComptePage() {
           { k: "Mes factures", v: `${paid.length} facture(s)`, onClick: () => setSection("invoices") },
           { k: "Professionnels favoris", v: `${me?.favorites?.length ?? 0}`, onClick: () => setSection("favorites") },
           { k: "Mes réservations", v: `${missionsData?.missions?.length ?? 0} missions`, href: "/app/missions" },
+          { k: "Confidentialité", v: "Export & suppression", onClick: () => setSection("privacy") },
           { k: "Aide", v: "aide@appo.fr", href: "mailto:aide@appo.fr" },
         ].map((row) => {
           const inner = (
@@ -254,7 +334,11 @@ export default function ComptePage() {
         })}
       </div>
       <p className="mt-4 text-xs text-muted">
-        Conformité RGPD V1 : vous pouvez demander la suppression du compte. AppO ne stocke jamais de numéro de carte.
+        Données chiffrées au repos ·{" "}
+        <Link href="/confidentialite" className="font-semibold text-appo">
+          Politique de confidentialité
+        </Link>
+        . AppO ne stocke jamais de numéro de carte.
       </p>
       <Button
         className="mt-6 w-full"

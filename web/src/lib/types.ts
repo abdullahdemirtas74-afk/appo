@@ -21,6 +21,10 @@ export type User = {
   /** AppO+ client subscription expiry */
   clientPlusUntil?: string | null;
   clientPlusPlan?: "none" | "monthly" | "yearly";
+  /** RGPD — consentement traitement données personnelles */
+  privacyConsentAt?: string | null;
+  /** Soft-delete / anonymisation */
+  deletedAt?: string | null;
 };
 
 export type Address = {

@@ -41,6 +41,11 @@ export function secretMode() {
   return cached.mode;
 }
 
+/** Shared secret material for session HMAC and PII encryption */
+export function getAppSecret() {
+  return secret();
+}
+
 /** Call at boot / health */
 export function assertSecretConfigured() {
   secret();

@@ -10,6 +10,7 @@ import {
   processDispatch,
   proByUser,
   publicUser,
+  publicUserMasked,
   requireUser,
   resetDb,
   STATUS_FLOW,
@@ -58,6 +59,7 @@ export async function login(email: string, password: string) {
       throw new Error("INVALID_CREDENTIALS");
     }
     if (user.suspended) throw new Error("SUSPENDED");
+    if (user.deletedAt) throw new Error("ACCOUNT_DELETED");
     return publicUser(user);
   }, false);
 }
@@ -71,12 +73,14 @@ export async function registerClient(input: {
   clientKind?: "particulier" | "entreprise" | "syndicat";
   organizationName?: string;
   organizationSiret?: string;
+  privacyConsent?: boolean;
   address?: { line: string; city: string; zip: string; lat: number; lng: number };
 }) {
   return mutate((db) => {
-    if (db.users.some((u) => u.email.toLowerCase() === input.email.toLowerCase())) {
+    if (db.users.some((u) => u.email.toLowerCase() === input.email.toLowerCase() && !u.deletedAt)) {
       throw new Error("EMAIL_TAKEN");
     }
+    if (!input.privacyConsent) throw new Error("PRIVACY_CONSENT_REQUIRED");
     const kind = input.clientKind ?? "particulier";
     if ((kind === "entreprise" || kind === "syndicat") && !String(input.organizationName || "").trim()) {
       throw new Error("ORG_REQUIRED");
@@ -95,6 +99,10 @@ export async function registerClient(input: {
       clientKind: kind,
       organizationName: kind === "particulier" ? null : String(input.organizationName || "").trim(),
       organizationSiret: kind === "particulier" ? null : String(input.organizationSiret || "").trim() || null,
+      clientPlusUntil: null as string | null,
+      clientPlusPlan: "none" as const,
+      privacyConsentAt: new Date().toISOString(),
+      deletedAt: null as string | null,
     };
     db.users.push(user);
     if (input.address) {
@@ -246,9 +254,11 @@ export async function registerPro(input: {
   city: string;
   lat: number;
   lng: number;
+  privacyConsent?: boolean;
 }) {
   return mutate((db) => {
-    if (db.users.some((u) => u.email.toLowerCase() === input.email.toLowerCase())) {
+    if (!input.privacyConsent) throw new Error("PRIVACY_CONSENT_REQUIRED");
+    if (db.users.some((u) => u.email.toLowerCase() === input.email.toLowerCase() && !u.deletedAt)) {
       throw new Error("EMAIL_TAKEN");
     }
     const user = {
@@ -262,6 +272,8 @@ export async function registerPro(input: {
       avatar: `${input.firstName[0] ?? "P"}${input.lastName[0] ?? ""}`.toUpperCase(),
       createdAt: new Date().toISOString(),
       suspended: false,
+      privacyConsentAt: new Date().toISOString(),
+      deletedAt: null as string | null,
     };
     db.users.push(user);
     db.pros.push({
@@ -361,6 +373,115 @@ export async function getMe(userId: string) {
         : null,
     };
   }, true);
+}
+
+/** RGPD art. 15 — export des données personnelles du compte */
+export async function exportPersonalData(userId: string) {
+  return mutate((db) => {
+    const user = requireUser(db, userId);
+    const addresses = db.addresses.filter((a) => a.userId === user.id);
+    const missions = db.missions
+      .filter((m) => m.clientId === user.id || (user.role === "pro" && db.pros.some((p) => p.userId === user.id && p.id === m.proId)))
+      .map((m) => ({
+        id: m.id,
+        type: m.type,
+        status: m.status,
+        categoryId: m.categoryId,
+        address: m.address,
+        city: m.city,
+        description: m.description,
+        price: m.price,
+        createdAt: m.createdAt,
+        paymentStatus: m.paymentStatus,
+      }));
+    const favorites = db.favorites.filter((f) => f.clientId === user.id);
+    const notifications = db.notifications.filter((n) => n.userId === user.id);
+    const requests = (db.requests ?? []).filter((r) => r.clientId === user.id);
+    return {
+      exportedAt: new Date().toISOString(),
+      subject: "AppO — export données personnelles (RGPD)",
+      user: publicUser(user),
+      addresses,
+      missions,
+      favorites,
+      notifications,
+      requests: requests.map((r) => ({
+        id: r.id,
+        status: r.status,
+        categoryId: r.categoryId,
+        description: r.description,
+        createdAt: r.createdAt,
+      })),
+    };
+  }, false);
+}
+
+/** RGPD art. 17 — anonymisation / suppression du compte */
+export async function deleteMyAccount(userId: string, confirm: string) {
+  if (confirm !== "SUPPRIMER") throw new Error("CONFIRM_REQUIRED");
+  return mutate((db) => {
+    const user = requireUser(db, userId);
+    if (user.role === "admin") throw new Error("FORBIDDEN");
+    const now = new Date().toISOString();
+    const openStatuses = new Set([
+      "searching",
+      "offered",
+      "accepted",
+      "en_route",
+      "arrived",
+      "in_progress",
+      "disputed",
+    ]);
+    for (const m of db.missions) {
+      if (m.clientId !== user.id) continue;
+      if (openStatuses.has(m.status)) {
+        m.status = "cancelled";
+        m.timeline.push({ status: "cancelled", at: now, label: "Annulée (compte supprimé)" });
+      }
+      m.address = "[adresse supprimée]";
+      m.description = m.description ? "[description anonymisée]" : "";
+      m.photos = [];
+    }
+    for (const r of db.requests ?? []) {
+      if (r.clientId === user.id && (r.status === "open" || r.status === "awarded")) {
+        r.status = "cancelled";
+      }
+    }
+    for (const msg of db.messages) {
+      if (msg.senderId === user.id) {
+        msg.text = "[message supprimé]";
+        msg.photo = undefined;
+      }
+    }
+    db.addresses = db.addresses.filter((a) => a.userId !== user.id);
+    db.favorites = db.favorites.filter((f) => f.clientId !== user.id);
+    db.notifications = db.notifications.filter((n) => n.userId !== user.id);
+
+    user.deletedAt = now;
+    user.email = `deleted_${user.id}@anon.appo.local`;
+    user.passwordHash = hashPassword(`revoked_${user.id}_${Date.now()}`);
+    user.firstName = "Compte";
+    user.lastName = "supprimé";
+    user.phone = "";
+    user.avatar = "?";
+    user.organizationName = null;
+    user.organizationSiret = null;
+    user.clientPlusUntil = null;
+    user.clientPlusPlan = "none";
+    user.suspended = true;
+
+    const pro = proByUser(db, user.id);
+    if (pro) {
+      pro.online = false;
+      pro.verified = false;
+      pro.status = "suspended";
+      pro.siret = "********";
+      pro.description = "";
+      pro.team = (pro.team ?? []).map((t) => ({ ...t, phone: "", active: false }));
+    }
+
+    return { ok: true, deletedAt: now };
+  });
 }
 
 export async function listCategories() {
@@ -1321,7 +1442,21 @@ export async function adminAction(userId: string, action: string, payload: Recor
       const user = db.users.find((u) => u.id === payload.userId);
       if (!user) throw new Error("NOT_FOUND");
       user.suspended = Boolean(payload.suspended);
-      return publicUser(user);
+      return publicUserMasked(user);
+    }
+    if (action === "revealClientPii") {
+      const user = db.users.find((u) => u.id === payload.userId);
+      if (!user || user.role !== "client") throw new Error("NOT_FOUND");
+      console.info(
+        JSON.stringify({
+          ts: new Date().toISOString(),
+          level: "audit",
+          event: "admin_reveal_client_pii",
+          adminId: userId,
+          targetUserId: user.id,
+        }),
+      );
+      return { user: publicUser(user), revealedAt: new Date().toISOString() };
     }
     if (action === "category") {
       const id = String(payload.id ?? nid("cat"));
@@ -1456,7 +1591,16 @@ export async function adminAction(userId: string, action: string, payload: Recor
     if (action === "exportBackup") {
       return {
         ...db,
-        users: db.users.map(({ passwordHash: _p, ...u }) => u),
+        users: db.users.map((full) => {
+          const { passwordHash: _p, ...u } = full;
+          const masked = publicUserMasked(full);
+          return {
+            ...u,
+            phone: u.phone ? "[encrypted-at-rest]" : "",
+            email: full.role === "client" ? masked.email : u.email,
+          };
+        }),
+        addresses: db.addresses.map((a) => ({ ...a, line: "[encrypted-at-rest]" })),
         exportedAt: new Date().toISOString(),
       };
     }
@@ -1473,10 +1617,10 @@ export async function adminAction(userId: string, action: string, payload: Recor
 
 export async function adminLists() {
   return mutate((db) => ({
-    users: db.users.map(publicUser),
+    users: db.users.map(publicUserMasked),
     pros: db.pros.map((p) => ({
       ...p,
-      user: publicUser(db.users.find((u) => u.id === p.userId)!),
+      user: publicUserMasked(db.users.find((u) => u.id === p.userId)!),
       premiumActive: isPrimeActive(p),
       boostActive: isBoostActive(p),
       tier: effectiveTier(p),
@@ -1505,6 +1649,8 @@ export function errorStatus(e: unknown) {
     INVALID_CREDENTIALS: 401,
     EMAIL_TAKEN: 409,
     SUSPENDED: 403,
+    ACCOUNT_DELETED: 403,
+    PRIVACY_CONSENT_REQUIRED: 400,
     INVALID_PRICE: 400,
     INVALID_DATE: 400,
     INVALID_STATE: 409,

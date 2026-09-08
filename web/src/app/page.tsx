@@ -124,7 +124,10 @@ export default function Landing() {
           </div>
         </div>
         <p className="mx-auto mt-8 max-w-6xl pb-8 text-center text-xs text-white/40">
-          AppO V1 locale · paiements simulés · pas de cartes bancaires stockées
+          AppO V1 · paiements simulés ·{" "}
+          <a className="underline hover:text-white/70" href="/confidentialite">
+            confidentialité & RGPD
+          </a>
         </p>
       </section>
     </div>

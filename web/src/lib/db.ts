@@ -17,6 +17,7 @@ import {
 import { isClientPlusActive } from "./client-plus";
 import { withRfqSettings } from "./rfq";
 import { createSeed } from "./seed";
+import { maskEmail, maskPhone, openPii, sealPii } from "./privacy";
 import type {
   DB,
   Mission,
@@ -60,7 +61,14 @@ function migrate(db: DB): DB {
     paidAt: inv.paidAt ?? null,
   }));
   db.users = db.users.map((u) => {
-    if (u.role !== "client") return u;
+    if (u.role !== "client") {
+      return {
+        ...u,
+        privacyConsentAt: u.privacyConsentAt ?? null,
+        deletedAt: u.deletedAt ?? null,
+        phone: openPii(u.phone),
+      };
+    }
     return {
       ...u,
       clientKind: u.clientKind ?? "particulier",
@@ -68,8 +76,15 @@ function migrate(db: DB): DB {
       organizationSiret: u.organizationSiret ?? null,
       clientPlusUntil: u.clientPlusUntil ?? null,
       clientPlusPlan: u.clientPlusPlan ?? "none",
+      privacyConsentAt: u.privacyConsentAt ?? null,
+      deletedAt: u.deletedAt ?? null,
+      phone: openPii(u.phone),
     };
   });
+  db.addresses = (db.addresses ?? []).map((a) => ({
+    ...a,
+    line: openPii(a.line),
+  }));
   return db;
 }
 
@@ -80,15 +95,33 @@ async function readFile(): Promise<DB> {
   } catch {
     const seed = createSeed();
     await fs.mkdir(path.dirname(DB_PATH), { recursive: true });
-    await fs.writeFile(DB_PATH, JSON.stringify(seed, null, 2), "utf8");
-    return seed;
+    // Persist sealed so PII never sits plaintext on disk
+    const sealedUsers = seed.users.map((u) => ({ ...u, phone: sealPii(u.phone) }));
+    const sealedAddrs = seed.addresses.map((a) => ({ ...a, line: sealPii(a.line) }));
+    await fs.writeFile(
+      DB_PATH,
+      JSON.stringify({ ...seed, users: sealedUsers, addresses: sealedAddrs }, null, 2),
+      "utf8",
+    );
+    return migrate(seed);
   }
 }
 
 async function writeFile(db: DB) {
   const dir = path.dirname(DB_PATH);
   await fs.mkdir(dir, { recursive: true });
-  const payload = JSON.stringify(db, null, 2);
+  const sealed: DB = {
+    ...db,
+    users: db.users.map((u) => ({
+      ...u,
+      phone: sealPii(u.phone),
+    })),
+    addresses: (db.addresses ?? []).map((a) => ({
+      ...a,
+      line: sealPii(a.line),
+    })),
+  };
+  const payload = JSON.stringify(sealed, null, 2);
   const tmp = path.join(dir, `db.${process.pid}.${Date.now()}.tmp`);
   await fs.writeFile(tmp, payload, "utf8");
   await fs.rename(tmp, DB_PATH);
@@ -160,7 +193,30 @@ function nid(prefix: string) {
 
 export function publicUser(user: User): PublicUser {
   const { passwordHash: _p, ...rest } = user;
+  if (user.deletedAt) {
+    return {
+      ...rest,
+      firstName: "Compte",
+      lastName: "supprimé",
+      email: "",
+      phone: "",
+      avatar: "?",
+      organizationName: null,
+      organizationSiret: null,
+    };
+  }
   return rest;
+}
+
+export function publicUserMasked(user: User): PublicUser {
+  const base = publicUser(user);
+  if (user.deletedAt) return base;
+  return {
+    ...base,
+    email: maskEmail(base.email),
+    phone: maskPhone(base.phone),
+    lastName: base.lastName ? `${base.lastName.charAt(0)}.` : "",
+  };
 }
 
 export function matchPros(db: DB, categoryId: string, lat: number, lng: number, opts?: { urgence?: boolean }) {
@@ -329,7 +385,7 @@ export function proByUser(db: DB, userId: string) {
 
 export function requireUser(db: DB, userId: string, role?: Role) {
   const user = userById(db, userId);
-  if (!user || user.suspended) throw new Error("UNAUTHORIZED");
+  if (!user || user.suspended || user.deletedAt) throw new Error("UNAUTHORIZED");
   if (role && user.role !== role) throw new Error("FORBIDDEN");
   return user;
 }

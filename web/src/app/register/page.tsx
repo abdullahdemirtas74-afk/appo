@@ -18,6 +18,7 @@ function RegisterForm() {
       ? (params.get("kind") as ClientKind)
       : "particulier",
   );
+  const [privacyConsent, setPrivacyConsent] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const { data } = usePoll<{ categories: { id: string; name: string }[] }>("/api/categories", 0);
@@ -47,6 +48,10 @@ function RegisterForm() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (!privacyConsent) {
+      setError("PRIVACY_CONSENT_REQUIRED");
+      return;
+    }
     setLoading(true);
     setError("");
     try {
@@ -59,6 +64,7 @@ function RegisterForm() {
               city: RUMILLY.city,
               lat: RUMILLY.lat,
               lng: RUMILLY.lng,
+              privacyConsent: true,
             }
           : {
               role: "client",
@@ -70,6 +76,7 @@ function RegisterForm() {
               clientKind,
               organizationName: form.organizationName,
               organizationSiret: form.organizationSiret,
+              privacyConsent: true,
               address: {
                 line: "12 rue de la République",
                 city: RUMILLY.city,
@@ -197,9 +204,30 @@ function RegisterForm() {
             </p>
           </>
         ) : null}
+        <label className="flex items-start gap-3 rounded-2xl border border-line bg-background/60 px-3 py-3 text-sm">
+          <input
+            type="checkbox"
+            className="mt-1"
+            checked={privacyConsent}
+            onChange={(e) => setPrivacyConsent(e.target.checked)}
+          />
+          <span>
+            J’accepte le traitement de mes données personnelles (coordonnées, adresses, missions) pour le
+            fonctionnement d’AppO.{" "}
+            <a className="font-semibold text-appo underline" href="/confidentialite" target="_blank" rel="noreferrer">
+              Politique de confidentialité
+            </a>
+          </span>
+        </label>
         {error ? (
           <p className="text-sm text-red-600">
-            {error === "EMAIL_TAKEN" ? "Cet e-mail existe déjà" : error === "ORG_REQUIRED" ? "Indiquez le nom de l’organisation" : error}
+            {error === "EMAIL_TAKEN"
+              ? "Cet e-mail existe déjà"
+              : error === "ORG_REQUIRED"
+                ? "Indiquez le nom de l’organisation"
+                : error === "PRIVACY_CONSENT_REQUIRED"
+                  ? "Acceptez la politique de confidentialité pour continuer"
+                  : error}
           </p>
         ) : null}
         <Button type="submit" variant="now" className="w-full" disabled={loading}>
