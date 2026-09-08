@@ -95,7 +95,7 @@ export function AppShell({
             <SideLink key={item.href} item={item} root={root} />
           ))}
         </nav>
-        <p className="text-xs text-muted">Votre projet. Le bon pro.</p>
+        <p className="text-xs text-muted">Le bon pro, sans attendre</p>
       </aside>
 
       <div className="flex min-h-dvh min-w-0 flex-col lg:pl-60 xl:pl-64">
@@ -139,12 +139,12 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
           <Logo light />
           <div>
             <h1 className="max-w-md text-3xl font-extrabold leading-tight tracking-tight xl:text-4xl">
-              Votre projet.
+              Votre besoin.
               <br />
-              Le bon pro.
+              <span className="text-appo">Le bon pro.</span>
             </h1>
             <p className="mt-4 max-w-sm text-white/65">
-              Matching local, AppO Now et planning pro — responsive téléphone, tablette et desktop.
+              Des pros vérifiés près de chez vous — AppO Now, devis et paiement sécurisé.
             </p>
           </div>
           <p className="text-sm text-white/40">AppO · Rumilly & alentours</p>

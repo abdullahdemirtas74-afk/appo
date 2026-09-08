@@ -8,8 +8,9 @@ const font = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "AppO — Votre projet. Le bon pro.",
-  description: "Trouvez un professionnel vérifié autour de vous, maintenant ou sur rendez-vous.",
+  title: "AppO — Le bon pro, sans attendre",
+  description:
+    "Plomberie, électricité, serrurerie… AppO trouve un professionnel vérifié autour de vous, suit la mission et sécurise le paiement.",
   appleWebApp: {
     capable: true,
     title: "AppO",

@@ -1,7 +1,7 @@
 # AppO — V1 web locale
 
 Plateforme de mise en relation particuliers / professionnels.
-**Votre projet. Le bon pro.**
+**Le bon pro, sans attendre.**
 
 ## Lancer en local
 
