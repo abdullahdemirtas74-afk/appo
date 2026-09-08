@@ -45,6 +45,15 @@ function migrate(db: DB): DB {
     quoteId: m.quoteId ?? null,
     invoiceId: m.invoiceId ?? null,
   }));
+  db.users = db.users.map((u) => {
+    if (u.role !== "client") return u;
+    return {
+      ...u,
+      clientKind: u.clientKind ?? "particulier",
+      organizationName: u.organizationName ?? null,
+      organizationSiret: u.organizationSiret ?? null,
+    };
+  });
   return db;
 }
 

@@ -1,5 +1,8 @@
 export type Role = "client" | "pro" | "admin";
 
+/** Client account subtype — particuliers, entreprises ou syndicats de copropriété */
+export type ClientKind = "particulier" | "entreprise" | "syndicat";
+
 export type User = {
   id: string;
   role: Role;
@@ -11,6 +14,10 @@ export type User = {
   avatar: string;
   createdAt: string;
   suspended: boolean;
+  /** Only meaningful when role === "client" */
+  clientKind?: ClientKind;
+  organizationName?: string | null;
+  organizationSiret?: string | null;
 };
 
 export type Address = {

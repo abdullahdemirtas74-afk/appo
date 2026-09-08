@@ -60,11 +60,18 @@ export async function registerClient(input: {
   email: string;
   phone: string;
   password: string;
+  clientKind?: "particulier" | "entreprise" | "syndicat";
+  organizationName?: string;
+  organizationSiret?: string;
   address?: { line: string; city: string; zip: string; lat: number; lng: number };
 }) {
   return mutate((db) => {
     if (db.users.some((u) => u.email.toLowerCase() === input.email.toLowerCase())) {
       throw new Error("EMAIL_TAKEN");
+    }
+    const kind = input.clientKind ?? "particulier";
+    if ((kind === "entreprise" || kind === "syndicat") && !String(input.organizationName || "").trim()) {
+      throw new Error("ORG_REQUIRED");
     }
     const user = {
       id: nid("usr"),
@@ -77,16 +84,56 @@ export async function registerClient(input: {
       avatar: `${input.firstName[0] ?? "A"}${input.lastName[0] ?? ""}`.toUpperCase(),
       createdAt: new Date().toISOString(),
       suspended: false,
+      clientKind: kind,
+      organizationName: kind === "particulier" ? null : String(input.organizationName || "").trim(),
+      organizationSiret: kind === "particulier" ? null : String(input.organizationSiret || "").trim() || null,
     };
     db.users.push(user);
     if (input.address) {
       db.addresses.push({
         id: nid("adr"),
         userId: user.id,
-        label: "Domicile",
+        label: kind === "syndicat" ? "Copropriété" : kind === "entreprise" ? "Siège" : "Domicile",
         ...input.address,
         isDefault: true,
       });
+    }
+    return publicUser(user);
+  });
+}
+
+export async function updateClientProfile(
+  userId: string,
+  patch: {
+    clientKind?: "particulier" | "entreprise" | "syndicat";
+    organizationName?: string;
+    organizationSiret?: string;
+    firstName?: string;
+    lastName?: string;
+    phone?: string;
+  },
+) {
+  return mutate((db) => {
+    const user = requireUser(db, userId, "client");
+    if (patch.clientKind) {
+      user.clientKind = patch.clientKind;
+      if (patch.clientKind === "particulier") {
+        user.organizationName = null;
+        user.organizationSiret = null;
+      }
+    }
+    if (patch.organizationName !== undefined) {
+      user.organizationName = String(patch.organizationName).trim() || null;
+    }
+    if (patch.organizationSiret !== undefined) {
+      user.organizationSiret = String(patch.organizationSiret).trim() || null;
+    }
+    if (patch.firstName) user.firstName = patch.firstName;
+    if (patch.lastName) user.lastName = patch.lastName;
+    if (patch.phone) user.phone = patch.phone;
+    const kind = user.clientKind ?? "particulier";
+    if ((kind === "entreprise" || kind === "syndicat") && !user.organizationName) {
+      throw new Error("ORG_REQUIRED");
     }
     return publicUser(user);
   });
@@ -1177,6 +1224,7 @@ export function errorStatus(e: unknown) {
     INVALID_PRICE: 400,
     INVALID_DATE: 400,
     INVALID_STATE: 409,
+    ORG_REQUIRED: 400,
     NOT_VERIFIED: 403,
   };
   return { status: map[msg] ?? 400, error: msg };

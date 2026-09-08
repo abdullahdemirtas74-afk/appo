@@ -1,26 +1,53 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import { useMe } from "@/components/guard";
 import { Button, Field, inputClass } from "@/components/ui";
 import { api, fileToDataUrl, usePoll } from "@/lib/hooks";
+import type { ClientKind } from "@/lib/types";
 
-export default function PublierDemandePage() {
+function PublierDemandeForm() {
   const router = useRouter();
-  const { data: me } = useMe();
+  const params = useSearchParams();
+  const { data: me, reload: refreshMe } = useMe();
   const { data } = usePoll<{ categories: { id: string; name: string }[] }>("/api/categories", 0);
   const addr = me?.addresses?.find((a) => a.isDefault);
+  const kindParam = params.get("kind");
+  const targetKind: ClientKind | null =
+    kindParam === "entreprise" || kindParam === "syndicat" ? kindParam : null;
+
   const [categoryId, setCategoryId] = useState("cat_plomberie");
   const [description, setDescription] = useState("Besoin de remplacer un robinet demain");
   const [availabilityNote, setAvailabilityNote] = useState("Demain après-midi ou ce week-end");
   const [preferredAt, setPreferredAt] = useState("");
   const [photos, setPhotos] = useState<string[]>([]);
+  const [organizationName, setOrganizationName] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (me?.user?.organizationName) setOrganizationName(me.user.organizationName);
+  }, [me?.user?.organizationName]);
+
+  const needsOrgSetup =
+    targetKind &&
+    (me?.user?.clientKind !== targetKind || !me?.user?.organizationName);
+
+  async function ensureOrgProfile() {
+    if (!targetKind) return;
+    if (!organizationName.trim()) throw new Error("ORG_REQUIRED");
+    await api("/api/me", {
+      clientKind: targetKind,
+      organizationName: organizationName.trim(),
+    });
+    await refreshMe();
+  }
 
   async function submit() {
     setLoading(true);
     try {
+      if (targetKind) await ensureOrgProfile();
       const res = await api<{ request: { id: string } }>("/api/requests", {
         categoryId,
         description,
@@ -33,17 +60,59 @@ export default function PublierDemandePage() {
         lng: addr?.lng ?? 6.129,
       });
       router.replace(`/app/demandes/${res.request.id}`);
+    } catch (e) {
+      if (e instanceof Error && e.message === "ORG_REQUIRED") {
+        alert("Indiquez le nom de votre organisation");
+      }
     } finally {
       setLoading(false);
     }
   }
 
+  const title =
+    targetKind === "entreprise"
+      ? "Besoin entreprise"
+      : targetKind === "syndicat"
+        ? "Besoin syndicat"
+        : "Publier un besoin";
+
   return (
     <div className="px-4 py-5 sm:px-6 md:px-8 md:py-8">
-      <h1 className="text-2xl font-extrabold md:text-3xl">Publier un besoin</h1>
+      <h1 className="text-2xl font-extrabold md:text-3xl">{title}</h1>
       <p className="mt-1 text-sm text-muted">
-        Les pros envoient des offres. Vous comparez prix, délais et notes — puis vous choisissez.
+        {targetKind === "entreprise"
+          ? "Publiez un besoin pour vos locaux ou votre activité — les pros vous envoient des offres."
+          : targetKind === "syndicat"
+            ? "Publiez un besoin pour la copropriété (parties communes, urgences, entretien)."
+            : "Les pros envoient des offres. Vous comparez prix, délais et notes — puis vous choisissez."}
       </p>
+      {needsOrgSetup ? (
+        <div className="mt-4 max-w-xl rounded-2xl border border-line bg-card p-4">
+          <p className="text-sm font-semibold">
+            {targetKind === "syndicat" ? "Identifiez votre syndicat" : "Identifiez votre entreprise"}
+          </p>
+          <Field label={targetKind === "syndicat" ? "Nom du syndicat / copropriété" : "Nom de l’entreprise"}>
+            <input
+              className={inputClass}
+              value={organizationName}
+              onChange={(e) => setOrganizationName(e.target.value)}
+              placeholder={targetKind === "syndicat" ? "Ex. Syndic Les Alpes" : "Ex. Dupont & Fils"}
+            />
+          </Field>
+          <p className="mt-2 text-xs text-muted">
+            Vous pourrez aussi modifier ça dans{" "}
+            <Link href={`/app/compte?kind=${targetKind}`} className="font-semibold text-appo">
+              Mon compte
+            </Link>
+            .
+          </p>
+        </div>
+      ) : me?.user?.organizationName ? (
+        <p className="mt-3 text-sm font-semibold text-appo">
+          {(me.user.clientKind === "syndicat" ? "Syndicat" : me.user.clientKind === "entreprise" ? "Entreprise" : "") +
+            (me.user.organizationName ? ` · ${me.user.organizationName}` : "")}
+        </p>
+      ) : null}
       <div className="mt-6 max-w-xl space-y-4">
         <Field label="Service">
           <select className={inputClass} value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
@@ -106,5 +175,13 @@ export default function PublierDemandePage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function PublierDemandePage() {
+  return (
+    <Suspense>
+      <PublierDemandeForm />
+    </Suspense>
   );
 }
