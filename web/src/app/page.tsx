@@ -30,16 +30,16 @@ export default function Landing() {
       <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-10 sm:gap-12 sm:px-6 sm:py-14 lg:grid-cols-2 lg:py-16">
         <div className="min-w-0">
           <p className="mb-4 text-xs font-semibold uppercase tracking-[0.2em] text-appo sm:text-sm">
-            Le Uber des services
+            Le bon pro, sans attendre
           </p>
           <h1 className="text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl md:text-6xl">
-            Votre projet.
+            Votre besoin.
             <br />
             <span className="text-appo">Le bon pro.</span>
           </h1>
           <p className="mt-5 max-w-md text-base text-white/70 sm:mt-6 sm:text-lg">
-            Un plombier, un électricien, un serrurier — autour de vous, maintenant. AppO gère la
-            mission, le suivi et le paiement.
+            Plomberie, électricité, serrurerie… AppO trouve un professionnel vérifié autour de vous,
+            suit la mission et sécurise le paiement.
           </p>
           <div className="mt-7 flex flex-col gap-3 sm:mt-8 sm:flex-row sm:flex-wrap">
             <Button href="/login" variant="now" className="w-full px-7 sm:w-auto">
