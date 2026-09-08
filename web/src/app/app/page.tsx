@@ -99,41 +99,6 @@ export default function ClientHome() {
         </Link>
       </div>
 
-      <h2 className="mt-8 text-sm font-bold uppercase tracking-wide text-muted">Organisations</h2>
-      <p className="mt-1 max-w-2xl text-sm text-muted">
-        Entreprises et syndicats : publiez vos besoins (entretien, dépannage, travaux) et recevez des offres de pros vérifiés.
-      </p>
-      <div className="mt-3 grid max-w-2xl grid-cols-1 gap-3 min-[420px]:grid-cols-2">
-        <Link
-          href="/app/demandes/nouvelle?kind=entreprise"
-          className="rounded-2xl border border-line bg-card p-4 transition hover:border-appo/40 hover:shadow-sm"
-        >
-          <div className="text-lg font-bold">Entreprise</div>
-          <p className="mt-1 text-sm text-muted">
-            Locaux, bureaux, commerces — interventions et devis pour votre activité.
-          </p>
-          {me?.user?.clientKind === "entreprise" && me.user.organizationName ? (
-            <p className="mt-2 text-xs font-semibold text-appo">{me.user.organizationName}</p>
-          ) : (
-            <p className="mt-2 text-xs font-semibold text-appo">Publier un besoin →</p>
-          )}
-        </Link>
-        <Link
-          href="/app/demandes/nouvelle?kind=syndicat"
-          className="rounded-2xl border border-line bg-card p-4 transition hover:border-appo/40 hover:shadow-sm"
-        >
-          <div className="text-lg font-bold">Syndicat</div>
-          <p className="mt-1 text-sm text-muted">
-            Copropriétés et syndicats — parties communes, urgences, contrats d’entretien.
-          </p>
-          {me?.user?.clientKind === "syndicat" && me.user.organizationName ? (
-            <p className="mt-2 text-xs font-semibold text-appo">{me.user.organizationName}</p>
-          ) : (
-            <p className="mt-2 text-xs font-semibold text-appo">Publier un besoin →</p>
-          )}
-        </Link>
-      </div>
-
       <h2 className="mt-8 text-sm font-bold uppercase tracking-wide text-muted">Catégories</h2>
       <div className="mt-3 grid grid-cols-3 gap-2 pb-8 min-[480px]:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
         {(data?.categories ?? []).map((c) => (
