@@ -13,6 +13,7 @@ export async function GET(req: Request) {
     minRating: url.searchParams.get("minRating") ? Number(url.searchParams.get("minRating")) : undefined,
     maxPrice: url.searchParams.get("maxPrice") ? Number(url.searchParams.get("maxPrice")) : undefined,
     maxKm: url.searchParams.get("maxKm") ? Number(url.searchParams.get("maxKm")) : undefined,
+    favoritesOnly: url.searchParams.get("favorites") === "1",
   });
   return NextResponse.json({ pros });
 }

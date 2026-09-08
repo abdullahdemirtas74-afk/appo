@@ -17,25 +17,85 @@ export default function AdminPros() {
                 <div className="font-bold">
                   {p.user.firstName} {p.user.lastName} — {p.company}
                 </div>
-                <div className="text-sm text-muted">SIRET {p.siret} · {p.city} · {p.user.email}</div>
+                <div className="text-sm text-muted">
+                  SIRET {p.siret} · {p.city} · {p.user.email}
+                </div>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  <Badge tone={p.status === "verified" ? "green" : p.status === "pending" ? "orange" : "red"}>{p.status}</Badge>
+                  <Badge tone={p.status === "verified" ? "green" : p.status === "pending" ? "orange" : "red"}>
+                    {p.status}
+                  </Badge>
                   {p.online ? <Badge tone="green">En ligne</Badge> : <Badge>Hors ligne</Badge>}
-                  {p.premiumActive ? <Badge tone="premium">★ Premium</Badge> : null}
+                  {p.tier === "elite" ? <Badge tone="premium">Elite</Badge> : null}
+                  {p.premiumActive || p.tier === "prime" ? <Badge tone="premium">Prime</Badge> : null}
+                  {p.boostActive ? <Badge tone="orange">Boost</Badge> : null}
                 </div>
                 <div className="mt-2 text-xs text-muted">
                   Docs : {p.documents.map((d: any) => `${d.type} (${d.status})`).join(" · ")}
                 </div>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 {p.status === "pending" ? (
                   <>
-                    <Button onClick={async () => { await api("/api/admin", { action: "verifyPro", proId: p.id, decision: "verified" }); reload(); }}>Valider</Button>
-                    <Button variant="danger" onClick={async () => { await api("/api/admin", { action: "verifyPro", proId: p.id, decision: "rejected" }); reload(); }}>Refuser</Button>
+                    <Button
+                      onClick={async () => {
+                        await api("/api/admin", { action: "verifyPro", proId: p.id, decision: "verified" });
+                        reload();
+                      }}
+                    >
+                      Valider
+                    </Button>
+                    <Button
+                      variant="danger"
+                      onClick={async () => {
+                        await api("/api/admin", { action: "verifyPro", proId: p.id, decision: "rejected" });
+                        reload();
+                      }}
+                    >
+                      Refuser
+                    </Button>
                   </>
                 ) : (
-                  <Button variant="secondary" onClick={async () => { await api("/api/admin", { action: "verifyPro", proId: p.id, decision: "suspended" }); reload(); }}>Suspendre</Button>
+                  <Button
+                    variant="secondary"
+                    onClick={async () => {
+                      await api("/api/admin", { action: "verifyPro", proId: p.id, decision: "suspended" });
+                      reload();
+                    }}
+                  >
+                    Suspendre
+                  </Button>
                 )}
+                <Button
+                  variant="secondary"
+                  onClick={async () => {
+                    await api("/api/admin", { action: "grantPrime", proId: p.id, days: 30 });
+                    reload();
+                  }}
+                >
+                  +30j Prime
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={async () => {
+                    await api("/api/admin", { action: "grantBoost", proId: p.id, hours: 24 });
+                    reload();
+                  }}
+                >
+                  Boost 24h
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={async () => {
+                    await api("/api/admin", {
+                      action: "setElite",
+                      proId: p.id,
+                      elite: p.tier !== "elite",
+                    });
+                    reload();
+                  }}
+                >
+                  {p.tier === "elite" ? "Retirer Elite" : "Passer Elite"}
+                </Button>
               </div>
             </div>
           </div>

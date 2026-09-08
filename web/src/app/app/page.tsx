@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bell, MapPin, Search } from "lucide-react";
+import { MapPin, Search } from "lucide-react";
 import { Logo } from "@/components/logo";
+import { NotificationBell } from "@/components/notifications";
 import { Button } from "@/components/ui";
 import { useMe } from "@/components/guard";
 import { usePoll } from "@/lib/hooks";
@@ -20,10 +21,7 @@ export default function ClientHome() {
     <div className="px-4 pt-5 sm:px-6 sm:pt-6 md:px-8 md:pt-8">
       <div className="flex items-center justify-between md:hidden">
         <Logo size="sm" />
-        <button className="relative rounded-full border border-line bg-card p-2">
-          <Bell size={18} />
-          {me?.unread ? <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-appo" /> : null}
-        </button>
+        <NotificationBell />
       </div>
 
       <div className="hidden items-start justify-between md:flex">
@@ -39,10 +37,7 @@ export default function ClientHome() {
             Trouvez un pro vérifié autour de vous — immédiatement ou sur rendez-vous.
           </p>
         </div>
-        <button className="relative shrink-0 rounded-full border border-line bg-card p-3">
-          <Bell size={18} />
-          {me?.unread ? <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-appo" /> : null}
-        </button>
+        <NotificationBell />
       </div>
 
       <div className="mt-5 flex items-center gap-2 text-sm text-muted md:hidden">

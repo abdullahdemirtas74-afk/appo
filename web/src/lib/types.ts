@@ -320,6 +320,8 @@ export type ServiceRequest = {
   broadcastDone: boolean;
   createdAt: string;
   expiresAt: string;
+  /** Gros travaux / devis détaillé */
+  isLargeWorks?: boolean;
 };
 
 export type ProOffer = {

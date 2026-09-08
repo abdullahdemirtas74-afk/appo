@@ -58,18 +58,45 @@ export default function MissionClientPage() {
                 ? `Un pro a ${m.remainingOffer}s pour accepter`
                 : "AppO sélectionne les professionnels vérifiés autour de vous."}
           </p>
-          <p className="mx-auto mt-4 max-w-sm rounded-2xl bg-background px-4 py-3 text-xs text-muted">
-            <Lock size={12} className="mr-1 inline" />
-            Identité et téléphone restent masqués jusqu’à acceptation — pour éviter les interventions hors appli.
-          </p>
+          <div className="mx-auto mt-4 max-w-sm space-y-2">
+            {m.status === "offered" ? (
+              <div className="rounded-2xl bg-ink px-4 py-3 text-white">
+                <div className="text-xs opacity-70">Offre en cours</div>
+                <div className="text-3xl font-black tabular-nums">{m.remainingOffer}s</div>
+              </div>
+            ) : null}
+            <p className="rounded-2xl bg-background px-4 py-3 text-sm text-muted">
+              {m.contactedCount ?? 0} pro{(m.contactedCount ?? 0) > 1 ? "s" : ""} dans le matching
+              {m.declinedProIds?.length ? ` · ${m.declinedProIds.length} passage(s)` : ""}
+            </p>
+            <p className="rounded-2xl bg-background px-4 py-3 text-xs text-muted">
+              <Lock size={12} className="mr-1 inline" />
+              Identité et téléphone restent masqués jusqu’à acceptation.
+            </p>
+            <Button
+              className="w-full"
+              variant="secondary"
+              onClick={() => act("cancel")}
+            >
+              Annuler la recherche
+            </Button>
+          </div>
         </div>
       ) : m.status === "unmatched" ? (
         <div className="py-10 text-center">
           <h1 className="text-xl font-extrabold">Aucun professionnel disponible</h1>
-          <p className="mt-2 text-sm text-muted">Essayez de planifier ou une autre catégorie.</p>
-          <Button href="/app" className="mt-6" variant="now">
-            Retour à l’accueil
-          </Button>
+          <p className="mt-2 text-sm text-muted">Essayez de comparer des offres ou de planifier.</p>
+          <div className="mx-auto mt-6 flex max-w-sm flex-col gap-2">
+            <Button href="/app/demandes/nouvelle" variant="now">
+              Publier un besoin
+            </Button>
+            <Button href="/app/planifier" variant="secondary">
+              Planifier
+            </Button>
+            <Button href="/app" variant="secondary">
+              Retour à l’accueil
+            </Button>
+          </div>
         </div>
       ) : (
         <>

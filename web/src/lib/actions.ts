@@ -184,6 +184,53 @@ export async function subscribeClientPlus(userId: string, plan: "monthly" | "yea
   });
 }
 
+export async function markNotificationsRead(userId: string, ids?: string[]) {
+  return mutate((db) => {
+    requireUser(db, userId);
+    for (const n of db.notifications) {
+      if (n.userId !== userId) continue;
+      if (!ids || ids.includes(n.id)) n.read = true;
+    }
+    return {
+      unread: db.notifications.filter((n) => n.userId === userId && !n.read).length,
+    };
+  });
+}
+
+export async function setDefaultAddress(userId: string, addressId: string) {
+  return mutate((db) => {
+    requireUser(db, userId, "client");
+    const mine = db.addresses.filter((a) => a.userId === userId);
+    if (!mine.some((a) => a.id === addressId)) throw new Error("NOT_FOUND");
+    for (const a of mine) a.isDefault = a.id === addressId;
+    return mine;
+  });
+}
+
+export async function addClientAddress(
+  userId: string,
+  input: { label: string; line: string; city: string; zip: string; lat?: number; lng?: number },
+) {
+  return mutate((db) => {
+    requireUser(db, userId, "client");
+    const mine = db.addresses.filter((a) => a.userId === userId);
+    for (const a of mine) a.isDefault = false;
+    const addr = {
+      id: nid("adr"),
+      userId,
+      label: String(input.label || "Adresse").trim(),
+      line: String(input.line).trim(),
+      city: String(input.city).trim(),
+      zip: String(input.zip || "").trim(),
+      lat: Number(input.lat ?? 45.8782),
+      lng: Number(input.lng ?? 6.0581),
+      isDefault: true,
+    };
+    db.addresses.push(addr);
+    return db.addresses.filter((a) => a.userId === userId);
+  });
+}
+
 export async function registerPro(input: {
   firstName: string;
   lastName: string;
@@ -330,6 +377,7 @@ export async function listPros(params: {
   minRating?: number;
   maxPrice?: number;
   maxKm?: number;
+  favoritesOnly?: boolean;
 }) {
   return mutate((db) => {
     const origin = {
@@ -337,6 +385,10 @@ export async function listPros(params: {
       lng: params.lng ?? db.addresses.find((a) => a.userId === params.userId && a.isDefault)?.lng ?? 6.0581,
     };
     let list = db.pros.filter((p) => p.status === "verified");
+    if (params.favoritesOnly && params.userId) {
+      const favIds = new Set(db.favorites.filter((f) => f.clientId === params.userId).map((f) => f.proId));
+      list = list.filter((p) => favIds.has(p.id));
+    }
     if (params.categoryId) list = list.filter((p) => p.categoryIds.includes(params.categoryId!));
     if (params.minRating) list = list.filter((p) => p.rating >= params.minRating!);
     if (params.maxPrice) list = list.filter((p) => p.startingPrice <= params.maxPrice!);
@@ -1316,8 +1368,69 @@ export async function adminAction(userId: string, action: string, payload: Recor
       }
       if (payload.commissionPrime != null) db.settings.commissionPrime = Number(payload.commissionPrime);
       if (payload.commissionElite != null) db.settings.commissionElite = Number(payload.commissionElite);
-      db.settings = withTierSettings(db.settings);
+      if (payload.rfqPrimeExclusiveMinutes != null) {
+        db.settings.rfqPrimeExclusiveMinutes = Number(payload.rfqPrimeExclusiveMinutes);
+      }
+      if (payload.rfqExpiresHours != null) {
+        db.settings.rfqExpiresHours = Number(payload.rfqExpiresHours);
+      }
+      if (payload.commissionClientPlus != null) {
+        db.settings.commissionClientPlus = Number(payload.commissionClientPlus);
+      }
+      db.settings = withClientPlusSettings(withTierSettings(db.settings));
       return db.settings;
+    }
+    if (action === "grantPrime") {
+      const pro = db.pros.find((p) => p.id === payload.proId);
+      if (!pro) throw new Error("NOT_FOUND");
+      const days = Math.max(1, Number(payload.days ?? 30));
+      const base =
+        pro.primeUntil && new Date(pro.primeUntil).getTime() > Date.now()
+          ? new Date(pro.primeUntil)
+          : new Date();
+      base.setDate(base.getDate() + days);
+      pro.primeUntil = base.toISOString();
+      pro.premiumUntil = pro.primeUntil;
+      pro.subscriptionTier = "prime";
+      pro.primePlan = "monthly";
+      notify(db, pro.userId, "AppO Prime offert", `${days} jours Prime activés par l’admin`, "/pro/premium");
+      return { ...pro, tier: effectiveTier(pro), premiumActive: true };
+    }
+    if (action === "grantBoost") {
+      const pro = db.pros.find((p) => p.id === payload.proId);
+      if (!pro) throw new Error("NOT_FOUND");
+      const hours = Math.max(1, Number(payload.hours ?? 24));
+      pro.boostUntil = extendBoostUntil(pro.boostUntil, hours);
+      notify(db, pro.userId, "Boost offert", `Boost ${hours}h activé par l’admin`, "/pro/premium");
+      return { ...pro, boostActive: true, boostUntil: pro.boostUntil };
+    }
+    if (action === "setElite") {
+      const pro = db.pros.find((p) => p.id === payload.proId);
+      if (!pro) throw new Error("NOT_FOUND");
+      const elite = Boolean(payload.elite);
+      pro.loyaltyBadge = elite ? "elite" : pro.loyaltyBadge === "elite" ? "gold" : pro.loyaltyBadge;
+      if (elite) {
+        pro.missionCount = Math.max(pro.missionCount, 40);
+        pro.rating = Math.max(pro.rating, 4.7);
+        pro.acceptanceRate = Math.max(pro.acceptanceRate, 0.85);
+      }
+      notify(
+        db,
+        pro.userId,
+        elite ? "AppO Elite activé" : "Badge Elite retiré",
+        elite ? "Priorité maximale sur le matching." : "Votre statut a été mis à jour.",
+        "/pro/premium",
+      );
+      return { ...pro, tier: effectiveTier(pro), loyaltyBadge: computeLoyaltyBadge(pro) };
+    }
+    if (action === "cancelMission") {
+      const m = db.missions.find((x) => x.id === payload.missionId);
+      if (!m) throw new Error("NOT_FOUND");
+      if (["completed", "cancelled"].includes(m.status)) throw new Error("INVALID_STATE");
+      m.status = "cancelled";
+      m.timeline.push({ status: "cancelled", at: new Date().toISOString(), label: "Annulée par admin" });
+      notify(db, m.clientId, "Mission annulée", "Un administrateur a annulé la mission.", `/app/missions/${m.id}`);
+      return enrichMission(db, m);
     }
     if (action === "resolveDispute") {
       const d = db.disputes.find((x) => x.id === payload.id);

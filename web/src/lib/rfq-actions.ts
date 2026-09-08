@@ -36,6 +36,7 @@ export async function createServiceRequest(
     lng: number;
     availabilityNote: string;
     preferredAt?: string | null;
+    isLargeWorks?: boolean;
   },
 ) {
   return mutate((db) => {
@@ -73,6 +74,7 @@ export async function createServiceRequest(
       broadcastDone: false,
       createdAt: now.toISOString(),
       expiresAt,
+      isLargeWorks: Boolean(input.isLargeWorks),
     };
     if (!db.requests) db.requests = [];
     if (!db.offers) db.offers = [];

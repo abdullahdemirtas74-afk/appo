@@ -45,9 +45,10 @@ export default function AdminHome() {
       <div className="mt-8 rounded-3xl border border-line bg-white p-5">
         <h2 className="font-bold">Commission & matching</h2>
         <p className="text-sm text-muted">
-          Commission actuelle : {Math.round((data?.settings?.commissionRate ?? 0.15) * 100)} % · Compte à rebours AppO Now : {data?.settings?.offerSeconds}s
+          Commission : {Math.round((data?.settings?.commissionRate ?? 0.15) * 100)} % · Now :{" "}
+          {data?.settings?.offerSeconds}s · RFQ Prime : {data?.settings?.rfqPrimeExclusiveMinutes ?? 5} min
         </p>
-        <div className="mt-3 flex gap-2">
+        <div className="mt-3 flex flex-wrap gap-2">
           <Button
             variant="secondary"
             onClick={async () => {
@@ -73,7 +74,34 @@ export default function AdminHome() {
               reload();
             }}
           >
-            Timer 20s
+            Timer Now 20s
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={async () => {
+              await api("/api/admin", { action: "settings", offerSeconds: 30 });
+              reload();
+            }}
+          >
+            Timer Now 30s
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={async () => {
+              await api("/api/admin", { action: "settings", rfqPrimeExclusiveMinutes: 5 });
+              reload();
+            }}
+          >
+            RFQ Prime 5 min
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={async () => {
+              await api("/api/admin", { action: "settings", rfqPrimeExclusiveMinutes: 10 });
+              reload();
+            }}
+          >
+            RFQ Prime 10 min
           </Button>
         </div>
       </div>

@@ -15,14 +15,36 @@ export default function ClientDemandePage() {
 
   return (
     <div className="px-4 py-5 sm:px-6 md:px-8 md:py-8">
-      <div className="text-xs font-bold uppercase tracking-wide text-appo">Appel d’offres</div>
+      <div className="text-xs font-bold uppercase tracking-wide text-appo">
+        {r.isLargeWorks ? "Devis · gros travaux" : "Appel d’offres"}
+      </div>
       <h1 className="mt-1 text-2xl font-extrabold">{r.category?.name}</h1>
       <p className="mt-2 text-sm leading-relaxed">{r.description}</p>
       <div className="mt-3 flex flex-wrap gap-2 text-sm text-muted">
         <span>📍 {r.city}</span>
         <span>· {r.availabilityNote}</span>
-        <Badge>{r.status}</Badge>
-        {r.primeWindowOpen ? <Badge tone="premium">Accès Prime en cours</Badge> : null}
+        <Badge
+          tone={
+            r.status === "open" ? "green" : r.status === "awarded" ? "premium" : r.status === "cancelled" ? "red" : "neutral"
+          }
+        >
+          {r.status === "open"
+            ? "Ouverte"
+            : r.status === "awarded"
+              ? "Attribuée"
+              : r.status === "cancelled"
+                ? "Annulée"
+                : r.status === "expired"
+                  ? "Expirée"
+                  : r.status}
+        </Badge>
+        {r.primeWindowOpen ? (
+          <Badge tone="premium">
+            Accès Prime · {Math.max(1, Math.ceil((new Date(r.primeOnlyUntil).getTime() - Date.now()) / 60000))} min
+          </Badge>
+        ) : r.status === "open" ? (
+          <Badge>Ouverte à tous les pros</Badge>
+        ) : null}
       </div>
       {r.photos?.[0] ? (
         // eslint-disable-next-line @next/next/no-img-element

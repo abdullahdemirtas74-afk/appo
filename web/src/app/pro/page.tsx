@@ -90,7 +90,34 @@ export default function ProHome() {
                 <BadgeCheck size={12} /> Pro vérifié
               </Badge>
             ) : null}
+            {(pro as any)?.tier === "elite" ? <Badge tone="premium">Elite</Badge> : null}
+            {(pro as any)?.tier === "prime" || (pro as any)?.premiumActive ? <Badge tone="premium">Prime</Badge> : null}
+            {(pro as any)?.boostActive ? <Badge tone="orange">Boost</Badge> : null}
           </div>
+          {(pro as any)?.tier === "elite" || (pro as any)?.premiumActive || (pro as any)?.boostActive ? (
+            <div className="mt-4 rounded-3xl border border-appo/30 bg-appo/5 p-4 md:max-w-xl">
+              <div className="font-bold">Priorité matching active</div>
+              <p className="mt-1 text-sm text-muted">
+                {(pro as any)?.tier === "elite"
+                  ? "Elite : vous voyez les missions Now et RFQ en premier."
+                  : (pro as any)?.premiumActive
+                    ? "Prime : fenêtre exclusive + meilleur score de matching."
+                    : "Boost : mise en avant temporaire dans le matching."}
+                {(pro as any)?.boostActive ? " Boost en cours." : ""}
+              </p>
+              <Button href="/pro/premium" className="mt-3" variant="secondary">
+                Voir Offres
+              </Button>
+            </div>
+          ) : (
+            <div className="mt-4 rounded-3xl border border-line p-4 md:max-w-xl">
+              <div className="font-bold">Passez devant les autres pros</div>
+              <p className="mt-1 text-sm text-muted">Prime et Boost améliorent votre place dans AppO Now et les demandes.</p>
+              <Button href="/pro/premium" className="mt-3" variant="now">
+                Découvrir Prime
+              </Button>
+            </div>
+          )}
           <div className="mt-6">
             <div className="text-sm font-bold">Rayon d’intervention</div>
             <div className="mt-2 flex flex-wrap gap-2">

@@ -1,6 +1,14 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { errorStatus, getMe, subscribeClientPlus, updateClientProfile } from "@/lib/actions";
+import {
+  addClientAddress,
+  errorStatus,
+  getMe,
+  markNotificationsRead,
+  setDefaultAddress,
+  subscribeClientPlus,
+  updateClientProfile,
+} from "@/lib/actions";
 
 export async function GET() {
   const session = await getSession();
@@ -22,6 +30,18 @@ export async function POST(req: Request) {
     if (body.action === "subscribePlus") {
       const result = await subscribeClientPlus(session.userId, body.plan === "yearly" ? "yearly" : "monthly");
       return NextResponse.json(result);
+    }
+    if (body.action === "markNotificationsRead") {
+      const result = await markNotificationsRead(session.userId, body.ids);
+      return NextResponse.json(result);
+    }
+    if (body.action === "setDefaultAddress") {
+      const addresses = await setDefaultAddress(session.userId, String(body.addressId));
+      return NextResponse.json({ addresses });
+    }
+    if (body.action === "addAddress") {
+      const addresses = await addClientAddress(session.userId, body);
+      return NextResponse.json({ addresses });
     }
     const user = await updateClientProfile(session.userId, body);
     return NextResponse.json({ user });

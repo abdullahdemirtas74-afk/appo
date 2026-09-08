@@ -11,7 +11,10 @@ function PublierDemandeForm() {
   const params = useSearchParams();
   const { data: me } = useMe();
   const { data } = usePoll<{ categories: { id: string; name: string }[] }>("/api/categories", 0);
-  const addr = me?.addresses?.find((a) => a.isDefault);
+  const addrDefault = me?.addresses?.find((a) => a.isDefault);
+  const [addressId, setAddressId] = useState("");
+  const addresses = me?.addresses ?? [];
+  const addr = addresses.find((a) => a.id === addressId) ?? addrDefault ?? addresses[0];
   const large = params.get("large") === "1";
 
   const [categoryId, setCategoryId] = useState("cat_plomberie");
@@ -38,6 +41,7 @@ function PublierDemandeForm() {
         city: addr?.city ?? "Annecy",
         lat: addr?.lat ?? 45.899,
         lng: addr?.lng ?? 6.129,
+        isLargeWorks: large,
       });
       router.replace(`/app/demandes/${res.request.id}`);
     } finally {
@@ -99,7 +103,17 @@ function PublierDemandeForm() {
           />
         </Field>
         <Field label="Adresse">
-          <input className={inputClass} readOnly value={addr ? `${addr.line}, ${addr.city}` : "Annecy"} />
+          {addresses.length > 1 ? (
+            <select className={inputClass} value={addr?.id ?? ""} onChange={(e) => setAddressId(e.target.value)}>
+              {addresses.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.label} — {a.line}, {a.city}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input className={inputClass} readOnly value={addr ? `${addr.line}, ${addr.city}` : "Annecy"} />
+          )}
         </Field>
         <Field label="Photos">
           <input

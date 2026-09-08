@@ -11,7 +11,10 @@ function NowForm() {
   const params = useSearchParams();
   const { data: me } = useMe();
   const { data } = usePoll<{ categories: { id: string; name: string; indicativePrice: number }[] }>("/api/categories", 0);
-  const addr = me?.addresses?.find((a) => a.isDefault);
+  const addrDefault = me?.addresses?.find((a) => a.isDefault);
+  const [addressId, setAddressId] = useState("");
+  const addresses = me?.addresses ?? [];
+  const addr = addresses.find((a) => a.id === addressId) ?? addrDefault ?? addresses[0];
   const [categoryId, setCategoryId] = useState(params.get("categoryId") || "cat_plomberie");
   const [description, setDescription] = useState("Fuite sous évier");
   const [photos, setPhotos] = useState<string[]>([]);
@@ -68,7 +71,21 @@ function NowForm() {
           <textarea className={inputClass} rows={4} value={description} onChange={(e) => setDescription(e.target.value)} />
         </Field>
         <Field label="Adresse">
-          <input className={inputClass} readOnly value={addr ? `${addr.line}, ${addr.city}` : "Rumilly"} />
+          {addresses.length > 1 ? (
+            <select
+              className={inputClass}
+              value={addr?.id ?? ""}
+              onChange={(e) => setAddressId(e.target.value)}
+            >
+              {addresses.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.label} — {a.line}, {a.city}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input className={inputClass} readOnly value={addr ? `${addr.line}, ${addr.city}` : "Rumilly"} />
+          )}
         </Field>
         <Field label="Photos (optionnel)">
           <input

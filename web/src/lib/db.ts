@@ -408,6 +408,7 @@ export function enrichMission(db: DB, m: Mission, viewerId?: string) {
   const remainingOffer = m.offerExpiresAt
     ? Math.max(0, Math.ceil((new Date(m.offerExpiresAt).getTime() - Date.now()) / 1000))
     : 0;
+  const contactedCount = (m.candidateProIds?.length ?? 0) + (m.declinedProIds?.length ?? 0);
 
   const clientPublic = client
     ? redactUser(publicUser(client), unlocked, isClientViewer)
@@ -452,6 +453,7 @@ export function enrichMission(db: DB, m: Mission, viewerId?: string) {
       : null,
     live,
     remainingOffer,
+    contactedCount,
     messages,
     review,
     payment,
