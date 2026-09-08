@@ -74,6 +74,31 @@ export default function ClientHome() {
         </Button>
       </div>
 
+      <div className="mt-3 grid max-w-2xl grid-cols-1 gap-3 min-[420px]:grid-cols-2">
+        <Link
+          href="/app/demandes/nouvelle?large=1"
+          className="rounded-2xl border border-line bg-card p-4 transition hover:border-appo/40 hover:shadow-sm"
+        >
+          <div className="text-lg font-bold">Devis · gros travaux</div>
+          <p className="mt-1 text-sm text-muted">
+            Rénovation, plusieurs corps de métier — publiez un besoin et comparez les devis.
+          </p>
+          <p className="mt-2 text-xs font-semibold text-appo">Demander des devis →</p>
+        </Link>
+        <Link
+          href="/app/plus"
+          className="rounded-2xl border border-appo/30 bg-appo/5 p-4 transition hover:border-appo/50"
+        >
+          <div className="text-lg font-bold">AppO+</div>
+          <p className="mt-1 text-sm text-muted">
+            Négociation de prix, commissions réduites, alertes prioritaires pour les pros.
+          </p>
+          <p className="mt-2 text-xs font-semibold text-appo">
+            {me?.clientPlusActive ? `Actif · ${me.clientPlusDaysLeft} j restants` : "Voir l’abonnement →"}
+          </p>
+        </Link>
+      </div>
+
       <h2 className="mt-8 text-sm font-bold uppercase tracking-wide text-muted">Organisations</h2>
       <p className="mt-1 max-w-2xl text-sm text-muted">
         Entreprises et syndicats : publiez vos besoins (entretien, dépannage, travaux) et recevez des offres de pros vérifiés.

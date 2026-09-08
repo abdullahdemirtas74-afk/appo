@@ -1,4 +1,5 @@
-import type { EffectiveTier, LoyaltyBadge, ProProfile, Settings, SubscriptionTier } from "./types";
+import type { EffectiveTier, LoyaltyBadge, ProProfile, Settings, SubscriptionTier, User } from "./types";
+import { withClientPlusSettings, isClientPlusActive } from "./client-plus";
 
 export const TIER_DEFAULTS = {
   premiumMonthlyPrice: 49,
@@ -18,7 +19,7 @@ export const TIER_DEFAULTS = {
 };
 
 export function withTierSettings(settings: Settings): Settings {
-  return {
+  const base = {
     ...settings,
     premiumMonthlyPrice: settings.premiumMonthlyPrice ?? TIER_DEFAULTS.premiumMonthlyPrice,
     premiumYearlyPrice: settings.premiumYearlyPrice ?? TIER_DEFAULTS.premiumYearlyPrice,
@@ -35,6 +36,7 @@ export function withTierSettings(settings: Settings): Settings {
     commissionPrime: settings.commissionPrime ?? TIER_DEFAULTS.commissionPrime,
     commissionElite: settings.commissionElite ?? TIER_DEFAULTS.commissionElite,
   };
+  return withClientPlusSettings(base);
 }
 
 /** @deprecated alias */
@@ -78,12 +80,20 @@ export function matchingScore(pro: ProProfile, at = new Date()) {
   return tierRank(effectiveTier(pro, at)) * 10 + (isBoostActive(pro, at) ? 5 : 0);
 }
 
-export function commissionForPro(pro: ProProfile, settings: Settings, urgence = false) {
+export function commissionForPro(
+  pro: ProProfile,
+  settings: Settings,
+  urgence = false,
+  client?: Pick<User, "clientPlusUntil"> | null,
+) {
   const s = withTierSettings(settings);
   const tier = effectiveTier(pro);
   let rate = s.commissionRate;
   if (tier === "prime") rate = s.commissionPrime;
   if (tier === "elite") rate = s.commissionElite;
+  if (isClientPlusActive(client)) {
+    rate = Math.min(rate, s.commissionClientPlus);
+  }
   if (urgence) rate += s.urgenceCommissionBonus;
   return Math.min(0.35, Math.max(0.05, rate));
 }

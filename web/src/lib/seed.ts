@@ -80,6 +80,8 @@ export function createSeed(): DB {
       clientKind: "particulier" as const,
       organizationName: null,
       organizationSiret: null,
+      clientPlusUntil: daysFromNow(20, 12),
+      clientPlusPlan: "monthly" as const,
     },
     {
       id: "usr_marc",
@@ -379,7 +381,11 @@ export function createSeed(): DB {
       supplement: 0,
       pendingSupplement: null,
       pendingSupplementReason: null,
+      pendingNegotiatePrice: null,
+      pendingNegotiateNote: null,
+      tip: 0,
       commissionRate: 0.15,
+      isLargeWorks: false,
       createdAt: daysAgo(0, 9),
       timeline: [
         { status: "accepted", at: daysAgo(0, 9), label: "Mission confirmée" },
@@ -413,7 +419,11 @@ export function createSeed(): DB {
       supplement: 40,
       pendingSupplement: null,
       pendingSupplementReason: null,
+      pendingNegotiatePrice: null,
+      pendingNegotiateNote: null,
+      tip: 0,
       commissionRate: 0.15,
+      isLargeWorks: false,
       createdAt: daysAgo(3, 18),
       timeline: [
         { status: "accepted", at: daysAgo(3, 18), label: "Mission confirmée" },
@@ -447,7 +457,11 @@ export function createSeed(): DB {
       supplement: 0,
       pendingSupplement: null,
       pendingSupplementReason: null,
+      pendingNegotiatePrice: null,
+      pendingNegotiateNote: null,
+      tip: 0,
       commissionRate: 0.15,
+      isLargeWorks: false,
       createdAt: daysAgo(8, 10),
       timeline: [{ status: "completed", at: daysAgo(8, 12), label: "Intervention terminée" }],
       candidateProIds: [],
@@ -478,7 +492,11 @@ export function createSeed(): DB {
       supplement: 0,
       pendingSupplement: null,
       pendingSupplementReason: null,
+      pendingNegotiatePrice: null,
+      pendingNegotiateNote: null,
+      tip: 0,
       commissionRate: 0.15,
+      isLargeWorks: false,
       createdAt: daysAgo(1, 16),
       timeline: [{ status: "accepted", at: daysAgo(1, 16), label: "Mission confirmée" }],
       candidateProIds: [],
@@ -509,7 +527,11 @@ export function createSeed(): DB {
       supplement: 0,
       pendingSupplement: null,
       pendingSupplementReason: null,
+      pendingNegotiatePrice: null,
+      pendingNegotiateNote: null,
+      tip: 0,
       commissionRate: 0.15,
+      isLargeWorks: false,
       createdAt: daysAgo(5, 21),
       timeline: [
         { status: "completed", at: daysAgo(5, 22), label: "Intervention terminée" },
@@ -566,6 +588,9 @@ export function createSeed(): DB {
     supplement: 0,
     pendingSupplement: null,
     pendingSupplementReason: null,
+    pendingNegotiatePrice: null,
+    pendingNegotiateNote: null,
+    tip: 0,
     commissionRate: 0.15,
     createdAt: p.createdAt,
     timeline: [{ status: "completed", at: p.createdAt, label: "Intervention terminée" }],
@@ -581,6 +606,7 @@ export function createSeed(): DB {
     assigneeMemberId: null,
     quoteId: null,
     invoiceId: null,
+    isLargeWorks: false,
   }));
 
   const extraMonth = [210, 175, 240, 130, 190, 155, 200, 110, 145].map((amount, i) =>
@@ -605,6 +631,9 @@ export function createSeed(): DB {
     supplement: 0,
     pendingSupplement: null,
     pendingSupplementReason: null,
+    pendingNegotiatePrice: null,
+    pendingNegotiateNote: null,
+    tip: 0,
     commissionRate: 0.15,
     createdAt: p.createdAt,
     timeline: [{ status: "completed", at: p.createdAt, label: "Intervention terminée" }],
@@ -620,6 +649,7 @@ export function createSeed(): DB {
     assigneeMemberId: null,
     quoteId: null,
     invoiceId: null,
+    isLargeWorks: false,
   }));
 
   const withMissionExtras = <T extends Record<string, unknown>>(list: T[]) =>
@@ -627,6 +657,10 @@ export function createSeed(): DB {
       assigneeMemberId: null,
       quoteId: null,
       invoiceId: null,
+      tip: 0,
+      pendingNegotiatePrice: null,
+      pendingNegotiateNote: null,
+      isLargeWorks: false,
       ...m,
     }));
 
@@ -785,6 +819,9 @@ export function createSeed(): DB {
       commissionElite: 0.1,
       rfqPrimeExclusiveMinutes: 5,
       rfqExpiresHours: 48,
+      clientPlusMonthlyPrice: 9.9,
+      clientPlusYearlyPrice: 89,
+      commissionClientPlus: 0.1,
     },
   };
 }

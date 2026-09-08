@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { errorStatus, getMe, updateClientProfile } from "@/lib/actions";
+import { errorStatus, getMe, subscribeClientPlus, updateClientProfile } from "@/lib/actions";
 
 export async function GET() {
   const session = await getSession();
@@ -19,6 +19,10 @@ export async function POST(req: Request) {
   if (!session) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
   try {
     const body = await req.json();
+    if (body.action === "subscribePlus") {
+      const result = await subscribeClientPlus(session.userId, body.plan === "yearly" ? "yearly" : "monthly");
+      return NextResponse.json(result);
+    }
     const user = await updateClientProfile(session.userId, body);
     return NextResponse.json({ user });
   } catch (e) {

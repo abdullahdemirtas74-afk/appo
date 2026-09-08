@@ -14,6 +14,7 @@ import {
   offerBonusSeconds,
   withTierSettings,
 } from "./premium";
+import { isClientPlusActive } from "./client-plus";
 import { withRfqSettings } from "./rfq";
 import { createSeed } from "./seed";
 import type {
@@ -44,6 +45,16 @@ function migrate(db: DB): DB {
     assigneeMemberId: m.assigneeMemberId ?? null,
     quoteId: m.quoteId ?? null,
     invoiceId: m.invoiceId ?? null,
+    tip: m.tip ?? 0,
+    pendingNegotiatePrice: m.pendingNegotiatePrice ?? null,
+    pendingNegotiateNote: m.pendingNegotiateNote ?? null,
+    isLargeWorks: m.isLargeWorks ?? false,
+  }));
+  db.invoices = (db.invoices ?? []).map((inv) => ({
+    ...inv,
+    tip: inv.tip ?? 0,
+    status: inv.status ?? (inv.paidAt ? "paid" : "issued"),
+    paidAt: inv.paidAt ?? null,
   }));
   db.users = db.users.map((u) => {
     if (u.role !== "client") return u;
@@ -52,6 +63,8 @@ function migrate(db: DB): DB {
       clientKind: u.clientKind ?? "particulier",
       organizationName: u.organizationName ?? null,
       organizationSiret: u.organizationSiret ?? null,
+      clientPlusUntil: u.clientPlusUntil ?? null,
+      clientPlusPlan: u.clientPlusPlan ?? "none",
     };
   });
   return db;
@@ -318,29 +331,123 @@ export function liveLocation(mission: Mission, pro: ProProfile | undefined) {
   return { lat: pro.lat, lng: pro.lng, etaMinutes: mission.etaMinutes, arrived: false };
 }
 
-export function enrichMission(db: DB, m: Mission) {
+export function contactsUnlocked(status: MissionStatus) {
+  return ["accepted", "en_route", "arrived", "in_progress", "completed", "disputed"].includes(status);
+}
+
+function redactUser(user: PublicUser, unlocked: boolean, isSelf: boolean): PublicUser {
+  if (unlocked || isSelf) return user;
+  return {
+    ...user,
+    lastName: user.lastName ? `${user.lastName.charAt(0)}.` : "",
+    phone: "",
+    email: "",
+  };
+}
+
+export function ensureInvoice(db: DB, m: Mission, now = new Date().toISOString()) {
+  if (!m.proId) return null;
+  if (!db.invoices) db.invoices = [];
+  const tip = m.tip ?? 0;
+  const amount = m.price + m.supplement;
+  const commission = Math.round(amount * m.commissionRate * 100) / 100;
+  const proAmount = Math.round((amount - commission + tip) * 100) / 100;
+  if (m.invoiceId) {
+    const existing = db.invoices.find((i) => i.id === m.invoiceId);
+    if (existing) {
+      existing.total = amount;
+      existing.tip = tip;
+      existing.commission = commission;
+      existing.proAmount = proAmount;
+      if (m.paymentStatus === "paid") {
+        existing.status = "paid";
+        existing.paidAt = existing.paidAt ?? now;
+      }
+      return existing;
+    }
+  }
+  const invoice = {
+    id: nid("inv"),
+    number: `FAC-${new Date().getFullYear()}-${String(db.invoices.length + 1).padStart(4, "0")}`,
+    missionId: m.id,
+    quoteId: m.quoteId,
+    proId: m.proId,
+    clientId: m.clientId,
+    total: amount,
+    tip,
+    commission,
+    proAmount,
+    status: (m.paymentStatus === "paid" ? "paid" : "issued") as "issued" | "paid",
+    createdAt: now,
+    paidAt: m.paymentStatus === "paid" ? now : null,
+  };
+  db.invoices.push(invoice);
+  m.invoiceId = invoice.id;
+  return invoice;
+}
+
+export function enrichMission(db: DB, m: Mission, viewerId?: string) {
   const client = userById(db, m.clientId);
-  const pro = m.proId ? db.pros.find((p) => p.id === m.proId) : m.offerProId ? db.pros.find((p) => p.id === m.offerProId) : undefined;
+  const pro = m.proId
+    ? db.pros.find((p) => p.id === m.proId)
+    : m.offerProId
+      ? db.pros.find((p) => p.id === m.offerProId)
+      : undefined;
   const proUser = pro ? userById(db, pro.userId) : null;
   const category = db.categories.find((c) => c.id === m.categoryId);
-  const messages = db.messages.filter((x) => x.missionId === m.id);
+  const unlocked = contactsUnlocked(m.status);
+  const viewer = viewerId ? userById(db, viewerId) : null;
+  const isClientViewer = viewer?.id === m.clientId;
+  const isProViewer = !!(pro && viewer && viewer.id === pro.userId);
+  const messages = unlocked
+    ? db.messages.filter((x) => x.missionId === m.id)
+    : [];
   const review = db.reviews.find((r) => r.missionId === m.id);
   const payment = db.payments.find((p) => p.missionId === m.id);
   const live = liveLocation(m, pro);
   const remainingOffer = m.offerExpiresAt
     ? Math.max(0, Math.ceil((new Date(m.offerExpiresAt).getTime() - Date.now()) / 1000))
     : 0;
+
+  const clientPublic = client
+    ? redactUser(publicUser(client), unlocked, isClientViewer)
+    : null;
+  const proUserPublic = proUser
+    ? redactUser(publicUser(proUser), unlocked, isProViewer)
+    : null;
+
+  /** Hide exact address from pro until accept — anti hors-appli */
+  const addressVisible = unlocked || isClientViewer;
+  const displayAddress = addressVisible ? m.address : "Adresse exacte après acceptation";
+  const displayLat = addressVisible ? m.lat : m.lat;
+  const displayLng = addressVisible ? m.lng : m.lng;
+
   return {
     ...m,
+    address: displayAddress,
+    lat: displayLat,
+    lng: displayLng,
+    tip: m.tip ?? 0,
+    pendingNegotiatePrice: m.pendingNegotiatePrice ?? null,
+    pendingNegotiateNote: m.pendingNegotiateNote ?? null,
+    isLargeWorks: m.isLargeWorks ?? false,
     total: m.price + m.supplement,
+    tipTotal: m.price + m.supplement + (m.tip ?? 0),
     commission: Math.round((m.price + m.supplement) * m.commissionRate * 100) / 100,
-    client: client ? publicUser(client) : null,
+    contactsUnlocked: unlocked,
+    client: clientPublic
+      ? {
+          ...clientPublic,
+          clientPlusActive: isClientPlusActive(client),
+        }
+      : null,
     category,
-    pro: pro && proUser
+    pro: pro && proUserPublic
       ? {
           ...pro,
-          user: publicUser(proUser),
+          user: proUserPublic,
           distanceKm: haversineKm(m.lat, m.lng, pro.lat, pro.lng),
+          company: unlocked || isProViewer ? pro.company : "Professionnel AppO",
         }
       : null,
     live,

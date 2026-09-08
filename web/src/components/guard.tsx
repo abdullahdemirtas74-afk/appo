@@ -13,6 +13,8 @@ export type Me = {
   unread?: number;
   settings?: Settings;
   pro?: ProProfile | null;
+  clientPlusActive?: boolean;
+  clientPlusDaysLeft?: number;
 };
 
 export function useMe() {

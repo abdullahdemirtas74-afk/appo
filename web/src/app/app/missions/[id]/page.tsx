@@ -1,22 +1,29 @@
 "use client";
 
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
-import { Check, Phone, Star } from "lucide-react";
-import { MiniMap } from "@/components/map";
-import { Badge, Button, inputClass } from "@/components/ui";
+import { Check, Lock, Phone, Star } from "lucide-react";
+import { TrackingMap } from "@/components/map";
+import { useMe } from "@/components/guard";
+import { Badge, Button, Field, inputClass } from "@/components/ui";
 import { api, usePoll } from "@/lib/hooks";
 import { STATUS_LABELS, formatTime, money } from "@/lib/format";
 
 const STEPS = ["accepted", "en_route", "arrived", "in_progress", "completed"];
+const TIP_PRESETS = [0, 2, 5, 10];
 
 export default function MissionClientPage() {
   const { id } = useParams<{ id: string }>();
+  const { data: me } = useMe();
   const { data, reload } = usePoll<{ mission: any }>(id ? `/api/missions/${id}` : null, 2000);
   const [text, setText] = useState("");
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState("");
   const [payMethod, setPayMethod] = useState("card");
+  const [tip, setTip] = useState(0);
+  const [negoPrice, setNegoPrice] = useState("");
+  const [negoNote, setNegoNote] = useState("");
   const m = data?.mission;
   if (!m) return <div className="p-6 text-muted">Chargement…</div>;
 
@@ -26,6 +33,14 @@ export default function MissionClientPage() {
   };
 
   const searching = m.status === "searching" || m.status === "offered";
+  const unlocked = Boolean(m.contactsUnlocked);
+  const plus = Boolean(me?.clientPlusActive);
+  const canNegotiate =
+    plus &&
+    unlocked &&
+    m.paymentStatus !== "paid" &&
+    m.pendingNegotiatePrice == null &&
+    ["accepted", "en_route", "arrived", "in_progress"].includes(m.status);
 
   return (
     <div className="px-5 py-6 pb-10">
@@ -42,6 +57,10 @@ export default function MissionClientPage() {
               : m.status === "offered"
                 ? `Un pro a ${m.remainingOffer}s pour accepter`
                 : "AppO sélectionne les professionnels vérifiés autour de vous."}
+          </p>
+          <p className="mx-auto mt-4 max-w-sm rounded-2xl bg-background px-4 py-3 text-xs text-muted">
+            <Lock size={12} className="mr-1 inline" />
+            Identité et téléphone restent masqués jusqu’à acceptation — pour éviter les interventions hors appli.
           </p>
         </div>
       ) : m.status === "unmatched" ? (
@@ -71,16 +90,34 @@ export default function MissionClientPage() {
                 ) : null}
               </div>
               <div className="flex gap-2">
-                <a className="rounded-full border border-line p-2" href={`/app/missions/${m.id}#chat`}>
-                  💬
-                </a>
-                <a className="rounded-full border border-line p-2" href={`tel:${m.pro.user.phone}`}>
-                  <Phone size={16} />
-                </a>
+                {unlocked ? (
+                  <>
+                    <a className="rounded-full border border-line p-2" href={`/app/missions/${m.id}#chat`}>
+                      💬
+                    </a>
+                    {m.pro.user.phone ? (
+                      <a className="rounded-full border border-line p-2" href={`tel:${m.pro.user.phone}`}>
+                        <Phone size={16} />
+                      </a>
+                    ) : null}
+                  </>
+                ) : (
+                  <span className="rounded-full border border-line p-2 text-muted">
+                    <Lock size={16} />
+                  </span>
+                )}
               </div>
             </div>
           ) : null}
-          {m.live ? <div className="mt-4"><MiniMap lat={m.live.lat} lng={m.live.lng} label={m.address} /></div> : null}
+          <div className="mt-4">
+            <TrackingMap
+              destination={{ lat: m.lat, lng: m.lng }}
+              pro={m.live ? { lat: m.live.lat, lng: m.live.lng } : null}
+              etaMinutes={m.status === "en_route" ? m.live?.etaMinutes : null}
+              label={m.address}
+              unlocked={unlocked}
+            />
+          </div>
           <div className="mt-6 space-y-3">
             {STEPS.map((s) => {
               const done = STEPS.indexOf(m.status) >= STEPS.indexOf(s) && !["cancelled", "unmatched", "searching", "offered"].includes(m.status);
@@ -97,6 +134,50 @@ export default function MissionClientPage() {
           </div>
         </>
       )}
+
+      {unlocked && !searching ? (
+        <div className="mt-6 rounded-2xl border border-line p-4">
+          <div className="text-sm text-muted">Prix affiché</div>
+          <div className="text-2xl font-black">{money(m.total)}</div>
+          {canNegotiate ? (
+            <div className="mt-3 space-y-2 border-t border-line pt-3">
+              <div className="text-sm font-bold">Négocier le prix (AppO+)</div>
+              <Field label="Votre proposition (€)">
+                <input
+                  className={inputClass}
+                  type="number"
+                  value={negoPrice}
+                  onChange={(e) => setNegoPrice(e.target.value)}
+                  placeholder={`Moins de ${m.total}`}
+                />
+              </Field>
+              <input
+                className={inputClass}
+                value={negoNote}
+                onChange={(e) => setNegoNote(e.target.value)}
+                placeholder="Message au pro (optionnel)"
+              />
+              <Button
+                className="w-full"
+                variant="secondary"
+                onClick={() => act("negotiate", { price: Number(negoPrice), note: negoNote })}
+                disabled={!negoPrice || Number(negoPrice) <= 0}
+              >
+                Envoyer la proposition
+              </Button>
+            </div>
+          ) : !plus && unlocked && m.paymentStatus !== "paid" ? (
+            <p className="mt-2 text-xs text-muted">
+              Avec <Link className="font-semibold text-appo" href="/app/plus">AppO+</Link>, négociez le prix affiché par le pro.
+            </p>
+          ) : null}
+          {m.pendingNegotiatePrice != null ? (
+            <p className="mt-2 text-sm font-semibold text-appo">
+              Proposition envoyée : {money(m.pendingNegotiatePrice)} — en attente du pro
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       {m.quote && m.quote.status === "sent" ? (
         <div className="mt-6 rounded-3xl border border-amber-200 bg-amber-50 p-4">
@@ -138,11 +219,34 @@ export default function MissionClientPage() {
         </div>
       ) : null}
 
+      {m.status === "completed" && m.invoice ? (
+        <div className="mt-6 rounded-3xl border border-line p-4">
+          <div className="font-bold">Facture immédiate</div>
+          <p className="text-sm text-muted">
+            {m.invoice.number} · {money(m.invoice.total)}
+            {m.invoice.tip ? ` + pourboire ${money(m.invoice.tip)}` : ""} · {m.invoice.status === "paid" ? "payée" : "à régler"}
+          </p>
+        </div>
+      ) : null}
+
       {m.status === "completed" && m.paymentStatus !== "paid" ? (
         <div className="mt-6 rounded-3xl bg-ink p-5 text-white">
           <div className="text-sm opacity-70">Intervention terminée</div>
           <div className="text-3xl font-black">{money(m.total)}</div>
-          <div className="text-sm opacity-80">Paiement sécurisé · aucune carte stockée chez AppO</div>
+          <div className="mt-4">
+            <div className="text-sm font-semibold">Pourboire (optionnel)</div>
+            <div className="mt-2 grid grid-cols-4 gap-2 text-xs">
+              {TIP_PRESETS.map((n) => (
+                <button
+                  key={n}
+                  className={`rounded-xl py-2 ${tip === n ? "bg-appo" : "bg-white/10"}`}
+                  onClick={() => setTip(n)}
+                >
+                  {n === 0 ? "0 €" : `+${n} €`}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
             {[["card", "Carte"], ["apple_pay", "Apple Pay"], ["google_pay", "Google Pay"]].map(([id, label]) => (
               <button key={id} className={`rounded-xl py-2 ${payMethod === id ? "bg-appo" : "bg-white/10"}`} onClick={() => setPayMethod(id)}>
@@ -150,8 +254,8 @@ export default function MissionClientPage() {
               </button>
             ))}
           </div>
-          <Button className="mt-4 w-full" variant="now" onClick={() => act("pay", { method: payMethod })}>
-            Payer {money(m.total)}
+          <Button className="mt-4 w-full" variant="now" onClick={() => act("pay", { method: payMethod, tip })}>
+            Payer {money(m.total + tip)}
           </Button>
         </div>
       ) : null}
@@ -167,6 +271,20 @@ export default function MissionClientPage() {
             ))}
           </div>
           <textarea className={`${inputClass} mt-3`} rows={3} placeholder="Commentaire" value={comment} onChange={(e) => setComment(e.target.value)} />
+          {!(m.tip > 0) ? (
+            <div className="mt-3">
+              <div className="text-sm font-semibold">Ajouter un pourboire</div>
+              <div className="mt-2 flex gap-2">
+                {[2, 5, 10].map((n) => (
+                  <Button key={n} variant="secondary" onClick={() => act("tip", { amount: n })}>
+                    +{n} €
+                  </Button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="mt-2 text-sm text-muted">Pourboire : {money(m.tip)}</p>
+          )}
           <Button className="mt-3 w-full" onClick={() => act("review", { rating, comment })}>
             Publier l’avis
           </Button>
@@ -177,7 +295,8 @@ export default function MissionClientPage() {
         <div className="mt-4 rounded-2xl bg-background p-4 text-sm">
           {m.invoice ? (
             <>
-              Facture {m.invoice.number} · {money(m.invoice.total)} · générée automatiquement
+              Facture {m.invoice.number} · {money(m.invoice.total)}
+              {m.invoice.tip ? ` · pourboire ${money(m.invoice.tip)}` : ""} · payée
             </>
           ) : (
             <>
@@ -187,7 +306,7 @@ export default function MissionClientPage() {
         </div>
       ) : null}
 
-      {!searching && m.pro ? (
+      {unlocked && m.pro ? (
         <div id="chat" className="mt-8">
           <h2 className="font-bold">Messages</h2>
           <div className="mt-3 max-h-64 space-y-2 overflow-y-auto">

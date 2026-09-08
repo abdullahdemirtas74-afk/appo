@@ -15,11 +15,16 @@ function PublierDemandeForm() {
   const { data } = usePoll<{ categories: { id: string; name: string }[] }>("/api/categories", 0);
   const addr = me?.addresses?.find((a) => a.isDefault);
   const kindParam = params.get("kind");
+  const large = params.get("large") === "1";
   const targetKind: ClientKind | null =
     kindParam === "entreprise" || kindParam === "syndicat" ? kindParam : null;
 
   const [categoryId, setCategoryId] = useState("cat_plomberie");
-  const [description, setDescription] = useState("Besoin de remplacer un robinet demain");
+  const [description, setDescription] = useState(
+    large
+      ? "Gros travaux : décrire le projet, surfaces, contraintes d’accès…"
+      : "Besoin de remplacer un robinet demain",
+  );
   const [availabilityNote, setAvailabilityNote] = useState("Demain après-midi ou ce week-end");
   const [preferredAt, setPreferredAt] = useState("");
   const [photos, setPhotos] = useState<string[]>([]);
@@ -74,7 +79,9 @@ function PublierDemandeForm() {
       ? "Besoin entreprise"
       : targetKind === "syndicat"
         ? "Besoin syndicat"
-        : "Publier un besoin";
+        : large
+          ? "Devis · gros travaux"
+          : "Publier un besoin";
 
   return (
     <div className="px-4 py-5 sm:px-6 md:px-8 md:py-8">
@@ -84,7 +91,9 @@ function PublierDemandeForm() {
           ? "Publiez un besoin pour vos locaux ou votre activité — les pros vous envoient des offres."
           : targetKind === "syndicat"
             ? "Publiez un besoin pour la copropriété (parties communes, urgences, entretien)."
-            : "Les pros envoient des offres. Vous comparez prix, délais et notes — puis vous choisissez."}
+            : large
+              ? "Pour les projets importants : les pros envoient des devis détaillés. Vous comparez puis choisissez."
+              : "Les pros envoient des offres. Vous comparez prix, délais et notes — puis vous choisissez."}
       </p>
       {needsOrgSetup ? (
         <div className="mt-4 max-w-xl rounded-2xl border border-line bg-card p-4">

@@ -249,6 +249,7 @@ export async function selectProOffer(userId: string, requestId: string, offerId:
     req.status = "awarded";
     req.awardedOfferId = offer.id;
 
+    const clientUser = db.users.find((u) => u.id === user.id);
     const mission: Mission = {
       id: nid("mis"),
       type: "scheduled",
@@ -267,7 +268,10 @@ export async function selectProOffer(userId: string, requestId: string, offerId:
       supplement: 0,
       pendingSupplement: null,
       pendingSupplementReason: null,
-      commissionRate: commissionForPro(pro, settings, false),
+      pendingNegotiatePrice: null,
+      pendingNegotiateNote: null,
+      tip: 0,
+      commissionRate: commissionForPro(pro, settings, false, clientUser),
       createdAt: now,
       timeline: [{ status: "accepted", at: now, label: "Offre acceptée — mission confirmée" }],
       candidateProIds: [pro.id],
@@ -282,6 +286,7 @@ export async function selectProOffer(userId: string, requestId: string, offerId:
       assigneeMemberId: null,
       quoteId: null,
       invoiceId: null,
+      isLargeWorks: true,
     };
     db.missions.unshift(mission);
     req.missionId = mission.id;
@@ -310,7 +315,7 @@ export async function selectProOffer(userId: string, requestId: string, offerId:
       }
     }
 
-    return { request: enrichRequest(db, req, user.id), mission: enrichMission(db, mission) };
+    return { request: enrichRequest(db, req, user.id), mission: enrichMission(db, mission, userId) };
   });
 }
 

@@ -1,6 +1,8 @@
 import { hashPassword, verifyPassword } from "./auth";
 import {
   enrichMission,
+  ensureInvoice,
+  contactsUnlocked,
   matchPros,
   mutate,
   nid,
@@ -19,6 +21,12 @@ import {
   conflictingMissionsDuringAbsence,
   getActiveAbsence,
 } from "./availability";
+import {
+  clientPlusDaysLeft,
+  extendClientPlusUntil,
+  isClientPlusActive,
+  withClientPlusSettings,
+} from "./client-plus";
 import { etaMinutes, haversineKm } from "./geo";
 import {
   commissionForPro,
@@ -139,6 +147,43 @@ export async function updateClientProfile(
   });
 }
 
+export async function subscribeClientPlus(userId: string, plan: "monthly" | "yearly" = "monthly") {
+  return mutate((db) => {
+    const user = requireUser(db, userId, "client");
+    const settings = withClientPlusSettings(withTierSettings(db.settings));
+    const amount = plan === "yearly" ? settings.clientPlusYearlyPrice : settings.clientPlusMonthlyPrice;
+    user.clientPlusUntil = extendClientPlusUntil(user.clientPlusUntil, plan);
+    user.clientPlusPlan = plan;
+    db.payments.unshift({
+      id: nid("pay"),
+      missionId: `clientplus_${user.id}`,
+      amount,
+      commission: amount,
+      proAmount: 0,
+      method: "card",
+      status: "paid",
+      createdAt: new Date().toISOString(),
+      paidAt: new Date().toISOString(),
+    });
+    notify(
+      db,
+      user.id,
+      "AppO+ activé",
+      plan === "yearly"
+        ? "12 mois : commissions réduites, négociation de prix, alertes prioritaires pour les pros."
+        : "30 jours : commissions réduites, négociation de prix, alertes prioritaires pour les pros.",
+      "/app/plus",
+    );
+    return {
+      user: publicUser(user),
+      clientPlusActive: true,
+      clientPlusDaysLeft: clientPlusDaysLeft(user),
+      amount,
+      plan,
+    };
+  });
+}
+
 export async function registerPro(input: {
   firstName: string;
   lastName: string;
@@ -251,7 +296,9 @@ export async function getMe(userId: string) {
       notifications,
       favorites,
       unread: notifications.filter((n) => !n.read).length,
-      settings: withTierSettings(db.settings),
+      settings: withClientPlusSettings(withTierSettings(db.settings)),
+      clientPlusActive: user.role === "client" ? isClientPlusActive(user) : false,
+      clientPlusDaysLeft: user.role === "client" ? clientPlusDaysLeft(user) : 0,
       pro: pro
         ? {
             ...pro,
@@ -377,13 +424,15 @@ export async function createMission(userId: string, input: {
   lng: number;
   scheduledAt?: string;
   proId?: string;
+  isLargeWorks?: boolean;
 }) {
   return mutate((db) => {
     const user = requireUser(db, userId, "client");
     const category = db.categories.find((c) => c.id === input.categoryId);
     if (!category || !category.active) throw new Error("INVALID_CATEGORY");
-    const settings = withTierSettings(db.settings);
+    const settings = withClientPlusSettings(withTierSettings(db.settings));
     const isUrgence = input.type === "urgence";
+    const clientPlus = isClientPlusActive(user);
     let price = category.indicativePrice;
     if (isUrgence) price = Math.round(price * settings.urgencePriceMultiplier * 100) / 100;
     const mission: Mission = {
@@ -404,9 +453,14 @@ export async function createMission(userId: string, input: {
       supplement: 0,
       pendingSupplement: null,
       pendingSupplementReason: null,
+      pendingNegotiatePrice: null,
+      pendingNegotiateNote: null,
+      tip: 0,
       commissionRate: isUrgence
         ? Math.min(0.35, settings.commissionRate + settings.urgenceCommissionBonus)
-        : settings.commissionRate,
+        : clientPlus
+          ? settings.commissionClientPlus
+          : settings.commissionRate,
       createdAt: new Date().toISOString(),
       timeline: [],
       candidateProIds: [],
@@ -421,7 +475,10 @@ export async function createMission(userId: string, input: {
       assigneeMemberId: null,
       quoteId: null,
       invoiceId: null,
+      isLargeWorks: Boolean(input.isLargeWorks),
     };
+
+    const alertPrefix = clientPlus ? "⭐ Client AppO+ · " : "";
 
     if (input.proId) {
       const pro = db.pros.find((p) => p.id === input.proId);
@@ -437,7 +494,7 @@ export async function createMission(userId: string, input: {
       mission.price = isUrgence
         ? Math.round(pro.startingPrice * settings.urgencePriceMultiplier * 100) / 100
         : pro.startingPrice;
-      mission.commissionRate = commissionForPro(pro, settings, isUrgence);
+      mission.commissionRate = commissionForPro(pro, settings, isUrgence, user);
       mission.status = "offered";
       mission.offerProId = pro.id;
       mission.candidateProIds = [pro.id];
@@ -446,12 +503,15 @@ export async function createMission(userId: string, input: {
         notify(
           db,
           proUser.id,
-          input.type === "urgence"
-            ? "Urgence AppO"
-            : input.type === "now"
-              ? "Nouvelle mission AppO Now"
-              : "Nouvelle réservation planifiée",
-          `${category.name} · ${input.city}`,
+          alertPrefix +
+            (input.type === "urgence"
+              ? "Urgence AppO"
+              : input.type === "now"
+                ? "Nouvelle mission AppO Now"
+                : mission.isLargeWorks
+                  ? "Devis gros travaux"
+                  : "Nouvelle réservation planifiée"),
+          `${category.name} · ${input.city}${clientPlus ? " · alerte prioritaire" : ""}`,
           `/pro/missions/${mission.id}`,
         );
       }
@@ -466,12 +526,26 @@ export async function createMission(userId: string, input: {
           ? Math.round(base * settings.urgencePriceMultiplier * 100) / 100
           : base;
       }
+      if (clientPlus) {
+        for (const row of matched.slice(0, 5)) {
+          const proUser = db.users.find((u) => u.id === row.pro.userId);
+          if (proUser) {
+            notify(
+              db,
+              proUser.id,
+              "⭐ Alerte prioritaire AppO+",
+              `${category.name} · ${input.city} — client AppO+ près de vous`,
+              `/pro/missions/${mission.id}`,
+            );
+          }
+        }
+      }
     }
 
     db.missions.unshift(mission);
     processDispatch(db);
     const fresh = db.missions.find((m) => m.id === mission.id)!;
-    return enrichMission(db, fresh);
+    return enrichMission(db, fresh, userId);
   });
 }
 
@@ -486,7 +560,7 @@ export async function listMissions(userId: string) {
       if (!pro) return false;
       return m.proId === pro.id || m.offerProId === pro.id;
     });
-    return list.map((m) => enrichMission(db, m));
+    return list.map((m) => enrichMission(db, m, userId));
   }, true);
 }
 
@@ -502,7 +576,7 @@ export async function getMission(userId: string, id: string) {
       m.clientId === user.id ||
       (pro && (m.proId === pro.id || m.offerProId === pro.id));
     if (!allowed) throw new Error("FORBIDDEN");
-    return enrichMission(db, m);
+    return enrichMission(db, m, userId);
   }, true);
 }
 
@@ -521,12 +595,14 @@ export async function missionAction(userId: string, id: string, action: string, 
       m.offerProId = null;
       m.offerExpiresAt = null;
       m.status = "accepted";
-      m.commissionRate = commissionForPro(pro, db.settings, m.type === "urgence");
+      const client = db.users.find((u) => u.id === m.clientId);
+      m.commissionRate = commissionForPro(pro, db.settings, m.type === "urgence", client);
       m.etaMinutes = etaMinutes(haversineKm(m.lat, m.lng, pro.lat, pro.lng));
       m.startProLat = pro.lat;
       m.startProLng = pro.lng;
       m.timeline.push({ status: "accepted", at: now, label: labelFor("accepted") });
-      notify(db, m.clientId, "Mission confirmée ✅", `${user.firstName} a accepté votre mission.`, `/app/missions/${m.id}`);
+      notify(db, m.clientId, "Mission confirmée ✅", `${user.firstName} a accepté votre mission. Coordonnées débloquées.`, `/app/missions/${m.id}`);
+      notify(db, m.clientId, "Confidentialité", "Téléphone et adresse exacte sont maintenant visibles des deux côtés.", `/app/missions/${m.id}`);
     } else if (action === "pass") {
       if (!pro || m.offerProId !== pro.id) throw new Error("FORBIDDEN");
       m.declinedProIds.push(pro.id);
@@ -552,12 +628,30 @@ export async function missionAction(userId: string, id: string, action: string, 
       } else if (next === "completed") {
         m.paymentStatus = "pending";
         pro.missionCount += 1;
-        notify(db, m.clientId, "Intervention terminée", `Paiement sécurisé — ${m.price + m.supplement} €`, `/app/missions/${m.id}`);
+        ensureInvoice(db, m, now);
+        const inv = m.invoiceId ? db.invoices.find((i) => i.id === m.invoiceId) : null;
+        notify(
+          db,
+          m.clientId,
+          "Intervention terminée · Facture disponible",
+          inv
+            ? `Facture ${inv.number} · ${m.price + m.supplement} € — payez et laissez un pourboire si vous le souhaitez.`
+            : `Paiement sécurisé — ${m.price + m.supplement} €`,
+          `/app/missions/${m.id}`,
+        );
+        notify(
+          db,
+          pro.userId,
+          "Intervention terminée · Facture émise",
+          inv ? `Facture ${inv.number} envoyée au client` : "En attente du paiement client",
+          `/pro/missions/${m.id}`,
+        );
       }
     } else if (action === "message") {
       const text = String(payload.text ?? "").trim();
       const photo = payload.photo ? String(payload.photo) : undefined;
       if (!text && !photo) throw new Error("EMPTY");
+      if (!contactsUnlocked(m.status)) throw new Error("CONTACTS_LOCKED");
       if (user.role === "client" && m.clientId !== user.id) throw new Error("FORBIDDEN");
       if (user.role === "pro" && (!pro || m.proId !== pro.id)) throw new Error("FORBIDDEN");
       db.messages.push({
@@ -591,16 +685,57 @@ export async function missionAction(userId: string, id: string, action: string, 
           notify(db, proUser.id, accept ? "Supplément accepté" : "Supplément refusé", "", `/pro/missions/${m.id}`);
         }
       }
+    } else if (action === "negotiate") {
+      if (m.clientId !== user.id) throw new Error("FORBIDDEN");
+      if (!isClientPlusActive(user)) throw new Error("PLUS_REQUIRED");
+      if (!contactsUnlocked(m.status) || m.paymentStatus === "paid") throw new Error("INVALID_STATE");
+      if (m.pendingNegotiatePrice != null) throw new Error("INVALID_STATE");
+      const proposed = Number(payload.price);
+      if (!Number.isFinite(proposed) || proposed <= 0 || proposed >= m.price + m.supplement) {
+        throw new Error("INVALID_PRICE");
+      }
+      m.pendingNegotiatePrice = Math.round(proposed * 100) / 100;
+      m.pendingNegotiateNote = String(payload.note ?? "Proposition AppO+");
+      if (pro) {
+        notify(
+          db,
+          pro.userId,
+          `Négociation AppO+ : ${m.pendingNegotiatePrice} €`,
+          m.pendingNegotiateNote ?? "Le client propose un autre prix",
+          `/pro/missions/${m.id}`,
+        );
+      }
+    } else if (action === "respondNegotiate") {
+      if (!pro || m.proId !== pro.id) throw new Error("FORBIDDEN");
+      if (m.pendingNegotiatePrice == null) throw new Error("INVALID_STATE");
+      const accept = Boolean(payload.accept);
+      if (accept) {
+        m.price = m.pendingNegotiatePrice;
+        m.supplement = 0;
+        ensureInvoice(db, m, now);
+      }
+      const proposed = m.pendingNegotiatePrice;
+      m.pendingNegotiatePrice = null;
+      m.pendingNegotiateNote = null;
+      notify(
+        db,
+        m.clientId,
+        accept ? "Prix accepté par le pro" : "Proposition refusée",
+        accept ? `Nouveau prix : ${proposed} €` : "Le professionnel a refusé la négociation",
+        `/app/missions/${m.id}`,
+      );
     } else if (action === "pay") {
       if (m.clientId !== user.id) throw new Error("FORBIDDEN");
       if (m.status !== "completed" || m.paymentStatus === "paid") throw new Error("INVALID_STATE");
+      const tip = Math.max(0, Math.round(Number(payload.tip ?? m.tip ?? 0) * 100) / 100);
+      m.tip = tip;
       const amount = m.price + m.supplement;
       const commission = Math.round(amount * m.commissionRate * 100) / 100;
-      const proAmount = Math.round((amount - commission) * 100) / 100;
+      const proAmount = Math.round((amount - commission + tip) * 100) / 100;
       db.payments.push({
         id: nid("pay"),
         missionId: m.id,
-        amount,
+        amount: amount + tip,
         commission,
         proAmount,
         status: "paid",
@@ -612,28 +747,51 @@ export async function missionAction(userId: string, id: string, action: string, 
       m.paymentMethod = String(payload.method ?? "card");
       const missionPro = m.proId ? db.pros.find((p) => p.id === m.proId) : null;
       if (missionPro) {
-        if (!m.invoiceId) {
-          if (!db.invoices) db.invoices = [];
-          const invoice = {
-            id: nid("inv"),
-            number: `FAC-${new Date().getFullYear()}-${String(db.invoices.length + 1).padStart(4, "0")}`,
-            missionId: m.id,
-            quoteId: m.quoteId,
-            proId: missionPro.id,
-            clientId: m.clientId,
-            total: amount,
-            commission,
-            proAmount,
-            createdAt: now,
-          };
-          db.invoices.push(invoice);
-          m.invoiceId = invoice.id;
+        const invoice = ensureInvoice(db, m, now);
+        if (invoice) {
+          invoice.status = "paid";
+          invoice.paidAt = now;
+          invoice.tip = tip;
+          invoice.proAmount = proAmount;
         }
         const ratingBonus = Math.max(0, Math.round(missionPro.rating));
-        missionPro.loyaltyPoints = (missionPro.loyaltyPoints ?? 0) + 10 + ratingBonus;
+        missionPro.loyaltyPoints = (missionPro.loyaltyPoints ?? 0) + 10 + ratingBonus + (tip > 0 ? 5 : 0);
         missionPro.loyaltyBadge = computeLoyaltyBadge(missionPro);
         const proUser = db.users.find((u) => u.id === missionPro.userId);
-        if (proUser) notify(db, proUser.id, "Paiement reçu", `${amount} € encaissés via AppO`, `/pro/revenus`);
+        if (proUser) {
+          notify(
+            db,
+            proUser.id,
+            tip > 0 ? `Paiement + pourboire ${tip} €` : "Paiement reçu",
+            `${amount + tip} € encaissés via AppO`,
+            `/pro/revenus`,
+          );
+        }
+      }
+    } else if (action === "tip") {
+      if (m.clientId !== user.id) throw new Error("FORBIDDEN");
+      if (m.status !== "completed") throw new Error("INVALID_STATE");
+      const tip = Math.max(0, Math.round(Number(payload.amount ?? 0) * 100) / 100);
+      if (tip <= 0) throw new Error("INVALID_PRICE");
+      if (m.paymentStatus === "paid") {
+        const prev = m.tip ?? 0;
+        m.tip = tip;
+        const delta = tip - prev;
+        if (delta <= 0) throw new Error("INVALID_PRICE");
+        const pay = db.payments.find((p) => p.missionId === m.id);
+        if (pay) {
+          pay.amount += delta;
+          pay.proAmount += delta;
+        }
+        ensureInvoice(db, m, now);
+        if (m.proId) {
+          const missionPro = db.pros.find((p) => p.id === m.proId);
+          if (missionPro) {
+            notify(db, missionPro.userId, `Pourboire ${tip} €`, "Merci du client 🙏", `/pro/missions/${m.id}`);
+          }
+        }
+      } else {
+        m.tip = tip;
       }
     } else if (action === "signQuote") {
       if (m.clientId !== user.id) throw new Error("FORBIDDEN");
@@ -712,7 +870,7 @@ export async function missionAction(userId: string, id: string, action: string, 
       throw new Error("UNKNOWN_ACTION");
     }
 
-    return enrichMission(db, m);
+    return enrichMission(db, m, userId);
   });
 }
 
@@ -1225,6 +1383,8 @@ export function errorStatus(e: unknown) {
     INVALID_DATE: 400,
     INVALID_STATE: 409,
     ORG_REQUIRED: 400,
+    CONTACTS_LOCKED: 403,
+    PLUS_REQUIRED: 403,
     NOT_VERIFIED: 403,
   };
   return { status: map[msg] ?? 400, error: msg };

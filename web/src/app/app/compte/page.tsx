@@ -120,6 +120,7 @@ function CompteContent() {
       <div className="mt-4 space-y-2 text-sm">
         {[
           ["Mes informations", user ? `${user.firstName} ${user.lastName}` : ""],
+          ["AppO+", me?.clientPlusActive ? `Actif · ${me.clientPlusDaysLeft} j` : "Non abonné — /app/plus"],
           ["Mes adresses", me?.addresses?.map((a) => a.label).join(", ") || "—"],
           ["Moyens de paiement", "Carte · Apple Pay · Google Pay (simulés)"],
           ["Mes réservations", `${data?.missions?.length ?? 0} missions`],

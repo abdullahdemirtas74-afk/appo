@@ -18,6 +18,9 @@ export type User = {
   clientKind?: ClientKind;
   organizationName?: string | null;
   organizationSiret?: string | null;
+  /** AppO+ client subscription expiry */
+  clientPlusUntil?: string | null;
+  clientPlusPlan?: "none" | "monthly" | "yearly";
 };
 
 export type Address = {
@@ -156,6 +159,10 @@ export type Mission = {
   supplement: number;
   pendingSupplement: number | null;
   pendingSupplementReason: string | null;
+  /** Client AppO+ counter-offer while price is displayed */
+  pendingNegotiatePrice: number | null;
+  pendingNegotiateNote: string | null;
+  tip: number;
   commissionRate: number;
   createdAt: string;
   timeline: TimelineEvent[];
@@ -171,6 +178,8 @@ export type Mission = {
   assigneeMemberId: string | null;
   quoteId: string | null;
   invoiceId: string | null;
+  /** Gros travaux — devis recommandé */
+  isLargeWorks: boolean;
 };
 
 export type QuoteLine = { label: string; amount: number };
@@ -197,9 +206,13 @@ export type Invoice = {
   proId: string;
   clientId: string;
   total: number;
+  tip: number;
   commission: number;
   proAmount: number;
+  /** pending until client pays; issued on intervention end */
+  status: "issued" | "paid";
   createdAt: string;
+  paidAt: string | null;
 };
 
 export type Message = {
@@ -276,6 +289,10 @@ export type Settings = {
   rfqPrimeExclusiveMinutes: number;
   /** Hours until an open RFQ expires */
   rfqExpiresHours: number;
+  clientPlusMonthlyPrice: number;
+  clientPlusYearlyPrice: number;
+  /** Lower platform commission when the client has AppO+ */
+  commissionClientPlus: number;
 };
 
 export type ServiceRequestStatus = "open" | "awarded" | "cancelled" | "expired";
