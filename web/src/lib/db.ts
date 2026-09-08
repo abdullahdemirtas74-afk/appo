@@ -28,6 +28,9 @@ import type {
 } from "./types";
 
 const DB_PATH = path.join(process.cwd(), "data", "db.json");
+const BACKUP_DIR = path.join(process.cwd(), "data", "backups");
+const MAX_BACKUPS = 12;
+let writesSinceBackup = 0;
 
 let chain: Promise<unknown> = Promise.resolve();
 
@@ -83,14 +86,47 @@ async function readFile(): Promise<DB> {
 }
 
 async function writeFile(db: DB) {
-  await fs.mkdir(path.dirname(DB_PATH), { recursive: true });
-  await fs.writeFile(DB_PATH, JSON.stringify(db, null, 2), "utf8");
+  const dir = path.dirname(DB_PATH);
+  await fs.mkdir(dir, { recursive: true });
+  const payload = JSON.stringify(db, null, 2);
+  const tmp = path.join(dir, `db.${process.pid}.${Date.now()}.tmp`);
+  await fs.writeFile(tmp, payload, "utf8");
+  await fs.rename(tmp, DB_PATH);
+  writesSinceBackup += 1;
+  if (writesSinceBackup >= 25) {
+    writesSinceBackup = 0;
+    void snapshotBackup(payload).catch(() => undefined);
+  }
+}
+
+async function snapshotBackup(payload: string) {
+  await fs.mkdir(BACKUP_DIR, { recursive: true });
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const dest = path.join(BACKUP_DIR, `db-${stamp}.json`);
+  await fs.writeFile(dest, payload, "utf8");
+  const files = (await fs.readdir(BACKUP_DIR))
+    .filter((f) => f.startsWith("db-") && f.endsWith(".json"))
+    .sort();
+  while (files.length > MAX_BACKUPS) {
+    const oldest = files.shift();
+    if (oldest) await fs.unlink(path.join(BACKUP_DIR, oldest)).catch(() => undefined);
+  }
+}
+
+export async function exportDbSanitized(): Promise<object> {
+  const db = await readFile();
+  return {
+    ...db,
+    users: db.users.map(({ passwordHash: _p, ...u }) => u),
+    exportedAt: new Date().toISOString(),
+  };
 }
 
 export function resetDb() {
   return mutate(async () => {
     const seed = createSeed();
     await writeFile(seed);
+    await snapshotBackup(JSON.stringify(seed, null, 2)).catch(() => undefined);
     return seed;
   });
 }
@@ -110,7 +146,10 @@ export function mutate<T>(fn: (db: DB) => T | Promise<T>, persist = true) {
   });
   chain = run.then(
     () => undefined,
-    () => undefined,
+    (err) => {
+      console.error(JSON.stringify({ ts: new Date().toISOString(), level: "error", event: "db_mutate_failed", error: String(err) }));
+      return undefined;
+    },
   );
   return run;
 }
@@ -295,6 +334,13 @@ export function requireUser(db: DB, userId: string, role?: Role) {
   return user;
 }
 
+/** Re-check role from DB (cookie role can be stale after privilege change) */
+export function assertSessionRole(db: DB, userId: string, expected: Role) {
+  const user = requireUser(db, userId);
+  if (user.role !== expected) throw new Error("FORBIDDEN");
+  return user;
+}
+
 const STATUS_FLOW: MissionStatus[] = [
   "accepted",
   "en_route",
@@ -417,17 +463,20 @@ export function enrichMission(db: DB, m: Mission, viewerId?: string) {
     ? redactUser(publicUser(proUser), unlocked, isProViewer)
     : null;
 
-  /** Hide exact address from pro until accept — anti hors-appli */
+  /** Hide exact address + coords from pro until accept — anti hors-appli */
   const addressVisible = unlocked || isClientViewer;
   const displayAddress = addressVisible ? m.address : "Adresse exacte après acceptation";
-  const displayLat = addressVisible ? m.lat : m.lat;
-  const displayLng = addressVisible ? m.lng : m.lng;
+  /** City-level jitter until unlocked so exact pin isn't usable off-app */
+  const displayLat = addressVisible ? m.lat : Math.round(m.lat * 100) / 100;
+  const displayLng = addressVisible ? m.lng : Math.round(m.lng * 100) / 100;
 
   return {
     ...m,
     address: displayAddress,
+    city: m.city,
     lat: displayLat,
     lng: displayLng,
+    exactLocation: addressVisible,
     tip: m.tip ?? 0,
     pendingNegotiatePrice: m.pendingNegotiatePrice ?? null,
     pendingNegotiateNote: m.pendingNegotiateNote ?? null,

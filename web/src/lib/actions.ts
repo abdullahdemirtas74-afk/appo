@@ -482,6 +482,11 @@ export async function createMission(userId: string, input: {
     const user = requireUser(db, userId, "client");
     const category = db.categories.find((c) => c.id === input.categoryId);
     if (!category || !category.active) throw new Error("INVALID_CATEGORY");
+    if (!String(input.address || "").trim() || !String(input.city || "").trim()) {
+      throw new Error("ADDRESS_REQUIRED");
+    }
+    const photos = (input.photos ?? []).filter((p) => typeof p === "string" && p.length < 400_000);
+    if ((input.photos?.length ?? 0) > photos.length) throw new Error("PHOTO_TOO_LARGE");
     const settings = withClientPlusSettings(withTierSettings(db.settings));
     const isUrgence = input.type === "urgence";
     const clientPlus = isClientPlusActive(user);
@@ -494,12 +499,12 @@ export async function createMission(userId: string, input: {
       proId: input.proId ?? null,
       categoryId: input.categoryId,
       status: "searching",
-      address: input.address,
-      city: input.city,
+      address: String(input.address).trim(),
+      city: String(input.city).trim(),
       lat: input.lat,
       lng: input.lng,
       description: input.description,
-      photos: input.photos ?? [],
+      photos,
       scheduledAt: input.scheduledAt ?? null,
       price,
       supplement: 0,
@@ -1448,7 +1453,15 @@ export async function adminAction(userId: string, action: string, payload: Recor
       if (m) m.paymentStatus = "refunded";
       return p;
     }
+    if (action === "exportBackup") {
+      return {
+        ...db,
+        users: db.users.map(({ passwordHash: _p, ...u }) => u),
+        exportedAt: new Date().toISOString(),
+      };
+    }
     if (action === "reset") {
+      if (payload.confirm !== "RESET") throw new Error("CONFIRM_REQUIRED");
       return { ok: true, reset: true };
     }
     throw new Error("UNKNOWN_ACTION");
@@ -1496,6 +1509,10 @@ export function errorStatus(e: unknown) {
     INVALID_DATE: 400,
     INVALID_STATE: 409,
     ORG_REQUIRED: 400,
+    ADDRESS_REQUIRED: 400,
+    PHOTO_TOO_LARGE: 400,
+    CONFIRM_REQUIRED: 400,
+    RATE_LIMITED: 429,
     CONTACTS_LOCKED: 403,
     PLUS_REQUIRED: 403,
     NOT_VERIFIED: 403,

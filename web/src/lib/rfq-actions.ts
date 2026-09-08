@@ -20,6 +20,23 @@ function expireOpenRequests(db: DB, now = Date.now()) {
   for (const r of db.requests ?? []) {
     if (r.status === "open" && new Date(r.expiresAt).getTime() <= now) {
       r.status = "expired";
+      for (const o of db.offers ?? []) {
+        if (o.requestId === r.id && o.status === "pending") o.status = "withdrawn";
+      }
+      notify(
+        db,
+        r.clientId,
+        "Demande expirée",
+        "Aucune offre n’a été retenue avant l’échéance. Republiez si besoin.",
+        `/app/demandes/${r.id}`,
+      );
+      for (const o of db.offers ?? []) {
+        if (o.requestId !== r.id) continue;
+        const pro = db.pros.find((p) => p.id === o.proId);
+        if (pro) {
+          notify(db, pro.userId, "Demande expirée", "L’appel d’offres est clos.", "/pro/demandes");
+        }
+      }
     }
   }
 }
@@ -43,6 +60,9 @@ export async function createServiceRequest(
     const user = requireUser(db, userId, "client");
     const category = db.categories.find((c) => c.id === input.categoryId);
     if (!category?.active) throw new Error("INVALID_CATEGORY");
+    if (!String(input.address || "").trim() || !String(input.city || "").trim()) {
+      throw new Error("ADDRESS_REQUIRED");
+    }
     const settings = withRfqSettings(withTierSettings(db.settings));
     const now = new Date();
     const matched = matchRfqPros(db, input.categoryId, input.lat, input.lng);
@@ -288,7 +308,7 @@ export async function selectProOffer(userId: string, requestId: string, offerId:
       assigneeMemberId: null,
       quoteId: null,
       invoiceId: null,
-      isLargeWorks: true,
+      isLargeWorks: Boolean(req.isLargeWorks),
     };
     db.missions.unshift(mission);
     req.missionId = mission.id;

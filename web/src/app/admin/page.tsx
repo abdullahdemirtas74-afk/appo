@@ -18,21 +18,44 @@ export default function AdminHome() {
   ];
   return (
     <div>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-3xl font-extrabold">Administration</h1>
           <p className="text-sm text-muted">Pilotage de la plateforme AppO — V1 locale</p>
         </div>
-        <Button
-          variant="secondary"
-          onClick={async () => {
-            if (!confirm("Réinitialiser les données de démo ?")) return;
-            await api("/api/admin", { action: "reset" });
-            reload();
-          }}
-        >
-          Reset démo
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="secondary"
+            onClick={async () => {
+              const res = await fetch("/api/admin?export=1");
+              const json = await res.json();
+              if (!res.ok) {
+                alert(json.error || "Export impossible");
+                return;
+              }
+              const blob = new Blob([JSON.stringify(json, null, 2)], { type: "application/json" });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = `appo-backup-${new Date().toISOString().slice(0, 10)}.json`;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+          >
+            Export backup
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={async () => {
+              const typed = prompt('Tapez RESET pour confirmer la réinitialisation (exportez avant) :');
+              if (typed !== "RESET") return;
+              await api("/api/admin", { action: "reset", confirm: "RESET" });
+              reload();
+            }}
+          >
+            Reset démo
+          </Button>
+        </div>
       </div>
       <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map(([k, v]) => (

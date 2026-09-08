@@ -23,6 +23,10 @@ function NowForm() {
   const cat = data?.categories.find((c) => c.id === categoryId);
 
   async function submit() {
+    if (!addr?.line) {
+      alert("Ajoutez une adresse dans Mon compte avant de lancer AppO Now.");
+      return;
+    }
     setLoading(true);
     try {
       const res = await api<{ mission: { id: string } }>("/api/missions", {
@@ -30,12 +34,14 @@ function NowForm() {
         categoryId,
         description,
         photos,
-        address: addr?.line ?? "12 rue de la République",
-        city: addr?.city ?? "Rumilly",
-        lat: addr?.lat ?? 45.8782,
-        lng: addr?.lng ?? 6.0581,
+        address: addr.line,
+        city: addr.city,
+        lat: addr.lat,
+        lng: addr.lng,
       });
       router.replace(`/app/missions/${res.mission.id}`);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Erreur");
     } finally {
       setLoading(false);
     }
@@ -105,8 +111,8 @@ function NowForm() {
           {urgency ? <div className="text-appo">Majoration urgence appliquée</div> : null}
           <div className="text-muted">Le prix peut être ajusté sur place, avec votre accord.</div>
         </div>
-        <Button variant="now" className="w-full" disabled={loading} onClick={submit}>
-          {loading ? "Recherche…" : urgency ? "Lancer l’urgence" : "Trouver un pro maintenant"}
+        <Button variant="now" className="w-full" disabled={loading || !addr?.line} onClick={submit}>
+          {loading ? "Recherche…" : !addr?.line ? "Adresse requise" : urgency ? "Lancer l’urgence" : "Trouver un pro maintenant"}
         </Button>
       </div>
     </div>

@@ -29,6 +29,10 @@ function PublierDemandeForm() {
   const [loading, setLoading] = useState(false);
 
   async function submit() {
+    if (!addr?.line) {
+      alert("Ajoutez une adresse dans Mon compte avant de publier.");
+      return;
+    }
     setLoading(true);
     try {
       const res = await api<{ request: { id: string } }>("/api/requests", {
@@ -37,13 +41,15 @@ function PublierDemandeForm() {
         availabilityNote,
         preferredAt: preferredAt ? new Date(preferredAt).toISOString() : null,
         photos,
-        address: addr?.line ?? "12 rue de la République",
-        city: addr?.city ?? "Annecy",
-        lat: addr?.lat ?? 45.899,
-        lng: addr?.lng ?? 6.129,
+        address: addr.line,
+        city: addr.city,
+        lat: addr.lat,
+        lng: addr.lng,
         isLargeWorks: large,
       });
       router.replace(`/app/demandes/${res.request.id}`);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Erreur");
     } finally {
       setLoading(false);
     }

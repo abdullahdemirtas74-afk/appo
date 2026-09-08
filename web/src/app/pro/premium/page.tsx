@@ -108,6 +108,28 @@ export default function PremiumPage() {
           <p className={`mt-3 text-sm ${tier === "elite" ? "text-white/80" : "text-muted"}`}>
             Points fidélité : <b>{points}</b> · badge {loyalty === "none" ? "—" : loyalty}
           </p>
+          {tier !== "elite" ? (
+            <div className="mt-4 space-y-2 text-xs">
+              <div className="flex justify-between text-muted">
+                <span>Missions (≥40)</span>
+                <b>{Math.min(40, stats?.missions ?? me?.pro?.missionCount ?? 0)}/40</b>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-black/10">
+                <div
+                  className="h-full bg-amber-500"
+                  style={{ width: `${Math.min(100, ((stats?.missions ?? me?.pro?.missionCount ?? 0) / 40) * 100)}%` }}
+                />
+              </div>
+              <div className="flex justify-between text-muted">
+                <span>Note (≥4.7)</span>
+                <b>{(stats?.rating ?? me?.pro?.rating ?? 0).toFixed(1)}</b>
+              </div>
+              <div className="flex justify-between text-muted">
+                <span>Taux accept. (≥85%)</span>
+                <b>{Math.round(((stats?.acceptanceRate ?? me?.pro?.acceptanceRate ?? 0) as number) * 100)}%</b>
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
 
