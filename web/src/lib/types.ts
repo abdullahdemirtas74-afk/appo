@@ -52,7 +52,10 @@ export type ProDocument = {
   id: string;
   type: "identite" | "entreprise" | "assurance" | "certification";
   name: string;
-  status: "pending" | "approved" | "rejected";
+  status: "missing" | "pending" | "approved" | "rejected";
+  rejectReason?: string | null;
+  submittedAt?: string | null;
+  reviewedAt?: string | null;
 };
 
 export type ScheduleDay = {
@@ -108,6 +111,10 @@ export type ProProfile = {
   photos: string[];
   certifications: string[];
   documents: ProDocument[];
+  /** Note admin sur le dossier de vérification */
+  verificationNote?: string | null;
+  /** Dernière soumission du dossier à l’admin */
+  verificationSubmittedAt?: string | null;
   schedule: ScheduleDay[];
   absences: ProAbsence[];
   bufferMinutes: number;
@@ -263,13 +270,39 @@ export type AppNotification = {
 
 export type Favorite = { clientId: string; proId: string };
 
+export type DisputeMessage = {
+  id: string;
+  authorId: string;
+  role: "client" | "pro" | "admin";
+  text: string;
+  createdAt: string;
+};
+
 export type Dispute = {
   id: string;
   missionId: string;
   openedBy: string;
   reason: string;
-  status: "open" | "resolved";
+  category: "qualite" | "prix" | "retard" | "comportement" | "autre";
+  status: "open" | "in_review" | "resolved" | "closed";
+  messages: DisputeMessage[];
+  resolution: string | null;
+  resolvedAt: string | null;
+  refundSuggested: boolean;
   createdAt: string;
+  updatedAt: string;
+};
+
+export type SupportTicket = {
+  id: string;
+  userId: string;
+  subject: string;
+  category: "compte" | "paiement" | "mission" | "pro" | "autre";
+  status: "open" | "in_review" | "resolved" | "closed";
+  relatedMissionId: string | null;
+  messages: DisputeMessage[];
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type Settings = {
@@ -297,6 +330,30 @@ export type Settings = {
   clientPlusYearlyPrice: number;
   /** Lower platform commission when the client has AppO+ */
   commissionClientPlus: number;
+  /** Max transactional emails to Pros per calendar day (UTC) */
+  proEmailDailyLimit: number;
+};
+
+export type OutboundEmailStatus =
+  | "pending_account"
+  | "queued"
+  | "sent"
+  | "skipped_quota"
+  | "failed";
+
+export type OutboundEmail = {
+  id: string;
+  audience: "pro" | "client";
+  userId: string;
+  to: string;
+  subject: string;
+  body: string;
+  href?: string;
+  status: OutboundEmailStatus;
+  day: string;
+  createdAt: string;
+  sentAt: string | null;
+  error: string | null;
 };
 
 export type ServiceRequestStatus = "open" | "awarded" | "cancelled" | "expired";
@@ -354,10 +411,12 @@ export type DB = {
   notifications: AppNotification[];
   favorites: Favorite[];
   disputes: Dispute[];
+  supportTickets: SupportTicket[];
   quotes: Quote[];
   invoices: Invoice[];
   requests: ServiceRequest[];
   offers: ProOffer[];
+  outboundEmails: OutboundEmail[];
   settings: Settings;
 };
 

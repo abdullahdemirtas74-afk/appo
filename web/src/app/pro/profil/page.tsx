@@ -37,6 +37,9 @@ export default function ProProfil() {
         >
           Enregistrer
         </Button>
+        <Button className="w-full" variant="secondary" href="/pro/verification">
+          Vérification documents
+        </Button>
       </div>
         <Button
           className="mt-8 w-full"

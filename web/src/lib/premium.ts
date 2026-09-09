@@ -151,3 +151,27 @@ export function verifiedComplete(pro: ProProfile) {
     need.every((t) => pro.documents.some((d) => d.type === t && d.status === "approved"))
   );
 }
+
+export function verificationChecklist(pro: ProProfile) {
+  const required = [
+    { type: "identite" as const, label: "Pièce d’identité", required: true },
+    { type: "entreprise" as const, label: "Kbis / extrait entreprise", required: true },
+    { type: "assurance" as const, label: "Attestation RC Pro", required: true },
+    { type: "certification" as const, label: "Certification métier (optionnel)", required: false },
+  ];
+  return required.map((r) => {
+    const doc = pro.documents.find((d) => d.type === r.type);
+    return {
+      ...r,
+      doc: doc ?? null,
+      status: (doc?.status ?? "missing") as "missing" | "pending" | "approved" | "rejected",
+    };
+  });
+}
+
+export function docsReadyForReview(pro: ProProfile) {
+  const need = ["identite", "entreprise", "assurance"] as const;
+  return need.every((t) =>
+    pro.documents.some((d) => d.type === t && (d.status === "pending" || d.status === "approved")),
+  );
+}

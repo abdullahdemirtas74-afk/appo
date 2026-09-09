@@ -36,8 +36,11 @@ export default function ProHome() {
         <div className="mt-6 rounded-3xl border border-amber-200 bg-amber-50 p-4">
           <div className="font-bold">Compte en cours de vérification</div>
           <p className="mt-1 text-sm">
-            Un administrateur valide vos documents. Vous recevrez le badge Pro vérifié ensuite.
+            Déposez identité, Kbis et RC Pro, puis soumettez le dossier. L’admin valide document par document.
           </p>
+          <Button href="/pro/verification" className="mt-3" variant="secondary">
+            Ouvrir ma vérification
+          </Button>
         </div>
       ) : (
         <>

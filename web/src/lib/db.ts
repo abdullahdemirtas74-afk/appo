@@ -18,6 +18,7 @@ import { isClientPlusActive } from "./client-plus";
 import { withRfqSettings } from "./rfq";
 import { createSeed } from "./seed";
 import { maskEmail, maskPhone, openPii, sealPii } from "./privacy";
+import { enqueueProEmail, flushProEmailQueue, withMailSettings } from "./mail";
 import type {
   DB,
   Mission,
@@ -37,13 +38,45 @@ let chain: Promise<unknown> = Promise.resolve();
 
 function migrate(db: DB): DB {
   db.pros = db.pros.map(normalizePro);
-  db.settings = withRfqSettings(withTierSettings(db.settings));
+  db.settings = withMailSettings(withRfqSettings(withTierSettings(db.settings)));
   if (!db.settings.offerSeconds) db.settings.offerSeconds = 20;
   if (db.settings.commissionRate == null) db.settings.commissionRate = 0.15;
   if (!db.quotes) db.quotes = [];
   if (!db.invoices) db.invoices = [];
   if (!db.requests) db.requests = [];
   if (!db.offers) db.offers = [];
+  if (!db.outboundEmails) db.outboundEmails = [];
+  if (!db.supportTickets) db.supportTickets = [];
+  db.disputes = (db.disputes ?? []).map((d) => ({
+    ...d,
+    category: d.category ?? "autre",
+    status: d.status === "resolved" ? "resolved" : d.status === "closed" ? "closed" : d.status === "in_review" ? "in_review" : "open",
+    messages: d.messages ?? [
+      {
+        id: `dmsg_${d.id}`,
+        authorId: d.openedBy,
+        role: "client" as const,
+        text: d.reason,
+        createdAt: d.createdAt,
+      },
+    ],
+    resolution: d.resolution ?? null,
+    resolvedAt: d.resolvedAt ?? (d.status === "resolved" ? d.createdAt : null),
+    refundSuggested: d.refundSuggested ?? false,
+    updatedAt: d.updatedAt ?? d.createdAt,
+  }));
+  db.pros = db.pros.map((p) => ({
+    ...p,
+    verificationNote: p.verificationNote ?? null,
+    verificationSubmittedAt: p.verificationSubmittedAt ?? null,
+    documents: (p.documents ?? []).map((doc) => ({
+      ...doc,
+      status: doc.status === "missing" ? "missing" : doc.status,
+      rejectReason: doc.rejectReason ?? null,
+      submittedAt: doc.submittedAt ?? null,
+      reviewedAt: doc.reviewedAt ?? null,
+    })),
+  }));
   db.missions = db.missions.map((m) => ({
     ...m,
     assigneeMemberId: m.assigneeMemberId ?? null,
@@ -174,7 +207,10 @@ export function mutate<T>(fn: (db: DB) => T | Promise<T>, persist = true) {
     processDispatch(db);
     broadcastRfqToFreePros(db);
     const result = await fn(db);
-    if (persist) await writeFile(db);
+    if (persist) {
+      await flushProEmailQueue(db);
+      await writeFile(db);
+    }
     return result;
   });
   chain = run.then(
@@ -256,6 +292,7 @@ function notify(
   title: string,
   body: string,
   href?: string,
+  opts?: { emailPro?: boolean },
 ) {
   db.notifications.unshift({
     id: nid("ntf"),
@@ -266,6 +303,9 @@ function notify(
     href,
     createdAt: new Date().toISOString(),
   });
+  if (opts?.emailPro) {
+    enqueueProEmail(db, userId, title, body, href);
+  }
 }
 
 function broadcastRfqToFreePros(db: DB, now = Date.now()) {
@@ -284,6 +324,7 @@ function broadcastRfqToFreePros(db: DB, now = Date.now()) {
         "Nouvelle demande client",
         `${cat?.name ?? "Service"} · ${req.city} · ${req.availabilityNote}`,
         `/pro/demandes/${req.id}`,
+        { emailPro: true },
       );
     }
     req.broadcastDone = true;
@@ -370,6 +411,7 @@ export function processDispatch(db: DB, now = Date.now()) {
         m.type === "urgence" ? "Urgence AppO" : "Nouvelle mission disponible",
         `${cat?.name ?? "Mission"} · ${m.city} · ${m.price} €${tag}`,
         `/pro/missions/${m.id}`,
+        { emailPro: true },
       );
     }
   }

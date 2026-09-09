@@ -32,6 +32,7 @@ import { etaMinutes, haversineKm } from "./geo";
 import {
   commissionForPro,
   computeLoyaltyBadge,
+  docsReadyForReview,
   effectiveTier,
   extendBoostUntil,
   extendPrimeUntil,
@@ -39,6 +40,7 @@ import {
   isPrimeActive,
   matchingScore,
   primeDaysLeft,
+  verificationChecklist,
   verifiedComplete,
   withTierSettings,
 } from "./premium";
@@ -51,6 +53,7 @@ import type {
   Role,
   ScheduleDay,
 } from "./types";
+import { mailQuotaSnapshot, promotePendingProEmails, withMailSettings } from "./mail";
 
 export async function login(email: string, password: string) {
   return mutate((db) => {
@@ -368,6 +371,8 @@ export async function getMe(userId: string) {
             boostActive: isBoostActive(pro),
             loyaltyBadge: computeLoyaltyBadge(pro),
             verifiedComplete: verifiedComplete(pro),
+            checklist: verificationChecklist(pro),
+            docsReadyForReview: docsReadyForReview(pro),
             primeDaysLeft: primeDaysLeft(pro),
           }
         : null,
@@ -1033,17 +1038,48 @@ export async function missionAction(userId: string, id: string, action: string, 
       m.timeline.push({ status: "cancelled", at: now, label: "Mission annulée" });
     } else if (action === "dispute") {
       if (m.clientId !== user.id && !(pro && m.proId === pro.id)) throw new Error("FORBIDDEN");
+      if (["cancelled", "searching", "offered", "unmatched"].includes(m.status)) throw new Error("INVALID_STATE");
+      if (db.disputes.some((d) => d.missionId === m.id && d.status !== "resolved" && d.status !== "closed")) {
+        throw new Error("DISPUTE_EXISTS");
+      }
+      const reason = String(payload.reason ?? "Litige").trim() || "Litige";
+      const category = (["qualite", "prix", "retard", "comportement", "autre"] as const).includes(
+        payload.category as any,
+      )
+        ? (payload.category as "qualite" | "prix" | "retard" | "comportement" | "autre")
+        : "autre";
       m.status = "disputed";
-      db.disputes.push({
+      m.timeline.push({ status: "disputed", at: now, label: "Litige ouvert" });
+      const dispute = {
         id: nid("dsp"),
         missionId: m.id,
         openedBy: user.id,
-        reason: String(payload.reason ?? "Litige"),
-        status: "open",
+        reason,
+        category,
+        status: "open" as const,
+        messages: [
+          {
+            id: nid("dmsg"),
+            authorId: user.id,
+            role: (user.role === "pro" ? "pro" : "client") as "client" | "pro",
+            text: reason,
+            createdAt: now,
+          },
+        ],
+        resolution: null,
+        resolvedAt: null,
+        refundSuggested: false,
         createdAt: now,
-      });
+        updatedAt: now,
+      };
+      db.disputes.unshift(dispute);
       const admin = db.users.find((u) => u.role === "admin");
-      if (admin) notify(db, admin.id, "Nouveau litige", String(payload.reason ?? ""), "/admin/litiges");
+      if (admin) notify(db, admin.id, "Nouveau litige", reason, "/admin/litiges");
+      if (m.proId) {
+        const p = db.pros.find((x) => x.id === m.proId);
+        if (p && p.userId !== user.id) notify(db, p.userId, "Litige ouvert", reason, `/pro/missions/${m.id}`);
+      }
+      if (m.clientId !== user.id) notify(db, m.clientId, "Litige ouvert", reason, `/app/support/${dispute.id}`);
     } else {
       throw new Error("UNKNOWN_ACTION");
     }
@@ -1423,20 +1459,77 @@ export async function adminAction(userId: string, action: string, payload: Recor
       if (!pro) throw new Error("NOT_FOUND");
       const decision = String(payload.decision);
       if (decision === "verified") {
+        const force = Boolean(payload.force);
+        if (!force) {
+          const need = ["identite", "entreprise", "assurance"] as const;
+          const allApproved = need.every((t) =>
+            pro.documents.some((d) => d.type === t && d.status === "approved"),
+          );
+          if (!allApproved) throw new Error("DOCS_INCOMPLETE");
+        } else {
+          for (const t of ["identite", "entreprise", "assurance"] as const) {
+            let doc = pro.documents.find((d) => d.type === t);
+            if (!doc) {
+              doc = {
+                id: nid("doc"),
+                type: t,
+                name: `${t}.pdf`,
+                status: "approved",
+                rejectReason: null,
+                submittedAt: new Date().toISOString(),
+                reviewedAt: new Date().toISOString(),
+              };
+              pro.documents.push(doc);
+            } else {
+              doc.status = "approved";
+              doc.rejectReason = null;
+              doc.reviewedAt = new Date().toISOString();
+            }
+          }
+        }
         pro.status = "verified";
         pro.verified = true;
-        pro.documents = pro.documents.map((d) => ({ ...d, status: "approved" }));
-        notify(db, pro.userId, "Compte Pro vérifié", "Votre badge Pro vérifié est activé. Vous pouvez recevoir des missions.", "/pro");
+        pro.verificationNote = payload.note ? String(payload.note) : pro.verificationNote ?? null;
+        notify(db, pro.userId, "Compte Pro vérifié", "Votre badge Pro vérifié est activé. Vous pouvez recevoir des missions.", "/pro", { emailPro: true });
       } else if (decision === "rejected") {
         pro.status = "rejected";
         pro.verified = false;
-        notify(db, pro.userId, "Inscription refusée", String(payload.reason ?? "Dossier incomplet"), "/pro");
+        pro.online = false;
+        pro.verificationNote = String(payload.reason ?? payload.note ?? "Dossier incomplet");
+        notify(db, pro.userId, "Inscription refusée", pro.verificationNote, "/pro/verification", { emailPro: true });
       } else if (decision === "suspended") {
         pro.status = "suspended";
         pro.online = false;
         pro.verified = false;
       }
-      return pro;
+      return { ...pro, checklist: verificationChecklist(pro), verifiedComplete: verifiedComplete(pro) };
+    }
+    if (action === "reviewDocument") {
+      const pro = db.pros.find((p) => p.id === payload.proId);
+      if (!pro) throw new Error("NOT_FOUND");
+      const doc = pro.documents.find((d) => d.id === payload.documentId || d.type === payload.type);
+      if (!doc) throw new Error("NOT_FOUND");
+      const decision = String(payload.decision);
+      const ts = new Date().toISOString();
+      if (decision === "approved") {
+        doc.status = "approved";
+        doc.rejectReason = null;
+        doc.reviewedAt = ts;
+      } else if (decision === "rejected") {
+        doc.status = "rejected";
+        doc.rejectReason = String(payload.reason ?? "Document non conforme");
+        doc.reviewedAt = ts;
+        pro.verified = false;
+        if (pro.status === "verified") pro.status = "pending";
+      } else throw new Error("INVALID_STATE");
+      notify(
+        db,
+        pro.userId,
+        decision === "approved" ? "Document validé" : "Document refusé",
+        `${doc.type}${doc.rejectReason ? ` — ${doc.rejectReason}` : ""}`,
+        "/pro/verification",
+      );
+      return { ...pro, checklist: verificationChecklist(pro), verifiedComplete: verifiedComplete(pro) };
     }
     if (action === "suspendUser") {
       const user = db.users.find((u) => u.id === payload.userId);
@@ -1517,8 +1610,14 @@ export async function adminAction(userId: string, action: string, payload: Recor
       if (payload.commissionClientPlus != null) {
         db.settings.commissionClientPlus = Number(payload.commissionClientPlus);
       }
-      db.settings = withClientPlusSettings(withTierSettings(db.settings));
-      return db.settings;
+      if (payload.proEmailDailyLimit != null) {
+        db.settings.proEmailDailyLimit = Math.max(1, Math.min(500, Number(payload.proEmailDailyLimit)));
+      }
+      return withMailSettings(db.settings);
+    }
+    if (action === "promoteProEmails") {
+      const promoted = promotePendingProEmails(db);
+      return { ...promoted, quota: mailQuotaSnapshot(db) };
     }
     if (action === "grantPrime") {
       const pro = db.pros.find((p) => p.id === payload.proId);
@@ -1575,10 +1674,59 @@ export async function adminAction(userId: string, action: string, payload: Recor
     if (action === "resolveDispute") {
       const d = db.disputes.find((x) => x.id === payload.id);
       if (!d) throw new Error("NOT_FOUND");
-      d.status = "resolved";
+      const ts = new Date().toISOString();
+      const resolution = String(payload.resolution ?? "Litige résolu par AppO").trim();
+      d.status = payload.close ? "closed" : "resolved";
+      d.resolution = resolution;
+      d.resolvedAt = ts;
+      d.updatedAt = ts;
+      d.refundSuggested = Boolean(payload.refundSuggested);
+      if (!d.messages) d.messages = [];
+      d.messages.push({
+        id: nid("dmsg"),
+        authorId: userId,
+        role: "admin",
+        text: resolution,
+        createdAt: ts,
+      });
       const m = db.missions.find((x) => x.id === d.missionId);
-      if (m && m.status === "disputed") m.status = "completed";
+      if (m && m.status === "disputed") {
+        m.status = "completed";
+        m.timeline.push({ status: "completed", at: ts, label: "Litige résolu" });
+      }
+      if (payload.refund && m) {
+        const p = db.payments.find((x) => x.missionId === m.id && x.status === "paid");
+        if (p) {
+          p.status = "refunded";
+          m.paymentStatus = "refunded";
+        }
+      }
+      notify(db, d.openedBy, "Litige résolu", resolution, `/app/support/${d.id}`);
+      if (m) {
+        notify(db, m.clientId, "Litige résolu", resolution, `/app/support/${d.id}`);
+        if (m.proId) {
+          const pro = db.pros.find((x) => x.id === m.proId);
+          if (pro) notify(db, pro.userId, "Litige résolu", resolution, `/pro/missions/${m.id}`);
+        }
+      }
       return d;
+    }
+    if (action === "resolveTicket") {
+      const t = (db.supportTickets ?? []).find((x) => x.id === payload.id);
+      if (!t) throw new Error("NOT_FOUND");
+      const ts = new Date().toISOString();
+      const resolution = String(payload.resolution ?? "Ticket clos").trim();
+      t.status = payload.close ? "closed" : "resolved";
+      t.updatedAt = ts;
+      t.messages.push({
+        id: nid("dmsg"),
+        authorId: userId,
+        role: "admin",
+        text: resolution,
+        createdAt: ts,
+      });
+      notify(db, t.userId, "Ticket résolu", resolution, `/app/support/${t.id}`);
+      return t;
     }
     if (action === "refund") {
       const p = db.payments.find((x) => x.id === payload.paymentId);
@@ -1625,6 +1773,8 @@ export async function adminLists() {
       boostActive: isBoostActive(p),
       tier: effectiveTier(p),
       verifiedComplete: verifiedComplete(p),
+      checklist: verificationChecklist(p),
+      docsReadyForReview: docsReadyForReview(p),
       loyaltyBadge: computeLoyaltyBadge(p),
     })),
     missions: db.missions.map((m) => enrichMission(db, m)),
@@ -1635,8 +1785,14 @@ export async function adminLists() {
       ...d,
       mission: db.missions.find((m) => m.id === d.missionId),
     })),
+    supportTickets: db.supportTickets ?? [],
     categories: db.categories,
-    settings: withTierSettings(db.settings),
+    settings: withMailSettings(withTierSettings(db.settings)),
+    mail: mailQuotaSnapshot(db),
+    outboundEmails: (db.outboundEmails ?? []).slice(0, 40).map((e) => ({
+      ...e,
+      to: e.to.replace(/(.{2}).+(@.+)/, "$1***$2"),
+    })),
   }), false);
 }
 
@@ -1662,6 +1818,9 @@ export function errorStatus(e: unknown) {
     CONTACTS_LOCKED: 403,
     PLUS_REQUIRED: 403,
     NOT_VERIFIED: 403,
+    DISPUTE_EXISTS: 409,
+    MESSAGE_REQUIRED: 400,
+    DOCS_INCOMPLETE: 400,
   };
   return { status: map[msg] ?? 400, error: msg };
 }

@@ -109,6 +109,7 @@ export async function createServiceRequest(
           "Nouvelle demande — accès prioritaire",
           `${category.name} · ${input.city} · ${input.availabilityNote}`,
           `/pro/demandes/${req.id}`,
+          { emailPro: true },
         );
       }
     }
@@ -321,6 +322,7 @@ export async function selectProOffer(userId: string, requestId: string, offerId:
         "Votre offre a été choisie 🎉",
         `Le client a accepté votre proposition (${offer.price} €)`,
         `/pro/missions/${mission.id}`,
+        { emailPro: true },
       );
     }
     for (const o of db.offers ?? []) {

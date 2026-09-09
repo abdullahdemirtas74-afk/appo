@@ -10,6 +10,7 @@ const links = [
   ["/admin", "Vue d’ensemble"],
   ["/admin/pros", "Professionnels"],
   ["/admin/clients", "Clients"],
+  ["/admin/emails", "E-mails Pros"],
   ["/admin/missions", "Missions"],
   ["/admin/paiements", "Paiements"],
   ["/admin/categories", "Services"],

@@ -303,7 +303,7 @@ export default function ComptePage() {
           { k: "Professionnels favoris", v: `${me?.favorites?.length ?? 0}`, onClick: () => setSection("favorites") },
           { k: "Mes réservations", v: `${missionsData?.missions?.length ?? 0} missions`, href: "/app/missions" },
           { k: "Confidentialité", v: "Export & suppression", onClick: () => setSection("privacy") },
-          { k: "Aide", v: "aide@appo.fr", href: "mailto:aide@appo.fr" },
+          { k: "Aide & litiges", v: "Support AppO", href: "/app/support" },
         ].map((row) => {
           const inner = (
             <>

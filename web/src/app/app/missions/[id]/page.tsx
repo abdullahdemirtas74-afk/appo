@@ -24,6 +24,9 @@ export default function MissionClientPage() {
   const [tip, setTip] = useState(0);
   const [negoPrice, setNegoPrice] = useState("");
   const [negoNote, setNegoNote] = useState("");
+  const [disputeReason, setDisputeReason] = useState("");
+  const [disputeCategory, setDisputeCategory] = useState("autre");
+  const [showDispute, setShowDispute] = useState(false);
   const m = data?.mission;
   if (!m) return <div className="p-6 text-muted">Chargement…</div>;
 
@@ -329,6 +332,64 @@ export default function MissionClientPage() {
             <>
               Facture {m.id} · {money(m.total)} · {m.paymentMethod}
             </>
+          )}
+        </div>
+      ) : null}
+
+      {["accepted", "en_route", "arrived", "in_progress", "completed", "disputed"].includes(m.status) ? (
+        <div className="mt-6 rounded-3xl border border-line p-4">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="font-bold">Aide & litige</h2>
+            {m.status === "disputed" ? <Badge tone="orange">Litige ouvert</Badge> : null}
+          </div>
+          {m.status === "disputed" ? (
+            <div className="mt-2">
+              <p className="text-sm text-muted">Un litige est en cours sur cette mission.</p>
+              <Button className="mt-3" variant="secondary" href="/app/support">
+                Suivre dans Aide & litiges
+              </Button>
+            </div>
+          ) : showDispute ? (
+            <div className="mt-3 space-y-2">
+              <select className={inputClass} value={disputeCategory} onChange={(e) => setDisputeCategory(e.target.value)}>
+                <option value="qualite">Qualité de l’intervention</option>
+                <option value="prix">Prix / facturation</option>
+                <option value="retard">Retard</option>
+                <option value="comportement">Comportement</option>
+                <option value="autre">Autre</option>
+              </select>
+              <textarea
+                className={inputClass}
+                rows={3}
+                placeholder="Décrivez le problème…"
+                value={disputeReason}
+                onChange={(e) => setDisputeReason(e.target.value)}
+              />
+              <div className="flex gap-2">
+                <Button
+                  className="flex-1"
+                  variant="now"
+                  onClick={async () => {
+                    await act("dispute", { reason: disputeReason, category: disputeCategory });
+                    setShowDispute(false);
+                  }}
+                >
+                  Ouvrir le litige
+                </Button>
+                <Button variant="secondary" onClick={() => setShowDispute(false)}>
+                  Annuler
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Button variant="secondary" onClick={() => setShowDispute(true)}>
+                Signaler un problème
+              </Button>
+              <Button variant="secondary" href="/app/support">
+                Contacter le support
+              </Button>
+            </div>
           )}
         </div>
       ) : null}

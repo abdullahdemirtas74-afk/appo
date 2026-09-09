@@ -146,9 +146,9 @@ export function createSeed(): DB {
   ];
 
   const docsOk = [
-    { id: "doc1", type: "identite" as const, name: "CNI.pdf", status: "approved" as const },
-    { id: "doc2", type: "entreprise" as const, name: "KBIS.pdf", status: "approved" as const },
-    { id: "doc3", type: "assurance" as const, name: "RC_Pro.pdf", status: "approved" as const },
+    { id: "doc1", type: "identite" as const, name: "CNI.pdf", status: "approved" as const, rejectReason: null, submittedAt: daysAgo(90), reviewedAt: daysAgo(89) },
+    { id: "doc2", type: "entreprise" as const, name: "KBIS.pdf", status: "approved" as const, rejectReason: null, submittedAt: daysAgo(90), reviewedAt: daysAgo(89) },
+    { id: "doc3", type: "assurance" as const, name: "RC_Pro.pdf", status: "approved" as const, rejectReason: null, submittedAt: daysAgo(90), reviewedAt: daysAgo(89) },
   ];
 
   const pros = [
@@ -303,10 +303,12 @@ export function createSeed(): DB {
       photos: [],
       certifications: ["Certiphyto"],
       documents: [
-        { id: "td1", type: "identite" as const, name: "passeport.pdf", status: "pending" as const },
-        { id: "td2", type: "entreprise" as const, name: "kbis.pdf", status: "pending" as const },
-        { id: "td3", type: "assurance" as const, name: "rcpro.pdf", status: "pending" as const },
+        { id: "td1", type: "identite" as const, name: "passeport.pdf", status: "pending" as const, rejectReason: null, submittedAt: daysAgo(1), reviewedAt: null },
+        { id: "td2", type: "entreprise" as const, name: "kbis.pdf", status: "pending" as const, rejectReason: null, submittedAt: daysAgo(1), reviewedAt: null },
+        { id: "td3", type: "assurance" as const, name: "rcpro.pdf", status: "pending" as const, rejectReason: null, submittedAt: daysAgo(1), reviewedAt: null },
       ],
+      verificationNote: null,
+      verificationSubmittedAt: daysAgo(1),
       schedule: weekSchedule(),
       ...planningDefaults,
       rating: 0,
@@ -749,8 +751,50 @@ export function createSeed(): DB {
         missionId: "mis_dispute",
         openedBy: "usr_marc",
         reason: "Cylindre changé sans accord, facture trop élevée.",
-        status: "open",
+        category: "prix" as const,
+        status: "open" as const,
+        messages: [
+          {
+            id: "dmsg1",
+            authorId: "usr_marc",
+            role: "client" as const,
+            text: "Cylindre changé sans accord, facture trop élevée.",
+            createdAt: daysAgo(4, 9),
+          },
+        ],
+        resolution: null,
+        resolvedAt: null,
+        refundSuggested: true,
         createdAt: daysAgo(4, 9),
+        updatedAt: daysAgo(4, 9),
+      },
+    ],
+    supportTickets: [
+      {
+        id: "tkt_demo",
+        userId: "usr_sarah",
+        subject: "Question sur AppO+",
+        category: "compte" as const,
+        status: "in_review" as const,
+        relatedMissionId: null,
+        messages: [
+          {
+            id: "dmsg_t1",
+            authorId: "usr_sarah",
+            role: "client" as const,
+            text: "Bonjour, la négociation de prix est-elle illimitée avec AppO+ ?",
+            createdAt: daysAgo(1, 11),
+          },
+          {
+            id: "dmsg_t2",
+            authorId: "usr_admin",
+            role: "admin" as const,
+            text: "Oui, tant que votre abonnement est actif et avant paiement de la mission.",
+            createdAt: daysAgo(1, 14),
+          },
+        ],
+        createdAt: daysAgo(1, 11),
+        updatedAt: daysAgo(1, 14),
       },
     ],
     quotes: [],
@@ -828,7 +872,9 @@ export function createSeed(): DB {
       clientPlusMonthlyPrice: 9.9,
       clientPlusYearlyPrice: 89,
       commissionClientPlus: 0.1,
+      proEmailDailyLimit: 100,
     },
+    outboundEmails: [],
   };
 }
 
