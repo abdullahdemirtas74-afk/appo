@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Lock } from "lucide-react";
 import { TrackingMap } from "@/components/map";
 import { Button, Field, inputClass } from "@/components/ui";
@@ -21,7 +21,43 @@ export default function ProMissionPage() {
   const [text, setText] = useState("");
   const [supp, setSupp] = useState(40);
   const [reason, setReason] = useState("Problème supplémentaire constaté");
+  const [gpsOk, setGpsOk] = useState(false);
+  const [gpsErr, setGpsErr] = useState("");
+  const lastSent = useRef(0);
   const m = data?.mission;
+
+  useEffect(() => {
+    if (!m || !["accepted", "en_route"].includes(m.status)) return;
+    if (!navigator.geolocation) {
+      setGpsErr("GPS non disponible sur cet appareil");
+      return;
+    }
+    const watchId = navigator.geolocation.watchPosition(
+      async (pos) => {
+        setGpsOk(true);
+        setGpsErr("");
+        const now = Date.now();
+        if (now - lastSent.current < 5000) return;
+        lastSent.current = now;
+        try {
+          await api(`/api/missions/${m.id}`, {
+            action: "updatePosition",
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+          });
+        } catch {
+          /* ignore throttle / network */
+        }
+      },
+      (err) => {
+        setGpsOk(false);
+        setGpsErr(err.message || "Autorisez la localisation");
+      },
+      { enableHighAccuracy: true, maximumAge: 4000, timeout: 15000 },
+    );
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [m?.id, m?.status]);
+
   if (!m) return <div className="p-6 text-muted">Chargement…</div>;
   const next = NEXT[m.status];
   const unlocked = Boolean(m.contactsUnlocked);
@@ -171,8 +207,26 @@ export default function ProMissionPage() {
           etaMinutes={m.status === "en_route" ? m.live?.etaMinutes ?? m.etaMinutes : null}
           label={unlocked ? m.address : m.city}
           unlocked={unlocked || offered}
+          source={m.live?.source}
         />
+        {["accepted", "en_route"].includes(m.status) ? (
+          <p className="mt-2 text-xs text-muted">
+            {gpsOk
+              ? "GPS actif — votre position est partagée avec le client."
+              : gpsErr
+                ? `GPS : ${gpsErr}`
+                : "Activation du GPS…"}
+          </p>
+        ) : null}
       </div>
+      {m.photos?.length ? (
+        <div className="mt-4 flex gap-2 overflow-x-auto">
+          {m.photos.map((src: string) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img key={src} src={src} alt="" className="h-24 w-32 shrink-0 rounded-xl object-cover" />
+          ))}
+        </div>
+      ) : null}
 
       {offered ? (
         <div className="mt-4 grid grid-cols-2 gap-2">

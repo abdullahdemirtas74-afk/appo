@@ -249,7 +249,7 @@ export async function openMissionDispute(
 
 export async function submitProDocument(
   userId: string,
-  input: { type: "identite" | "entreprise" | "assurance" | "certification"; name?: string },
+  input: { type: "identite" | "entreprise" | "assurance" | "certification"; name?: string; url?: string },
 ) {
   return mutate((db) => {
     requireUser(db, userId, "pro");
@@ -257,6 +257,7 @@ export async function submitProDocument(
     if (!pro) throw new Error("NOT_FOUND");
     const type = input.type;
     const name = String(input.name || `${type}.pdf`).trim() || `${type}.pdf`;
+    const url = input.url ? String(input.url) : null;
     const ts = nowIso();
     let doc = pro.documents.find((d) => d.type === type);
     if (!doc) {
@@ -264,6 +265,7 @@ export async function submitProDocument(
         id: nid("doc"),
         type,
         name,
+        url,
         status: "pending",
         rejectReason: null,
         submittedAt: ts,
@@ -272,6 +274,7 @@ export async function submitProDocument(
       pro.documents.push(doc);
     } else {
       doc.name = name;
+      doc.url = url;
       doc.status = "pending";
       doc.rejectReason = null;
       doc.submittedAt = ts;

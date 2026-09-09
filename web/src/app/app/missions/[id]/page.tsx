@@ -146,8 +146,17 @@ export default function MissionClientPage() {
               etaMinutes={m.status === "en_route" ? m.live?.etaMinutes : null}
               label={m.address}
               unlocked={unlocked}
+              source={m.live?.source}
             />
           </div>
+          {m.photos?.length ? (
+            <div className="mt-4 flex gap-2 overflow-x-auto">
+              {m.photos.map((src: string) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img key={src} src={src} alt="" className="h-24 w-32 shrink-0 rounded-xl object-cover" />
+              ))}
+            </div>
+          ) : null}
           <div className="mt-6 space-y-3">
             {STEPS.map((s) => {
               const done = STEPS.indexOf(m.status) >= STEPS.indexOf(s) && !["cancelled", "unmatched", "searching", "offered"].includes(m.status);

@@ -15,6 +15,7 @@ import {
   withRfqSettings,
 } from "./rfq";
 import type { DB, Mission, ProOffer, ServiceRequest } from "./types";
+import { normalizePhotoUrls } from "./uploads";
 
 function expireOpenRequests(db: DB, now = Date.now()) {
   for (const r of db.requests ?? []) {
@@ -79,7 +80,7 @@ export async function createServiceRequest(
       clientId: user.id,
       categoryId: input.categoryId,
       description: input.description,
-      photos: input.photos ?? [],
+      photos: normalizePhotoUrls(input.photos),
       address: input.address,
       city: input.city,
       lat: input.lat,

@@ -4,19 +4,21 @@ import { useEffect, useMemo, useState } from "react";
 
 type Point = { lat: number; lng: number };
 
-/** Suivi live : destination + position pro + ETA (simulation côté enrichMission). */
+/** Suivi live : destination + position pro (GPS ou estimation) + ETA. */
 export function TrackingMap({
   destination,
   pro,
   etaMinutes,
   label,
   unlocked = true,
+  source,
 }: {
   destination: Point;
   pro?: Point | null;
   etaMinutes?: number | null;
   label?: string;
   unlocked?: boolean;
+  source?: "gps" | "estimate" | "destination" | "pro_base" | string | null;
 }) {
   const [tick, setTick] = useState(0);
   useEffect(() => {
@@ -42,6 +44,8 @@ export function TrackingMap({
   const markerLat = pro && unlocked ? pro.lat : destination.lat;
   const markerLng = pro && unlocked ? pro.lng : destination.lng;
   const src = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${markerLat}%2C${markerLng}`;
+  const sourceLabel =
+    source === "gps" ? "GPS live" : source === "estimate" ? "Position estimée" : "Suivi";
 
   return (
     <div className="overflow-hidden rounded-3xl border border-line">
@@ -70,7 +74,7 @@ export function TrackingMap({
       {unlocked && pro ? (
         <div className="grid grid-cols-2 gap-2 bg-white px-4 py-2 text-xs text-muted sm:text-sm">
           <div>
-            <span className="font-semibold text-ink">Pro</span> · position live
+            <span className="font-semibold text-ink">Pro</span> · {sourceLabel}
           </div>
           <div className="text-right">
             <span className="font-semibold text-ink">Lieu</span> · {label ?? "Intervention"}

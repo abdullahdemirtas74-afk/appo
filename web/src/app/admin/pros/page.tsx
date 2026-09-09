@@ -45,6 +45,11 @@ export default function AdminPros() {
                         <div>
                           <span className="font-semibold">{row.label ?? DOC_LABEL[row.type] ?? row.type}</span>
                           <span className="text-muted"> · {row.doc?.name ?? "—"} · {row.status}</span>
+                          {row.doc?.url ? (
+                            <a className="ml-2 font-semibold text-appo" href={row.doc.url} target="_blank" rel="noreferrer">
+                              Ouvrir
+                            </a>
+                          ) : null}
                           {row.doc?.rejectReason ? <span className="text-red-600"> — {row.doc.rejectReason}</span> : null}
                         </div>
                         {row.doc && row.status === "pending" ? (

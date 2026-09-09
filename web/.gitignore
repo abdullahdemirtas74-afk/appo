@@ -41,7 +41,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# local database
+# local database & uploads
 /data/db.json
 /data/backups/
+/data/uploads/
 /data/*.tmp
+/data/.write-probe-*

@@ -53,6 +53,8 @@ export type ProDocument = {
   type: "identite" | "entreprise" | "assurance" | "certification";
   name: string;
   status: "missing" | "pending" | "approved" | "rejected";
+  /** Stored file URL under /api/uploads/... */
+  url?: string | null;
   rejectReason?: string | null;
   submittedAt?: string | null;
   reviewedAt?: string | null;
@@ -184,6 +186,10 @@ export type Mission = {
   etaMinutes: number | null;
   startProLat: number | null;
   startProLng: number | null;
+  /** Last GPS report from pro while en_route */
+  liveLat?: number | null;
+  liveLng?: number | null;
+  liveUpdatedAt?: string | null;
   paymentStatus: "none" | "pending" | "paid" | "refunded";
   paymentMethod: string | null;
   assigneeMemberId: string | null;

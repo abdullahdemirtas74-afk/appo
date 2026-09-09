@@ -16,9 +16,12 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
+ENV DATA_DIR=/data
 
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
-RUN mkdir -p /app/data && chown nextjs:nodejs /app/data
+RUN mkdir -p /data/uploads /data/backups && chown -R nextjs:nodejs /data
+VOLUME ["/data"]
+
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static

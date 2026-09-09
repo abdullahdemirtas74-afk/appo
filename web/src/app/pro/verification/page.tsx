@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useMe } from "@/components/guard";
-import { Badge, Button, inputClass } from "@/components/ui";
-import { api } from "@/lib/hooks";
+import { Badge, Button } from "@/components/ui";
+import { api, uploadFile } from "@/lib/hooks";
 import { useState } from "react";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -22,11 +22,18 @@ export default function ProVerificationPage() {
 
   if (!pro) return <div className="p-6 text-muted">Chargement…</div>;
 
-  async function upload(type: string, name: string) {
+  async function onFile(type: string, file: File | undefined) {
+    if (!file) return;
     setBusy(true);
     setMsg("");
     try {
-      await api("/api/support", { action: "submitDocument", type, name });
+      const uploaded = await uploadFile(file);
+      await api("/api/support", {
+        action: "submitDocument",
+        type,
+        name: uploaded.name,
+        url: uploaded.url,
+      });
       await reload();
       setMsg("Document enregistré");
     } catch (e) {
@@ -43,7 +50,7 @@ export default function ProVerificationPage() {
       </Link>
       <h1 className="mt-2 text-2xl font-extrabold">Vérification Pro</h1>
       <p className="mt-1 text-sm text-muted">
-        Déposez vos documents pour obtenir le badge Pro vérifié et recevoir des missions.
+        Déposez vos documents (PDF ou photo) pour obtenir le badge Pro vérifié.
       </p>
 
       <div className="mt-4 rounded-3xl border border-line bg-white p-4">
@@ -54,23 +61,23 @@ export default function ProVerificationPage() {
           {pro.verifiedComplete ? <Badge tone="green">Dossier complet</Badge> : null}
         </div>
         {pro.verificationNote ? <p className="mt-2 text-sm text-muted">Note admin : {pro.verificationNote}</p> : null}
-        {pro.verificationSubmittedAt ? (
-          <p className="mt-1 text-xs text-muted">
-            Dernière soumission : {new Date(pro.verificationSubmittedAt).toLocaleString("fr-FR")}
-          </p>
-        ) : null}
       </div>
 
       <div className="mt-4 space-y-3">
         {checklist.map((row: any) => (
           <div key={row.type} className="rounded-3xl border border-line p-4">
             <div className="flex items-start justify-between gap-2">
-              <div>
+              <div className="min-w-0">
                 <div className="font-bold">
                   {row.label}
                   {row.required ? "" : " · optionnel"}
                 </div>
-                <div className="text-sm text-muted">{row.doc?.name ?? "Aucun fichier"}</div>
+                <div className="truncate text-sm text-muted">{row.doc?.name ?? "Aucun fichier"}</div>
+                {row.doc?.url ? (
+                  <a className="mt-1 inline-block text-sm font-semibold text-appo" href={row.doc.url} target="_blank" rel="noreferrer">
+                    Voir le fichier
+                  </a>
+                ) : null}
                 {row.doc?.rejectReason ? <p className="mt-1 text-sm text-red-600">{row.doc.rejectReason}</p> : null}
               </div>
               <Badge
@@ -80,15 +87,16 @@ export default function ProVerificationPage() {
               </Badge>
             </div>
             {row.status !== "approved" ? (
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Button
-                  variant="secondary"
+              <label className="mt-3 block">
+                <span className="sr-only">Déposer {row.label}</span>
+                <input
+                  type="file"
+                  accept="image/*,application/pdf"
                   disabled={busy}
-                  onClick={() => upload(row.type, `${row.type}_${Date.now()}.pdf`)}
-                >
-                  {row.status === "missing" || row.status === "rejected" ? "Déposer (simulé)" : "Remplacer"}
-                </Button>
-              </div>
+                  className="w-full text-sm"
+                  onChange={(e) => onFile(row.type, e.target.files?.[0])}
+                />
+              </label>
             ) : null}
           </div>
         ))}
@@ -115,10 +123,7 @@ export default function ProVerificationPage() {
         Soumettre le dossier à AppO
       </Button>
       {msg ? <p className="mt-3 text-center text-sm text-muted">{msg}</p> : null}
-      <p className="mt-4 text-sm text-muted">
-        En V1 les fichiers sont simulés (pas d’upload cloud). Les 3 documents obligatoires doivent être validés un
-        par un par l’admin.
-      </p>
+      <p className="mt-4 text-sm text-muted">Formats : JPG, PNG, WebP, PDF — max 5 Mo (images) / 8 Mo (PDF).</p>
     </div>
   );
 }

@@ -1,15 +1,16 @@
 import { NextResponse } from "next/server";
 import { assertSecretConfigured, secretMode } from "@/lib/auth";
 import { readDb } from "@/lib/db";
+import { persistenceStatus } from "@/lib/paths";
 
 export async function GET() {
   const started = Date.now();
   try {
     assertSecretConfigured();
-    const db = await readDb();
+    const [db, persistence] = await Promise.all([readDb(), persistenceStatus()]);
     return NextResponse.json({
       ok: true,
-      status: "ready",
+      status: persistence.writable ? "ready" : "degraded",
       uptimeSec: Math.round(process.uptime()),
       users: db.users.length,
       missions: db.missions.length,
@@ -18,6 +19,7 @@ export async function GET() {
       node: process.version,
       env: process.env.NODE_ENV,
       secretMode: secretMode(),
+      persistence,
     });
   } catch (e) {
     return NextResponse.json(

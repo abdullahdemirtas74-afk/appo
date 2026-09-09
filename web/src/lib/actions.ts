@@ -54,6 +54,7 @@ import type {
   ScheduleDay,
 } from "./types";
 import { mailQuotaSnapshot, promotePendingProEmails, withMailSettings } from "./mail";
+import { normalizePhotoUrls } from "./uploads";
 
 export async function login(email: string, password: string) {
   return mutate((db) => {
@@ -611,8 +612,8 @@ export async function createMission(userId: string, input: {
     if (!String(input.address || "").trim() || !String(input.city || "").trim()) {
       throw new Error("ADDRESS_REQUIRED");
     }
-    const photos = (input.photos ?? []).filter((p) => typeof p === "string" && p.length < 400_000);
-    if ((input.photos?.length ?? 0) > photos.length) throw new Error("PHOTO_TOO_LARGE");
+    const photos = normalizePhotoUrls(input.photos);
+    if ((input.photos?.length ?? 0) > 0 && photos.length === 0) throw new Error("PHOTO_TOO_LARGE");
     const settings = withClientPlusSettings(withTierSettings(db.settings));
     const isUrgence = input.type === "urgence";
     const clientPlus = isClientPlusActive(user);
@@ -783,9 +784,31 @@ export async function missionAction(userId: string, id: string, action: string, 
       m.etaMinutes = etaMinutes(haversineKm(m.lat, m.lng, pro.lat, pro.lng));
       m.startProLat = pro.lat;
       m.startProLng = pro.lng;
+      m.liveLat = null;
+      m.liveLng = null;
+      m.liveUpdatedAt = null;
       m.timeline.push({ status: "accepted", at: now, label: labelFor("accepted") });
       notify(db, m.clientId, "Mission confirmée ✅", `${user.firstName} a accepté votre mission. Coordonnées débloquées.`, `/app/missions/${m.id}`);
       notify(db, m.clientId, "Confidentialité", "Téléphone et adresse exacte sont maintenant visibles des deux côtés.", `/app/missions/${m.id}`);
+    } else if (action === "updatePosition") {
+      if (!pro || m.proId !== pro.id) throw new Error("FORBIDDEN");
+      if (!["accepted", "en_route"].includes(m.status)) throw new Error("INVALID_STATE");
+      const lat = Number(payload.lat);
+      const lng = Number(payload.lng);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) throw new Error("INVALID_LOCATION");
+      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) throw new Error("INVALID_LOCATION");
+      // Throttle: ignore updates denser than 4s
+      if (m.liveUpdatedAt && Date.now() - new Date(m.liveUpdatedAt).getTime() < 4000) {
+        return enrichMission(db, m, userId);
+      }
+      m.liveLat = lat;
+      m.liveLng = lng;
+      m.liveUpdatedAt = now;
+      pro.lat = lat;
+      pro.lng = lng;
+      if (m.status === "en_route") {
+        m.etaMinutes = etaMinutes(haversineKm(m.lat, m.lng, lat, lng));
+      }
     } else if (action === "pass") {
       if (!pro || m.offerProId !== pro.id) throw new Error("FORBIDDEN");
       m.declinedProIds.push(pro.id);
@@ -803,8 +826,14 @@ export async function missionAction(userId: string, id: string, action: string, 
       m.status = next;
       m.timeline.push({ status: next, at: now, label: labelFor(next) });
       if (next === "en_route") {
-        m.startProLat = pro.lat;
-        m.startProLng = pro.lng;
+        m.startProLat = m.liveLat ?? pro.lat;
+        m.startProLng = m.liveLng ?? pro.lng;
+        if (m.liveLat == null) {
+          m.liveLat = pro.lat;
+          m.liveLng = pro.lng;
+          m.liveUpdatedAt = now;
+        }
+        m.etaMinutes = etaMinutes(haversineKm(m.lat, m.lng, m.startProLat, m.startProLng));
         notify(db, m.clientId, `Votre professionnel arrive dans ${m.etaMinutes ?? 12} minutes`, `${user.firstName} est en route.`, `/app/missions/${m.id}`);
       } else if (next === "arrived") {
         notify(db, m.clientId, "Votre professionnel est arrivé", `${user.firstName} est sur place.`, `/app/missions/${m.id}`);
@@ -1813,6 +1842,10 @@ export function errorStatus(e: unknown) {
     ORG_REQUIRED: 400,
     ADDRESS_REQUIRED: 400,
     PHOTO_TOO_LARGE: 400,
+    INVALID_LOCATION: 400,
+    FILE_TOO_LARGE: 400,
+    INVALID_FILE_TYPE: 400,
+    FILE_REQUIRED: 400,
     CONFIRM_REQUIRED: 400,
     RATE_LIMITED: 429,
     CONTACTS_LOCKED: 403,

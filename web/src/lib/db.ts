@@ -6,7 +6,7 @@ import {
   canReceiveNowOffer,
   normalizePro,
 } from "./availability";
-import { haversineKm, interpolate } from "./geo";
+import { etaMinutes, haversineKm, interpolate } from "./geo";
 import {
   effectiveTier,
   isBoostActive,
@@ -19,6 +19,7 @@ import { withRfqSettings } from "./rfq";
 import { createSeed } from "./seed";
 import { maskEmail, maskPhone, openPii, sealPii } from "./privacy";
 import { enqueueProEmail, flushProEmailQueue, withMailSettings } from "./mail";
+import { backupDir, dbPath, ensureDataDirs } from "./paths";
 import type {
   DB,
   Mission,
@@ -29,8 +30,8 @@ import type {
   User,
 } from "./types";
 
-const DB_PATH = path.join(process.cwd(), "data", "db.json");
-const BACKUP_DIR = path.join(process.cwd(), "data", "backups");
+const DB_PATH = dbPath();
+const BACKUP_DIR = backupDir();
 const MAX_BACKUPS = 12;
 let writesSinceBackup = 0;
 
@@ -72,6 +73,7 @@ function migrate(db: DB): DB {
     documents: (p.documents ?? []).map((doc) => ({
       ...doc,
       status: doc.status === "missing" ? "missing" : doc.status,
+      url: doc.url ?? null,
       rejectReason: doc.rejectReason ?? null,
       submittedAt: doc.submittedAt ?? null,
       reviewedAt: doc.reviewedAt ?? null,
@@ -86,6 +88,9 @@ function migrate(db: DB): DB {
     pendingNegotiatePrice: m.pendingNegotiatePrice ?? null,
     pendingNegotiateNote: m.pendingNegotiateNote ?? null,
     isLargeWorks: m.isLargeWorks ?? false,
+    liveLat: m.liveLat ?? null,
+    liveLng: m.liveLng ?? null,
+    liveUpdatedAt: m.liveUpdatedAt ?? null,
   }));
   db.invoices = (db.invoices ?? []).map((inv) => ({
     ...inv,
@@ -123,11 +128,12 @@ function migrate(db: DB): DB {
 
 async function readFile(): Promise<DB> {
   try {
+    await ensureDataDirs();
     const raw = await fs.readFile(DB_PATH, "utf8");
     return migrate(JSON.parse(raw) as DB);
   } catch {
     const seed = createSeed();
-    await fs.mkdir(path.dirname(DB_PATH), { recursive: true });
+    await ensureDataDirs();
     // Persist sealed so PII never sits plaintext on disk
     const sealedUsers = seed.users.map((u) => ({ ...u, phone: sealPii(u.phone) }));
     const sealedAddrs = seed.addresses.map((a) => ({ ...a, line: sealPii(a.line) }));
@@ -141,8 +147,8 @@ async function readFile(): Promise<DB> {
 }
 
 async function writeFile(db: DB) {
+  await ensureDataDirs();
   const dir = path.dirname(DB_PATH);
-  await fs.mkdir(dir, { recursive: true });
   const sealed: DB = {
     ...db,
     users: db.users.map((u) => ({
@@ -460,19 +466,48 @@ function labelFor(status: MissionStatus): string {
 
 export function liveLocation(mission: Mission, pro: ProProfile | undefined) {
   if (!pro) return null;
-  if (mission.status === "en_route" && mission.startProLat != null && mission.startProLng != null) {
-    const startEvent = mission.timeline.find((t) => t.status === "en_route");
-    const started = startEvent ? new Date(startEvent.at).getTime() : Date.now();
-    const duration = Math.max(30, (mission.etaMinutes ?? 12) * 60) * 1000;
-    const t = (Date.now() - started) / duration;
-    const pos = interpolate(mission.startProLat, mission.startProLng, mission.lat, mission.lng, t);
-    const remaining = Math.max(1, Math.ceil((1 - Math.min(1, t)) * (mission.etaMinutes ?? 12)));
-    return { ...pos, etaMinutes: remaining, arrived: t >= 1 };
-  }
+
   if (["arrived", "in_progress", "completed"].includes(mission.status)) {
-    return { lat: mission.lat, lng: mission.lng, etaMinutes: 0, arrived: true };
+    return { lat: mission.lat, lng: mission.lng, etaMinutes: 0, arrived: true, source: "destination" as const };
   }
-  return { lat: pro.lat, lng: pro.lng, etaMinutes: mission.etaMinutes, arrived: false };
+
+  if (mission.status === "en_route") {
+    const hasGps =
+      mission.liveLat != null &&
+      mission.liveLng != null &&
+      mission.liveUpdatedAt &&
+      Date.now() - new Date(mission.liveUpdatedAt).getTime() < 5 * 60 * 1000;
+
+    if (hasGps) {
+      const dist = haversineKm(mission.liveLat!, mission.liveLng!, mission.lat, mission.lng);
+      const remaining = Math.max(1, etaMinutes(dist));
+      return {
+        lat: mission.liveLat!,
+        lng: mission.liveLng!,
+        etaMinutes: remaining,
+        arrived: dist < 0.08,
+        source: "gps" as const,
+      };
+    }
+
+    if (mission.startProLat != null && mission.startProLng != null) {
+      const startEvent = mission.timeline.find((t) => t.status === "en_route");
+      const started = startEvent ? new Date(startEvent.at).getTime() : Date.now();
+      const duration = Math.max(30, (mission.etaMinutes ?? 12) * 60) * 1000;
+      const t = (Date.now() - started) / duration;
+      const pos = interpolate(mission.startProLat, mission.startProLng, mission.lat, mission.lng, t);
+      const remaining = Math.max(1, Math.ceil((1 - Math.min(1, t)) * (mission.etaMinutes ?? 12)));
+      return { ...pos, etaMinutes: remaining, arrived: t >= 1, source: "estimate" as const };
+    }
+  }
+
+  return {
+    lat: pro.lat,
+    lng: pro.lng,
+    etaMinutes: mission.etaMinutes,
+    arrived: false,
+    source: "pro_base" as const,
+  };
 }
 
 export function contactsUnlocked(status: MissionStatus) {

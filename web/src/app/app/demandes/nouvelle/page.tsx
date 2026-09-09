@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { useMe } from "@/components/guard";
 import { Button, Field, inputClass } from "@/components/ui";
-import { api, fileToDataUrl, usePoll } from "@/lib/hooks";
+import { api, uploadFile, usePoll } from "@/lib/hooks";
 
 function PublierDemandeForm() {
   const router = useRouter();
@@ -129,7 +129,12 @@ function PublierDemandeForm() {
             onChange={async (e) => {
               const f = e.target.files?.[0];
               if (!f) return;
-              setPhotos([await fileToDataUrl(f)]);
+              try {
+                const { url } = await uploadFile(f);
+                setPhotos([url]);
+              } catch (err) {
+                alert(err instanceof Error ? err.message : "Upload impossible");
+              }
             }}
           />
         </Field>

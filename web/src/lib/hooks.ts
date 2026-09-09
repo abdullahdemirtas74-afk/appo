@@ -44,6 +44,17 @@ export async function api<T>(url: string, body?: unknown, method = "POST"): Prom
   return json as T;
 }
 
+/** Upload file to disk via /api/uploads — returns durable URL (not base64). */
+export async function uploadFile(file: File): Promise<{ url: string; name: string }> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch("/api/uploads", { method: "POST", body: form });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || "Upload impossible");
+  return { url: json.url as string, name: (json.name as string) || file.name };
+}
+
+/** @deprecated prefer uploadFile — kept for tiny legacy fallbacks */
 export function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
