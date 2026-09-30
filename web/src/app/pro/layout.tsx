@@ -56,7 +56,7 @@ function OfferOverlay() {
 export default function ProLayout({ children }: { children: React.ReactNode }) {
   return (
     <Guard role="pro">
-      <AppShell items={PRO_NAV} root="/pro" title="Espace Pro" facturesHref="/pro/factures" overlay={<OfferOverlay />}>
+      <AppShell items={PRO_NAV} root="/pro" title="Espace Pro" overlay={<OfferOverlay />}>
         {children}
       </AppShell>
     </Guard>

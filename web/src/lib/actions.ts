@@ -856,6 +856,19 @@ export async function listInvoices(userId: string) {
         ensureInvoice(db, m);
       }
     }
+    const missionBrief = (missionId: string) => {
+      const m = db.missions.find((x) => x.id === missionId);
+      if (!m) return null;
+      const enriched = enrichMission(db, m, userId);
+      return {
+        id: enriched.id,
+        description: enriched.description,
+        city: enriched.city,
+        status: enriched.status,
+        category: enriched.category,
+        total: enriched.total,
+      };
+    };
     const invoices = (db.invoices ?? [])
       .filter((inv) => {
         if (user.role === "admin") return true;
@@ -863,24 +876,20 @@ export async function listInvoices(userId: string) {
         if (pro && inv.proId === pro.id) return true;
         return false;
       })
-      .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
-    return invoices.map((invoice) => {
-      const m = db.missions.find((x) => x.id === invoice.missionId);
-      const enriched = m ? enrichMission(db, m, userId) : null;
-      return {
-        invoice,
-        mission: enriched
-          ? {
-              id: enriched.id,
-              description: enriched.description,
-              city: enriched.city,
-              status: enriched.status,
-              category: enriched.category,
-              total: enriched.total,
-            }
-          : null,
-      };
-    });
+      .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""))
+      .map((invoice) => ({ invoice, mission: missionBrief(invoice.missionId) }));
+
+    const quotes = (db.quotes ?? [])
+      .filter((q) => {
+        if (user.role === "admin") return true;
+        if (q.clientId === user.id) return true;
+        if (pro && q.proId === pro.id) return true;
+        return false;
+      })
+      .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""))
+      .map((quote) => ({ quote, mission: missionBrief(quote.missionId) }));
+
+    return { items: invoices, quotes };
   }, true);
 }
 

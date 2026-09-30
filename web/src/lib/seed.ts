@@ -521,6 +521,7 @@ export function createSeed(): DB {
       startProLng: null,
       paymentStatus: "none" as const,
       paymentMethod: null,
+      quoteId: "qte_demo_peinture",
     },
     {
       id: "mis_dispute",
@@ -802,7 +803,24 @@ export function createSeed(): DB {
         updatedAt: daysAgo(1, 14),
       },
     ],
-    quotes: [],
+    quotes: [
+      {
+        id: "qte_demo_peinture",
+        missionId: "mis_planned",
+        proId: "pro_chloe",
+        clientId: "usr_sarah",
+        lines: [
+          { label: "Préparation murs chambre 12 m²", amount: 60 },
+          { label: "Peinture blanc cassé (2 couches)", amount: 120 },
+        ],
+        total: 180,
+        status: "sent" as const,
+        note: "Devis valable 15 jours",
+        createdAt: daysAgo(1, 17),
+        sentAt: daysAgo(1, 17),
+        signedAt: null,
+      },
+    ],
     invoices: [
       {
         id: "inv_demo_sarah",

@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
-import { Receipt } from "lucide-react";
 import { Logo } from "@/components/logo";
 
 export type NavItem = {
@@ -72,50 +71,21 @@ function CompactLink({
   );
 }
 
-function FacturesSideButton({ href }: { href: string }) {
-  const path = usePathname();
-  const on = path === href || path.startsWith(`${href}/`);
-  return (
-    <Link
-      href={href}
-      aria-label="Devis et factures"
-      title="Factures"
-      className={`fixed right-0 top-1/2 z-40 -translate-y-1/2 rounded-l-2xl border border-r-0 border-line px-2.5 py-4 shadow-lg transition ${
-        on ? "bg-appo text-white" : "bg-ink text-white hover:bg-appo"
-      }`}
-    >
-      <span className="flex flex-col items-center gap-2">
-        <Receipt size={20} />
-        <span
-          className="text-[10px] font-extrabold uppercase tracking-[0.18em]"
-          style={{ writingMode: "vertical-rl" }}
-        >
-          Factures
-        </span>
-      </span>
-    </Link>
-  );
-}
-
 export function AppShell({
   items,
   root,
   title,
   children,
   overlay,
-  facturesHref,
 }: {
   items: NavItem[];
   root: string;
   title: string;
   children: React.ReactNode;
   overlay?: React.ReactNode;
-  /** Bouton fixe sur le côté droit → devis / factures */
-  facturesHref?: string;
 }) {
   return (
     <div className="app-shell relative min-h-dvh overflow-x-hidden bg-background">
-      {/* Desktop / iPad landscape+: sidebar */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-line bg-card p-5 lg:flex xl:w-64">
         <Logo size="sm" />
         <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-muted">{title}</p>
@@ -128,7 +98,6 @@ export function AppShell({
       </aside>
 
       <div className="flex min-h-dvh min-w-0 flex-col lg:pl-60 xl:pl-64">
-        {/* Tablet (iPad portrait): top tabs — no cramped sidebar */}
         <header className="sticky top-0 z-20 hidden border-b border-line bg-card/95 px-4 py-3 backdrop-blur md:block lg:hidden">
           <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
             <div className="min-w-0">
@@ -147,7 +116,6 @@ export function AppShell({
           {children}
         </main>
 
-        {/* Phone only: bottom nav */}
         <nav className="fixed inset-x-0 bottom-0 z-20 flex border-t border-line bg-card/95 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
           {items.map((item) => (
             <CompactLink key={item.href} item={item} root={root} mode="bottom" />
@@ -155,7 +123,6 @@ export function AppShell({
         </nav>
       </div>
 
-      {facturesHref ? <FacturesSideButton href={facturesHref} /> : null}
       {overlay}
     </div>
   );
@@ -189,7 +156,6 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Consistent page padding across phone / tablet / desktop */
 export function Page({
   children,
   className = "",
