@@ -20,7 +20,6 @@ ENV DATA_DIR=/data
 
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 RUN mkdir -p /data/uploads /data/backups && chown -R nextjs:nodejs /data
-VOLUME ["/data"]
 
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
