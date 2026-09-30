@@ -42,6 +42,7 @@ const planningDefaults = {
   loyaltyPoints: 0,
   loyaltyBadge: "none" as const,
   businessEnabled: false,
+  payoutDelayDays: 7,
   team: [] as { id: string; name: string; phone: string; role: "owner" | "intervenant"; active: boolean }[],
 };
 

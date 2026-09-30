@@ -30,6 +30,13 @@ import {
 } from "./client-plus";
 import { etaMinutes, haversineKm } from "./geo";
 import {
+  clampPayoutDelay,
+  holdClientFunds,
+  refundHeldFunds,
+  scheduleProPayout,
+  syncEscrowAmount,
+} from "./escrow";
+import {
   commissionForPro,
   computeLoyaltyBadge,
   docsReadyForReview,
@@ -324,6 +331,7 @@ export async function registerPro(input: {
       loyaltyPoints: 0,
       loyaltyBadge: "none",
       businessEnabled: false,
+      payoutDelayDays: 7,
       team: [
         {
           id: nid("tm"),
@@ -788,7 +796,16 @@ export async function missionAction(userId: string, id: string, action: string, 
       m.liveLng = null;
       m.liveUpdatedAt = null;
       m.timeline.push({ status: "accepted", at: now, label: labelFor("accepted") });
+      const held = holdClientFunds(db, m, now, "card");
+      ensureInvoice(db, m, now);
       notify(db, m.clientId, "Mission confirmée ✅", `${user.firstName} a accepté votre mission. Coordonnées débloquées.`, `/app/missions/${m.id}`);
+      notify(
+        db,
+        m.clientId,
+        "Paiement sécurisé chez Appo",
+        `${held.amount} € prélevés. Appo conserve ce montant jusqu’à la fin de l’intervention.`,
+        `/app/missions/${m.id}`,
+      );
       notify(db, m.clientId, "Confidentialité", "Téléphone et adresse exacte sont maintenant visibles des deux côtés.", `/app/missions/${m.id}`);
     } else if (action === "updatePosition") {
       if (!pro || m.proId !== pro.id) throw new Error("FORBIDDEN");
@@ -838,26 +855,32 @@ export async function missionAction(userId: string, id: string, action: string, 
       } else if (next === "arrived") {
         notify(db, m.clientId, "Votre professionnel est arrivé", `${user.firstName} est sur place.`, `/app/missions/${m.id}`);
       } else if (next === "completed") {
-        m.paymentStatus = "pending";
         pro.missionCount += 1;
+        const payout = scheduleProPayout(db, m, pro, now);
         ensureInvoice(db, m, now);
         const inv = m.invoiceId ? db.invoices.find((i) => i.id === m.invoiceId) : null;
+        const delay = clampPayoutDelay(pro.payoutDelayDays, 0);
         notify(
           db,
           m.clientId,
-          "Intervention terminée · Facture disponible",
+          "Intervention terminée",
           inv
-            ? `Facture ${inv.number} · ${m.price + m.supplement} € — payez et laissez un pourboire si vous le souhaitez.`
-            : `Paiement sécurisé — ${m.price + m.supplement} €`,
+            ? `Facture ${inv.number} · ${m.price + m.supplement} € déjà conservés par Appo.`
+            : `Les fonds restent chez Appo, puis sont versés au pro.`,
           `/app/missions/${m.id}`,
         );
         notify(
           db,
           pro.userId,
-          "Intervention terminée · Facture émise",
-          inv ? `Facture ${inv.number} envoyée au client` : "En attente du paiement client",
-          `/pro/missions/${m.id}`,
+          delay <= 0 ? "Intervention terminée · versement immédiat" : "Intervention terminée · versement programmé",
+          delay <= 0
+            ? `${payout.proAmount} € versés maintenant`
+            : `${payout.proAmount} € versés dans ${delay} jour${delay > 1 ? "s" : ""}`,
+          "/pro/revenus",
         );
+        const ratingBonus = Math.max(0, Math.round(pro.rating));
+        pro.loyaltyPoints = (pro.loyaltyPoints ?? 0) + 10 + ratingBonus + ((m.tip ?? 0) > 0 ? 5 : 0);
+        pro.loyaltyBadge = computeLoyaltyBadge(pro);
       }
     } else if (action === "message") {
       const text = String(payload.text ?? "").trim();
@@ -888,6 +911,8 @@ export async function missionAction(userId: string, id: string, action: string, 
       const accept = Boolean(payload.accept);
       if (accept) {
         m.supplement += m.pendingSupplement;
+        syncEscrowAmount(db, m);
+        ensureInvoice(db, m, now);
       }
       m.pendingSupplement = null;
       m.pendingSupplementReason = null;
@@ -924,6 +949,7 @@ export async function missionAction(userId: string, id: string, action: string, 
       if (accept) {
         m.price = m.pendingNegotiatePrice;
         m.supplement = 0;
+        syncEscrowAmount(db, m);
         ensureInvoice(db, m, now);
       }
       const proposed = m.pendingNegotiatePrice;
@@ -938,7 +964,9 @@ export async function missionAction(userId: string, id: string, action: string, 
       );
     } else if (action === "pay") {
       if (m.clientId !== user.id) throw new Error("FORBIDDEN");
-      if (m.status !== "completed" || m.paymentStatus === "paid") throw new Error("INVALID_STATE");
+      if (m.status !== "completed" || m.paymentStatus === "paid" || m.paymentStatus === "held" || m.paymentStatus === "scheduled") {
+        throw new Error("INVALID_STATE");
+      }
       const tip = Math.max(0, Math.round(Number(payload.tip ?? m.tip ?? 0) * 100) / 100);
       m.tip = tip;
       const amount = m.price + m.supplement;
@@ -985,12 +1013,12 @@ export async function missionAction(userId: string, id: string, action: string, 
       if (m.status !== "completed") throw new Error("INVALID_STATE");
       const tip = Math.max(0, Math.round(Number(payload.amount ?? 0) * 100) / 100);
       if (tip <= 0) throw new Error("INVALID_PRICE");
-      if (m.paymentStatus === "paid") {
+      if (m.paymentStatus === "paid" || m.paymentStatus === "held" || m.paymentStatus === "scheduled") {
         const prev = m.tip ?? 0;
         m.tip = tip;
         const delta = tip - prev;
         if (delta <= 0) throw new Error("INVALID_PRICE");
-        const pay = db.payments.find((p) => p.missionId === m.id);
+        const pay = db.payments.find((p) => p.missionId === m.id && p.status !== "refunded");
         if (pay) {
           pay.amount += delta;
           pay.proAmount += delta;
@@ -1014,6 +1042,8 @@ export async function missionAction(userId: string, id: string, action: string, 
       quote.status = "signed";
       quote.signedAt = now;
       m.price = quote.total;
+      syncEscrowAmount(db, m);
+      ensureInvoice(db, m, now);
       const missionPro = m.proId ? db.pros.find((p) => p.id === m.proId) : null;
       if (missionPro) {
         const proUser = db.users.find((u) => u.id === missionPro.userId);
@@ -1037,7 +1067,7 @@ export async function missionAction(userId: string, id: string, action: string, 
       }
     } else if (action === "review") {
       if (m.clientId !== user.id) throw new Error("FORBIDDEN");
-      if (m.status !== "completed" || m.paymentStatus !== "paid") throw new Error("INVALID_STATE");
+      if (m.status !== "completed" || !["held", "scheduled", "paid"].includes(m.paymentStatus)) throw new Error("INVALID_STATE");
       if (db.reviews.some((r) => r.missionId === m.id)) throw new Error("ALREADY_REVIEWED");
       const rating = Number(payload.rating);
       if (rating < 1 || rating > 5) throw new Error("INVALID_RATING");
@@ -1065,6 +1095,16 @@ export async function missionAction(userId: string, id: string, action: string, 
       if (["completed", "cancelled"].includes(m.status)) throw new Error("INVALID_STATE");
       m.status = "cancelled";
       m.timeline.push({ status: "cancelled", at: now, label: "Mission annulée" });
+      const refunded = refundHeldFunds(db, m);
+      if (refunded) {
+        notify(
+          db,
+          m.clientId,
+          "Mission annulée · remboursement",
+          `${refunded.amount} € vous sont rendus. Les fonds n’avaient pas encore été versés au pro.`,
+          `/app/missions/${m.id}`,
+        );
+      }
     } else if (action === "dispute") {
       if (m.clientId !== user.id && !(pro && m.proId === pro.id)) throw new Error("FORBIDDEN");
       if (["cancelled", "searching", "offered", "unmatched"].includes(m.status)) throw new Error("INVALID_STATE");
@@ -1356,6 +1396,9 @@ export async function updatePro(userId: string, patch: Record<string, unknown>) 
     if (typeof patch.maxMissionsPerDay === "number") {
       pro.maxMissionsPerDay = Math.max(1, Math.min(10, patch.maxMissionsPerDay));
     }
+    if (patch.payoutDelayDays != null) {
+      pro.payoutDelayDays = clampPayoutDelay(patch.payoutDelayDays, pro.payoutDelayDays ?? 7);
+    }
     if (typeof patch.lat === "number") pro.lat = patch.lat;
     if (typeof patch.lng === "number") pro.lng = patch.lng;
     return { pro, availability: availabilitySnapshot(db, pro) };
@@ -1370,10 +1413,12 @@ export async function proStats(userId: string) {
     const settings = withTierSettings(db.settings);
     const myMissions = db.missions.filter((m) => m.proId === pro.id);
     const missionsCompleted = myMissions.filter((m) => m.status === "completed").length;
-    const pays = db.payments.filter((p) => {
+    const minePays = db.payments.filter((p) => {
       const m = db.missions.find((x) => x.id === p.missionId);
-      return m?.proId === pro.id && p.status === "paid";
+      return m?.proId === pro.id;
     });
+    const pays = minePays.filter((p) => p.status === "paid");
+    const escrow = minePays.filter((p) => p.status === "held" || p.status === "scheduled");
     const startOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
     const today = startOf(new Date());
     const week = today - 6 * 86400000;
@@ -1399,9 +1444,12 @@ export async function proStats(userId: string) {
       conversionRate: offeredOrAssigned ? missionsCompleted / offeredOrAssigned : 0,
       missionsCompleted,
       reviewCount: pro.reviewCount,
-      upcoming: db.missions
-        .filter((m) => m.proId === pro.id && m.status === "completed" && m.paymentStatus === "pending")
-        .reduce((a, m) => a + (m.price + m.supplement) * (1 - m.commissionRate), 0),
+      upcoming: escrow
+        .filter((p) => p.status === "scheduled")
+        .reduce((a, p) => a + p.proAmount, 0),
+      held: escrow.filter((p) => p.status === "held").reduce((a, p) => a + p.proAmount, 0),
+      payoutDelayDays: clampPayoutDelay(pro.payoutDelayDays, 7),
+      escrow: escrow.sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? "")),
       payments: pays.sort((a, b) => (b.paidAt ?? "").localeCompare(a.paidAt ?? "")),
       missions: myMissions.length,
       rating: pro.rating,
@@ -1475,7 +1523,7 @@ export async function adminOverview() {
       settings: db.settings,
       categories: db.categories,
       disputes: db.disputes,
-      payments: paid.slice(0, 50),
+      payments: [...db.payments].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 80),
     };
   }, false);
 }
@@ -1697,7 +1745,16 @@ export async function adminAction(userId: string, action: string, payload: Recor
       if (["completed", "cancelled"].includes(m.status)) throw new Error("INVALID_STATE");
       m.status = "cancelled";
       m.timeline.push({ status: "cancelled", at: new Date().toISOString(), label: "Annulée par admin" });
-      notify(db, m.clientId, "Mission annulée", "Un administrateur a annulé la mission.", `/app/missions/${m.id}`);
+      const refunded = refundHeldFunds(db, m);
+      notify(
+        db,
+        m.clientId,
+        refunded ? "Mission annulée · remboursement" : "Mission annulée",
+        refunded
+          ? `${refunded.amount} € vous sont rendus.`
+          : "Un administrateur a annulé la mission.",
+        `/app/missions/${m.id}`,
+      );
       return enrichMission(db, m);
     }
     if (action === "resolveDispute") {
@@ -1724,11 +1781,16 @@ export async function adminAction(userId: string, action: string, payload: Recor
         m.timeline.push({ status: "completed", at: ts, label: "Litige résolu" });
       }
       if (payload.refund && m) {
-        const p = db.payments.find((x) => x.missionId === m.id && x.status === "paid");
+        const p = db.payments.find((x) => x.missionId === m.id && x.status !== "refunded");
         if (p) {
           p.status = "refunded";
           m.paymentStatus = "refunded";
+          m.payoutReleaseAt = null;
         }
+      } else if (m) {
+        const p = db.payments.find((x) => x.missionId === m.id && x.status === "held");
+        const missionPro = m.proId ? db.pros.find((x) => x.id === m.proId) : null;
+        if (p && missionPro) scheduleProPayout(db, m, missionPro, ts);
       }
       notify(db, d.openedBy, "Litige résolu", resolution, `/app/support/${d.id}`);
       if (m) {

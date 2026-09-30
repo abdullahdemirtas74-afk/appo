@@ -19,6 +19,7 @@ import { withRfqSettings } from "./rfq";
 import { createSeed } from "./seed";
 import { maskEmail, maskPhone, openPii, sealPii } from "./privacy";
 import { enqueueProEmail, flushProEmailQueue, withMailSettings } from "./mail";
+import { releaseDuePayouts } from "./escrow";
 import { backupDir, dbPath, ensureDataDirs } from "./paths";
 import type {
   DB,
@@ -91,7 +92,21 @@ function migrate(db: DB): DB {
     liveLat: m.liveLat ?? null,
     liveLng: m.liveLng ?? null,
     liveUpdatedAt: m.liveUpdatedAt ?? null,
+    payoutReleaseAt: m.payoutReleaseAt ?? null,
   }));
+  db.payments = (db.payments ?? []).map((p) => ({
+    ...p,
+    releaseAt: p.releaseAt ?? null,
+  }));
+  for (const released of releaseDuePayouts(db)) {
+    notify(
+      db,
+      released.proUserId,
+      "Versement effectué",
+      `${released.proAmount} € versés selon votre délai`,
+      "/pro/revenus",
+    );
+  }
   db.invoices = (db.invoices ?? []).map((inv) => ({
     ...inv,
     tip: inv.tip ?? 0,
@@ -538,7 +553,7 @@ export function ensureInvoice(db: DB, m: Mission, now = new Date().toISOString()
       existing.tip = tip;
       existing.commission = commission;
       existing.proAmount = proAmount;
-      if (m.paymentStatus === "paid") {
+      if (m.paymentStatus === "held" || m.paymentStatus === "scheduled" || m.paymentStatus === "paid") {
         existing.status = "paid";
         existing.paidAt = existing.paidAt ?? now;
       }
@@ -556,9 +571,9 @@ export function ensureInvoice(db: DB, m: Mission, now = new Date().toISOString()
     tip,
     commission,
     proAmount,
-    status: (m.paymentStatus === "paid" ? "paid" : "issued") as "issued" | "paid",
+    status: (m.paymentStatus === "held" || m.paymentStatus === "scheduled" || m.paymentStatus === "paid" ? "paid" : "issued") as "issued" | "paid",
     createdAt: now,
-    paidAt: m.paymentStatus === "paid" ? now : null,
+    paidAt: m.paymentStatus === "held" || m.paymentStatus === "scheduled" || m.paymentStatus === "paid" ? now : null,
   };
   db.invoices.push(invoice);
   m.invoiceId = invoice.id;

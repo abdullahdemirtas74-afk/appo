@@ -22,7 +22,9 @@ export default function ComptePage() {
   const { data: favData } = usePoll<{ pros: any[] }>("/api/pros?favorites=1", 0);
   const user = me?.user;
   const kind = (user?.clientKind ?? "particulier") as ClientKind;
-  const paid = (missionsData?.missions ?? []).filter((m) => m.paymentStatus === "paid" && m.invoice);
+  const paid = (missionsData?.missions ?? []).filter(
+    (m) => ["held", "scheduled", "paid"].includes(m.paymentStatus) && m.invoice,
+  );
   const [section, setSection] = useState<"menu" | "profile" | "addresses" | "favorites" | "invoices" | "privacy">("menu");
   const [firstName, setFirstName] = useState(user?.firstName ?? "");
   const [lastName, setLastName] = useState(user?.lastName ?? "");

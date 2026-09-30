@@ -138,6 +138,8 @@ export type ProProfile = {
   loyaltyBadge: LoyaltyBadge;
   businessEnabled: boolean;
   team: TeamMember[];
+  /** Days after the intervention before Appo pays the pro (0–30). */
+  payoutDelayDays: number;
 };
 
 export type MissionStatus =
@@ -190,8 +192,11 @@ export type Mission = {
   liveLat?: number | null;
   liveLng?: number | null;
   liveUpdatedAt?: string | null;
-  paymentStatus: "none" | "pending" | "paid" | "refunded";
+  /** none → held (chez Appo) → scheduled (délai pro) → paid (versé) */
+  paymentStatus: "none" | "pending" | "held" | "scheduled" | "paid" | "refunded";
   paymentMethod: string | null;
+  /** When the pro payout is due. Null while funds are still held for the intervention. */
+  payoutReleaseAt?: string | null;
   assigneeMemberId: string | null;
   quoteId: string | null;
   invoiceId: string | null;
@@ -258,10 +263,12 @@ export type Payment = {
   amount: number;
   commission: number;
   proAmount: number;
-  status: "pending" | "paid" | "refunded" | "upcoming";
+  status: "pending" | "held" | "scheduled" | "paid" | "refunded" | "upcoming";
   method: string;
   createdAt: string;
   paidAt: string | null;
+  /** Date the pro should receive the payout. Null while Appo still holds the funds. */
+  releaseAt?: string | null;
 };
 
 export type AppNotification = {

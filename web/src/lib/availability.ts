@@ -312,6 +312,7 @@ export function normalizePro(pro: ProProfile): ProProfile {
     loyaltyPoints: pro.loyaltyPoints ?? Math.round((pro.missionCount ?? 0) * 10),
     loyaltyBadge: pro.loyaltyBadge ?? "none",
     businessEnabled: pro.businessEnabled ?? false,
+    payoutDelayDays: Math.max(0, Math.min(30, Math.round(pro.payoutDelayDays ?? 7))),
     team: pro.team ?? [
       {
         id: `tm_${pro.id}_owner`,

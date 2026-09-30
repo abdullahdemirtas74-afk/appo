@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useMe } from "@/components/guard";
 import { Button, Field, inputClass } from "@/components/ui";
 import { api } from "@/lib/hooks";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export default function ProProfil() {
   const router = useRouter();
@@ -12,6 +12,10 @@ export default function ProProfil() {
   const pro = me?.pro;
   const [description, setDescription] = useState(pro?.description ?? "");
   const [price, setPrice] = useState(pro?.startingPrice ?? 59);
+  const [delay, setDelay] = useState(pro?.payoutDelayDays ?? 7);
+  useEffect(() => {
+    if (typeof pro?.payoutDelayDays === "number") setDelay(pro.payoutDelayDays);
+  }, [pro?.payoutDelayDays]);
 
   return (
     <div className="px-5 py-6">
@@ -28,10 +32,35 @@ export default function ProProfil() {
         <Field label="Prix de départ (€)">
           <input className={inputClass} type="number" value={price} onChange={(e) => setPrice(Number(e.target.value))} />
         </Field>
+        <Field label="Délai de versement (0 à 30 jours)">
+          <input
+            className={inputClass}
+            type="number"
+            min={0}
+            max={30}
+            value={delay}
+            onChange={(e) => setDelay(Math.max(0, Math.min(30, Number(e.target.value) || 0)))}
+          />
+        </Field>
+        <div className="flex flex-wrap gap-2">
+          {[0, 7, 14, 30].map((n) => (
+            <button
+              key={n}
+              type="button"
+              className={`rounded-full px-3 py-1 text-sm font-semibold ${delay === n ? "bg-ink text-white" : "border border-line"}`}
+              onClick={() => setDelay(n)}
+            >
+              {n === 0 ? "Immédiat" : `${n} j`}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-muted">
+          Appo encaisse le client dès que vous acceptez et garde les fonds jusqu’à la fin de l’intervention. Vous êtes payé ensuite, après ce délai.
+        </p>
         <Button
           className="w-full"
           onClick={async () => {
-            await api("/api/pro", { description, startingPrice: price });
+            await api("/api/pro", { description, startingPrice: price, payoutDelayDays: delay });
             reload();
           }}
         >

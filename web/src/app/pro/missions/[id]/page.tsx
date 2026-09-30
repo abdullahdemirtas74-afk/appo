@@ -6,7 +6,7 @@ import { Lock } from "lucide-react";
 import { TrackingMap } from "@/components/map";
 import { Button, Field, inputClass } from "@/components/ui";
 import { api, usePoll } from "@/lib/hooks";
-import { STATUS_LABELS, formatTime, km, money } from "@/lib/format";
+import { STATUS_LABELS, formatDate, formatTime, km, money } from "@/lib/format";
 
 const NEXT: Record<string, { status: string; label: string }> = {
   accepted: { status: "en_route", label: "En route" },
@@ -78,6 +78,15 @@ export default function ProMissionPage() {
       <p className="text-muted">{STATUS_LABELS[m.status]}</p>
       <div className="mt-4 rounded-3xl border border-line p-4">
         <div className="font-bold">{money(m.total)}</div>
+        {m.paymentStatus === "held" ? (
+          <p className="mt-1 text-sm text-muted">Encaissé par Appo. Versé après l’intervention, selon votre délai.</p>
+        ) : m.paymentStatus === "scheduled" ? (
+          <p className="mt-1 text-sm text-muted">
+            Versement prévu{m.payment?.releaseAt ? ` le ${formatDate(m.payment.releaseAt)}` : ""}.
+          </p>
+        ) : m.paymentStatus === "paid" ? (
+          <p className="mt-1 text-sm text-muted">Versé sur votre compte.</p>
+        ) : null}
         <p>
           📍 {unlocked ? `${m.address}, ${m.city}` : `${m.city} · adresse après acceptation`}{" "}
           {m.pro ? `· ${km(m.pro.distanceKm)}` : ""}
@@ -173,7 +182,14 @@ export default function ProMissionPage() {
           {m.invoice ? (
             <div className="mt-3 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-semibold text-green">
               Facture {m.invoice.number} · {money(m.invoice.total)}
-              {m.invoice.tip ? ` + pourboire ${money(m.invoice.tip)}` : ""} · {m.invoice.status === "paid" ? "payée" : "émise"}
+              {m.invoice.tip ? ` + pourboire ${money(m.invoice.tip)}` : ""} ·{" "}
+              {m.paymentStatus === "held"
+                ? "encaissée par Appo"
+                : m.paymentStatus === "scheduled"
+                  ? "versement programmé"
+                  : m.invoice.status === "paid"
+                    ? "versée"
+                    : "émise"}
             </div>
           ) : null}
         </div>

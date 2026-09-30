@@ -38,7 +38,7 @@ export default function RevenusPage() {
         ))}
       </div>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <div className="rounded-3xl border border-line bg-card p-4 text-sm">
           <div className="text-muted">Missions terminées</div>
           <div className="text-2xl font-black">{data?.missionsCompleted ?? data?.missions ?? 0}</div>
@@ -56,8 +56,13 @@ export default function RevenusPage() {
           </div>
         </div>
         <div className="rounded-3xl border border-line bg-card p-4 text-sm">
-          <div className="text-muted">À venir</div>
+          <div className="text-muted">Chez Appo</div>
+          <div className="text-2xl font-black">{moneyExact(data?.held ?? 0)}</div>
+        </div>
+        <div className="rounded-3xl border border-line bg-card p-4 text-sm">
+          <div className="text-muted">Versement à venir</div>
           <div className="text-2xl font-black">{moneyExact(data?.upcoming ?? 0)}</div>
+          <div className="text-xs text-muted">Délai choisi : {data?.payoutDelayDays ?? 0} j</div>
         </div>
       </div>
 
@@ -78,6 +83,24 @@ export default function RevenusPage() {
           <span>Devis envoyés</span>
           <b>{data?.quotesCount ?? data?.quotes?.length ?? 0}</b>
         </div>
+      </div>
+
+      <h2 className="mt-6 font-bold">Fonds chez Appo</h2>
+      <div className="mt-2 space-y-2">
+        {(data?.escrow ?? []).length === 0 ? <p className="text-sm text-muted">Aucun montant en attente.</p> : null}
+        {(data?.escrow ?? []).map((p: any) => (
+          <div key={p.id} className="flex justify-between rounded-2xl border border-line px-4 py-3 text-sm">
+            <div>
+              <div className="font-semibold">{moneyExact(p.proAmount)} net</div>
+              <div className="text-xs text-muted">
+                {p.status === "held"
+                  ? "Conservé jusqu’à la fin de l’intervention"
+                  : `Versement le ${formatDate(p.releaseAt || p.createdAt)}`}
+              </div>
+            </div>
+            <div className="text-xs text-muted">{p.status === "held" ? "Séquestre" : "Programmé"}</div>
+          </div>
+        ))}
       </div>
 
       <h2 className="mt-6 font-bold">Historique paiements</h2>

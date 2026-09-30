@@ -8,7 +8,7 @@ import { TrackingMap } from "@/components/map";
 import { useMe } from "@/components/guard";
 import { Badge, Button, Field, inputClass } from "@/components/ui";
 import { api, usePoll } from "@/lib/hooks";
-import { STATUS_LABELS, formatTime, money } from "@/lib/format";
+import { STATUS_LABELS, formatDate, formatTime, money } from "@/lib/format";
 
 const STEPS = ["accepted", "en_route", "arrived", "in_progress", "completed"];
 const TIP_PRESETS = [0, 2, 5, 10];
@@ -74,7 +74,7 @@ export default function MissionClientPage() {
             </p>
             <p className="rounded-2xl bg-background px-4 py-3 text-xs text-muted">
               <Lock size={12} className="mr-1 inline" />
-              Identité et téléphone restent masqués jusqu’à acceptation.
+              Identité et téléphone restent masqués jusqu’à acceptation. Dès que le pro accepte, {money(m.total)} est prélevé et conservé par Appo jusqu’à la fin.
             </p>
             <Button
               className="w-full"
@@ -268,7 +268,20 @@ export default function MissionClientPage() {
         </div>
       ) : null}
 
-      {m.status === "completed" && m.paymentStatus !== "paid" ? (
+      {["held", "scheduled", "paid"].includes(m.paymentStatus) ? (
+        <div className="mt-6 rounded-3xl border border-line bg-card p-4">
+          <div className="font-bold">Paiement sécurisé chez Appo</div>
+          <p className="mt-1 text-sm text-muted">
+            {m.paymentStatus === "held"
+              ? `${money(m.payment?.amount ?? m.total)} prélevés à l’acceptation. Appo garde ce montant jusqu’à la fin de l’intervention, puis le verse au pro.`
+              : m.paymentStatus === "scheduled"
+                ? `Intervention terminée. Versement au pro le ${m.payment?.releaseAt ? formatDate(m.payment.releaseAt) : "date prévue"}.`
+                : `Versé au professionnel${m.payment?.paidAt ? ` le ${formatDate(m.payment.paidAt)}` : ""}.`}
+          </p>
+        </div>
+      ) : null}
+
+      {m.status === "completed" && (m.paymentStatus === "none" || m.paymentStatus === "pending") ? (
         <div className="mt-6 rounded-3xl bg-ink p-5 text-white">
           <div className="text-sm opacity-70">Intervention terminée</div>
           <div className="text-3xl font-black">{money(m.total)}</div>
@@ -299,7 +312,7 @@ export default function MissionClientPage() {
         </div>
       ) : null}
 
-      {m.paymentStatus === "paid" && !m.review ? (
+      {m.status === "completed" && ["held", "scheduled", "paid"].includes(m.paymentStatus) && !m.review ? (
         <div className="mt-6 rounded-3xl border border-line p-4">
           <h2 className="font-bold">Noter le professionnel</h2>
           <div className="mt-2 flex gap-1">
@@ -330,7 +343,7 @@ export default function MissionClientPage() {
         </div>
       ) : null}
 
-      {m.paymentStatus === "paid" ? (
+      {["held", "scheduled", "paid"].includes(m.paymentStatus) ? (
         <div className="mt-4 rounded-2xl bg-background p-4 text-sm">
           {m.invoice ? (
             <>

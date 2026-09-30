@@ -1,5 +1,6 @@
 import {
   enrichMission,
+  ensureInvoice,
   mutate,
   nid,
   notify,
@@ -15,6 +16,7 @@ import {
   withRfqSettings,
 } from "./rfq";
 import type { DB, Mission, ProOffer, ServiceRequest } from "./types";
+import { holdClientFunds } from "./escrow";
 import { normalizePhotoUrls } from "./uploads";
 
 function expireOpenRequests(db: DB, now = Date.now()) {
@@ -314,6 +316,15 @@ export async function selectProOffer(userId: string, requestId: string, offerId:
     };
     db.missions.unshift(mission);
     req.missionId = mission.id;
+    const held = holdClientFunds(db, mission, now, "card");
+    ensureInvoice(db, mission, now);
+    notify(
+      db,
+      user.id,
+      "Paiement sécurisé chez Appo",
+      `${held.amount} € prélevés. Appo conserve ce montant jusqu’à la fin de l’intervention.`,
+      `/app/missions/${mission.id}`,
+    );
 
     const proUser = db.users.find((u) => u.id === pro.userId);
     if (proUser) {
