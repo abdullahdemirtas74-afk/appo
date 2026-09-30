@@ -15,6 +15,8 @@ export type Me = {
   pro?: ProProfile | null;
   clientPlusActive?: boolean;
   clientPlusDaysLeft?: number;
+  walletBalance?: number;
+  referralCode?: string;
 };
 
 export function useMe() {

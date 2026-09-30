@@ -25,6 +25,12 @@ export type User = {
   privacyConsentAt?: string | null;
   /** Soft-delete / anonymisation */
   deletedAt?: string | null;
+  /** Code parrainage unique */
+  referralCode?: string | null;
+  /** Solde AppO Wallet (crédits) */
+  walletBalance?: number;
+  /** Qui a parrainé ce compte */
+  referredByUserId?: string | null;
 };
 
 export type Address = {
@@ -202,6 +208,17 @@ export type Mission = {
   invoiceId: string | null;
   /** Gros travaux — devis recommandé */
   isLargeWorks: boolean;
+  /** Code promo appliqué */
+  promoCodeId?: string | null;
+  promoDiscount?: number;
+  /** Garantie AppO souscrite */
+  guaranteeId?: string | null;
+  /** Crédit wallet utilisé on hold */
+  walletCreditUsed?: number;
+  /** Plan récurrent source */
+  recurringPlanId?: string | null;
+  /** Promo créneau pro appliquée */
+  slotPromoId?: string | null;
 };
 
 export type QuoteLine = { label: string; amount: number };
@@ -345,6 +362,131 @@ export type Settings = {
   commissionClientPlus: number;
   /** Max transactional emails to Pros per calendar day (UTC) */
   proEmailDailyLimit: number;
+  referralClientCredit: number;
+  referralProCredit: number;
+  guaranteeRate: number;
+  guaranteeDays: number;
+  defaultSlotPromoPercent: number;
+};
+
+export type WalletLedgerKind =
+  | "referral"
+  | "refund"
+  | "credit"
+  | "debit_mission"
+  | "promo"
+  | "admin"
+  | "avoir";
+
+export type WalletLedger = {
+  id: string;
+  userId: string;
+  amount: number;
+  kind: WalletLedgerKind;
+  label: string;
+  missionId?: string | null;
+  createdAt: string;
+};
+
+export type Referral = {
+  id: string;
+  code: string;
+  referrerUserId: string;
+  referredUserId: string;
+  status: "signed_up" | "rewarded";
+  rewardAmount: number;
+  createdAt: string;
+  rewardedAt: string | null;
+};
+
+export type PromoCode = {
+  id: string;
+  code: string;
+  type: "percent" | "fixed";
+  value: number;
+  maxRedemptions: number;
+  redemptionCount: number;
+  expiresAt: string | null;
+  active: boolean;
+  city: string | null;
+  createdAt: string;
+};
+
+export type PromoRedemption = {
+  id: string;
+  promoCodeId: string;
+  userId: string;
+  missionId: string | null;
+  amount: number;
+  createdAt: string;
+};
+
+export type SlotPromo = {
+  id: string;
+  proId: string;
+  /** 0–6 weekday, or null = every day */
+  day: number | null;
+  start: string;
+  end: string;
+  percentOff: number;
+  active: boolean;
+  createdAt: string;
+};
+
+export type RecurringPlan = {
+  id: string;
+  clientId: string;
+  categoryId: string;
+  addressId: string | null;
+  address: string;
+  city: string;
+  lat: number;
+  lng: number;
+  frequency: "weekly" | "biweekly" | "monthly";
+  preferredDay: number;
+  preferredHour: string;
+  description: string;
+  price: number;
+  proId: string | null;
+  active: boolean;
+  nextAt: string;
+  createdAt: string;
+};
+
+export type CatalogProduct = {
+  id: string;
+  categoryId: string;
+  name: string;
+  brand: string;
+  model: string;
+  quality: "eco" | "standard" | "premium";
+  price: number;
+  unit: string;
+  active: boolean;
+};
+
+export type MissionProduct = {
+  id: string;
+  missionId: string;
+  productId: string;
+  quantity: number;
+  unitPrice: number;
+  status: "proposed" | "accepted" | "rejected";
+  proposedByProId: string;
+  createdAt: string;
+};
+
+export type Guarantee = {
+  id: string;
+  missionId: string;
+  clientId: string;
+  premium: number;
+  coverageAmount: number;
+  status: "active" | "claimed" | "expired" | "cancelled";
+  expiresAt: string;
+  claimReason: string | null;
+  claimStatus: "none" | "open" | "approved" | "rejected";
+  createdAt: string;
 };
 
 export type OutboundEmailStatus =
@@ -431,6 +573,15 @@ export type DB = {
   offers: ProOffer[];
   outboundEmails: OutboundEmail[];
   settings: Settings;
+  walletLedgers: WalletLedger[];
+  referrals: Referral[];
+  promoCodes: PromoCode[];
+  promoRedemptions: PromoRedemption[];
+  slotPromos: SlotPromo[];
+  recurringPlans: RecurringPlan[];
+  products: CatalogProduct[];
+  missionProducts: MissionProduct[];
+  guarantees: Guarantee[];
 };
 
 export type PublicUser = Omit<User, "passwordHash">;

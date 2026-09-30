@@ -59,9 +59,9 @@ export default function ClientHome() {
           <span className="text-lg">Maintenant</span>
           <span className="text-xs font-medium opacity-90">Urgence / immédiat</span>
         </Button>
-        <Button href="/app/demandes/nouvelle" variant="dark" className="h-24 flex-col md:h-28">
-          <span className="text-lg">Comparer</span>
-          <span className="text-xs font-medium opacity-80">Recevoir des offres</span>
+        <Button href="/app/assistant" variant="dark" className="h-24 flex-col md:h-28">
+          <span className="text-lg">Assistant</span>
+          <span className="text-xs font-medium opacity-80">Décrire mon besoin</span>
         </Button>
         <Button href="/app/planifier" variant="secondary" className="h-24 flex-col md:h-28">
           <span className="text-lg">Planifier</span>
@@ -70,6 +70,14 @@ export default function ClientHome() {
       </div>
 
       <div className="mt-3 grid max-w-2xl grid-cols-1 gap-3 min-[420px]:grid-cols-2">
+        <Link
+          href="/app/demandes/nouvelle"
+          className="rounded-2xl border border-line bg-card p-4 transition hover:border-appo/40 hover:shadow-sm"
+        >
+          <div className="text-lg font-bold">Comparer des offres</div>
+          <p className="mt-1 text-sm text-muted">Recevez plusieurs devis et choisissez.</p>
+          <p className="mt-2 text-xs font-semibold text-appo">Publier une demande →</p>
+        </Link>
         <Link
           href="/app/demandes/nouvelle?large=1"
           className="rounded-2xl border border-line bg-card p-4 transition hover:border-appo/40 hover:shadow-sm"
@@ -91,6 +99,14 @@ export default function ClientHome() {
           <p className="mt-2 text-xs font-semibold text-appo">
             {me?.clientPlusActive ? `Actif · ${me.clientPlusDaysLeft} j restants` : "Voir l’abonnement →"}
           </p>
+        </Link>
+        <Link
+          href="/app/wallet"
+          className="rounded-2xl border border-line bg-card p-4 transition hover:border-appo/40"
+        >
+          <div className="text-lg font-bold">Wallet & parrainage</div>
+          <p className="mt-1 text-sm text-muted">Crédits, codes promo, invitations.</p>
+          <p className="mt-2 text-xs font-semibold text-appo">Ouvrir le wallet →</p>
         </Link>
       </div>
 

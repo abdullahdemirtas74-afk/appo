@@ -8,15 +8,16 @@ import {
   Home,
   LayoutDashboard,
   MessageCircle,
+  Sparkles,
   Wallet,
 } from "lucide-react";
 import type { NavItem } from "@/components/shell";
 
 export const CLIENT_NAV: NavItem[] = [
   { href: "/app", label: "Accueil", icon: Home },
-  { href: "/app/demandes", label: "Demandes", icon: FileText },
+  { href: "/app/assistant", label: "Assistant", icon: Sparkles },
   { href: "/app/missions", label: "Missions", icon: ClipboardList },
-  { href: "/app/plus", label: "AppO+", icon: Crown },
+  { href: "/app/wallet", label: "Wallet", icon: Wallet },
   { href: "/app/messages", label: "Messages", icon: MessageCircle },
   { href: "/app/compte", label: "Compte", icon: CircleUser },
 ];

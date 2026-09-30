@@ -18,9 +18,11 @@ const NEXT: Record<string, { status: string; label: string }> = {
 export default function ProMissionPage() {
   const { id } = useParams<{ id: string }>();
   const { data, reload } = usePoll<{ mission: any }>(id ? `/api/missions/${id}` : null, 2000);
+  const { data: growth } = usePoll<any>("/api/growth", 0);
   const [text, setText] = useState("");
   const [supp, setSupp] = useState(40);
   const [reason, setReason] = useState("Problème supplémentaire constaté");
+  const [productId, setProductId] = useState("");
   const [gpsOk, setGpsOk] = useState(false);
   const [gpsErr, setGpsErr] = useState("");
   const lastSent = useRef(0);
@@ -271,6 +273,48 @@ export default function ProMissionPage() {
           <Button className="mt-3 w-full" variant="secondary" onClick={() => act("supplement", { amount: supp, reason })}>
             Envoyer au client
           </Button>
+        </div>
+      ) : null}
+
+      {unlocked && ["accepted", "en_route", "arrived", "in_progress"].includes(m.status) ? (
+        <div className="mt-6 rounded-3xl border border-line p-4">
+          <div className="font-bold">Proposer un produit</div>
+          <p className="text-xs text-muted">Robinet, pneu, pièce… le client accepte ou refuse.</p>
+          <select
+            className={inputClass + " mt-2"}
+            value={productId}
+            onChange={(e) => setProductId(e.target.value)}
+          >
+            <option value="">Choisir…</option>
+            {(growth?.products ?? [])
+              .filter((p: any) => !m.categoryId || p.categoryId === m.categoryId || p.categoryId === "cat_plomberie" || p.categoryId === "cat_mecanique" || p.categoryId === "cat_electricite")
+              .map((p: any) => (
+                <option key={p.id} value={p.id}>
+                  {p.brand} {p.model} · {p.price} € ({p.quality})
+                </option>
+              ))}
+          </select>
+          <Button
+            className="mt-2 w-full"
+            variant="secondary"
+            disabled={!productId}
+            onClick={async () => {
+              await api("/api/growth", { action: "proposeProduct", missionId: m.id, productId, quantity: 1 });
+              reload();
+              setProductId("");
+            }}
+          >
+            Envoyer au client
+          </Button>
+          {(m.products ?? []).length ? (
+            <ul className="mt-3 space-y-1 text-sm text-muted">
+              {(m.products ?? []).map((p: any) => (
+                <li key={p.id}>
+                  {p.catalog?.brand} {p.catalog?.model} — {p.status}
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
       ) : null}
 

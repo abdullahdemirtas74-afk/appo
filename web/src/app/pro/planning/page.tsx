@@ -307,6 +307,28 @@ export default function PlanningPage() {
         </Field>
       </div>
 
+      <h2 className="mt-8 text-sm font-bold uppercase tracking-wide text-muted">Promos créneaux libres</h2>
+      <div className="mt-3 space-y-3 rounded-3xl border border-line p-4">
+        <p className="text-sm text-muted">Proposez automatiquement −10% (ou plus) sur vos trous de planning.</p>
+        <Button
+          className="w-full"
+          variant="secondary"
+          onClick={async () => {
+            await api("/api/growth", {
+              action: "upsertSlotPromo",
+              day: new Date().getDay(),
+              start: "14:00",
+              end: "17:00",
+              percentOff: 10,
+              active: true,
+            });
+            alert("Promo créneau activée pour cet après-midi type.");
+          }}
+        >
+          Activer −10% 14h–17h
+        </Button>
+      </div>
+
       <h2 className="mt-8 font-bold">Réservations à venir</h2>
       <div className="mt-3 space-y-2">
         {future.map((m) => (

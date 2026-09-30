@@ -24,6 +24,7 @@ export default function ProProfil() {
         <div className="font-bold">{pro?.company}</div>
         <div className="text-sm opacity-70">SIRET {pro?.siret}</div>
         <div className="text-sm">{me?.user?.email}</div>
+        <div className="mt-2 text-xs opacity-80">Code parrain : {me?.referralCode ?? "—"}</div>
       </div>
       <div className="mt-4 space-y-3">
         <Field label="Description">

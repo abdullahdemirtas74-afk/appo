@@ -22,6 +22,7 @@ export default function MissionClientPage() {
   const [comment, setComment] = useState("");
   const [payMethod, setPayMethod] = useState("card");
   const [tip, setTip] = useState(0);
+  const [promoCode, setPromoCode] = useState("");
   const [negoPrice, setNegoPrice] = useState("");
   const [negoNote, setNegoNote] = useState("");
   const [disputeReason, setDisputeReason] = useState("");
@@ -255,6 +256,99 @@ export default function MissionClientPage() {
           <Button className="mt-2 w-full" variant="secondary" onClick={() => act("respondSupplement", { accept: false })}>
             Refuser
           </Button>
+        </div>
+      ) : null}
+
+      {["held", "scheduled", "paid", "none", "pending"].includes(m.paymentStatus) &&
+      ["accepted", "en_route", "arrived", "in_progress", "completed", "offered"].includes(m.status) ? (
+        <div className="mt-6 space-y-3 rounded-3xl border border-line p-4">
+          <div className="font-bold">Promo, wallet & garantie</div>
+          {!m.promoCodeId ? (
+            <div className="flex gap-2">
+              <input
+                className={inputClass}
+                placeholder="Code promo (APPO10)"
+                value={promoCode}
+                onChange={(e) => setPromoCode(e.target.value)}
+              />
+              <Button
+                variant="secondary"
+                onClick={async () => {
+                  await api("/api/growth", { action: "redeemPromo", missionId: m.id, code: promoCode });
+                  reload();
+                }}
+              >
+                Appliquer
+              </Button>
+            </div>
+          ) : (
+            <p className="text-sm text-muted">Promo appliquée : −{money(m.promoDiscount ?? 0)}</p>
+          )}
+          <Button
+            variant="secondary"
+            className="w-full"
+            onClick={async () => {
+              await api("/api/growth", { action: "useWalletCredit", missionId: m.id });
+              reload();
+            }}
+          >
+            Utiliser mon crédit Wallet
+          </Button>
+          {!m.guaranteeId ? (
+            <Button
+              className="w-full"
+              onClick={async () => {
+                await api("/api/growth", { action: "addGuarantee", missionId: m.id });
+                reload();
+              }}
+            >
+              Ajouter la garantie AppO
+            </Button>
+          ) : (
+            <p className="text-sm text-muted">
+              Garantie active · couverture {money(m.guarantee?.coverageAmount ?? m.total)}
+            </p>
+          )}
+        </div>
+      ) : null}
+
+      {(m.products ?? []).length ? (
+        <div className="mt-6 rounded-3xl border border-line p-4">
+          <div className="font-bold">Produits proposés</div>
+          <div className="mt-2 space-y-2">
+            {(m.products ?? []).map((p: any) => (
+              <div key={p.id} className="rounded-2xl bg-background px-3 py-2 text-sm">
+                <div className="font-semibold">
+                  {p.catalog?.brand} {p.catalog?.model} · {money(p.unitPrice)} × {p.quantity}
+                </div>
+                <div className="text-xs text-muted">
+                  {p.catalog?.name} · {p.catalog?.quality} · {p.status}
+                </div>
+                {p.status === "proposed" ? (
+                  <div className="mt-2 flex gap-2">
+                    <Button
+                      variant="now"
+                      onClick={async () => {
+                        await api("/api/growth", { action: "respondProduct", id: p.id, accept: true });
+                        reload();
+                      }}
+                    >
+                      Accepter
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={async () => {
+                        await api("/api/growth", { action: "respondProduct", id: p.id, accept: false });
+                        reload();
+                      }}
+                    >
+                      Refuser
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
         </div>
       ) : null}
 

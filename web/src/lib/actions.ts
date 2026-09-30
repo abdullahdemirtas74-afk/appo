@@ -1,4 +1,5 @@
 import { hashPassword, verifyPassword } from "./auth";
+import { makeReferralCode, creditWallet, withGrowthSettings } from "./growth";
 import {
   enrichMission,
   ensureInvoice,
@@ -85,6 +86,7 @@ export async function registerClient(input: {
   organizationName?: string;
   organizationSiret?: string;
   privacyConsent?: boolean;
+  referralCode?: string;
   address?: { line: string; city: string; zip: string; lat: number; lng: number };
 }) {
   return mutate((db) => {
@@ -114,8 +116,32 @@ export async function registerClient(input: {
       clientPlusPlan: "none" as const,
       privacyConsentAt: new Date().toISOString(),
       deletedAt: null as string | null,
+      referralCode: "",
+      walletBalance: 0,
+      referredByUserId: null as string | null,
     };
+    user.referralCode = makeReferralCode(user);
     db.users.push(user);
+    const referralCodeIn = String((input as { referralCode?: string }).referralCode ?? "").trim().toUpperCase();
+    if (referralCodeIn) {
+      const settings = withGrowthSettings(db.settings);
+      const referrer = db.users.find((u) => (u.referralCode || "").toUpperCase() === referralCodeIn);
+      if (referrer && referrer.id !== user.id) {
+        user.referredByUserId = referrer.id;
+        if (!db.referrals) db.referrals = [];
+        db.referrals.unshift({
+          id: nid("ref"),
+          code: referralCodeIn,
+          referrerUserId: referrer.id,
+          referredUserId: user.id,
+          status: "signed_up",
+          rewardAmount: settings.referralClientCredit,
+          createdAt: new Date().toISOString(),
+          rewardedAt: null,
+        });
+        creditWallet(db, user.id, Math.round(settings.referralClientCredit / 2), "referral", `Bienvenue via ${referralCodeIn}`);
+      }
+    }
     if (input.address) {
       db.addresses.push({
         id: nid("adr"),
@@ -285,7 +311,11 @@ export async function registerPro(input: {
       suspended: false,
       privacyConsentAt: new Date().toISOString(),
       deletedAt: null as string | null,
+      referralCode: "",
+      walletBalance: 0,
+      referredByUserId: null as string | null,
     };
+    user.referralCode = makeReferralCode(user);
     db.users.push(user);
     db.pros.push({
       id: nid("pro"),
@@ -367,6 +397,8 @@ export async function getMe(userId: string) {
       notifications,
       favorites,
       unread: notifications.filter((n) => !n.read).length,
+      walletBalance: user.walletBalance ?? 0,
+      referralCode: user.referralCode || makeReferralCode(user),
       settings: withClientPlusSettings(withTierSettings(db.settings)),
       clientPlusActive: user.role === "client" ? isClientPlusActive(user) : false,
       clientPlusDaysLeft: user.role === "client" ? clientPlusDaysLeft(user) : 0,
@@ -860,6 +892,21 @@ export async function missionAction(userId: string, id: string, action: string, 
         ensureInvoice(db, m, now);
         const inv = m.invoiceId ? db.invoices.find((i) => i.id === m.invoiceId) : null;
         const delay = clampPayoutDelay(pro.payoutDelayDays, 0);
+        // Reward referral on first completed mission of referred client
+        const clientUser = db.users.find((u) => u.id === m.clientId);
+        if (clientUser?.referredByUserId) {
+          const ref = (db.referrals ?? []).find(
+            (r) => r.referredUserId === clientUser.id && r.status === "signed_up",
+          );
+          if (ref) {
+            const settings = withGrowthSettings(db.settings);
+            ref.status = "rewarded";
+            ref.rewardedAt = now;
+            creditWallet(db, ref.referrerUserId, ref.rewardAmount, "referral", `Parrainage ${clientUser.firstName}`);
+            creditWallet(db, clientUser.id, Math.round(settings.referralClientCredit / 2), "referral", "Bonus 1re mission");
+            notify(db, ref.referrerUserId, "Bonus parrainage", `+${ref.rewardAmount} € crédits AppO`, "/app/wallet");
+          }
+        }
         notify(
           db,
           m.clientId,

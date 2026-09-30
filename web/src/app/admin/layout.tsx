@@ -13,6 +13,8 @@ const links = [
   ["/admin/emails", "E-mails Pros"],
   ["/admin/missions", "Missions"],
   ["/admin/paiements", "Paiements"],
+  ["/admin/promos", "Codes promo"],
+  ["/admin/garanties", "Garanties"],
   ["/admin/categories", "Services"],
   ["/admin/litiges", "Litiges"],
 ];

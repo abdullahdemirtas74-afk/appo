@@ -20,6 +20,7 @@ import { createSeed } from "./seed";
 import { maskEmail, maskPhone, openPii, sealPii } from "./privacy";
 import { enqueueProEmail, flushProEmailQueue, withMailSettings } from "./mail";
 import { releaseDuePayouts } from "./escrow";
+import { defaultCatalogProducts, ensureUserGrowthFields, withGrowthSettings } from "./growth";
 import { backupDir, dbPath, ensureDataDirs } from "./paths";
 import type {
   DB,
@@ -40,7 +41,7 @@ let chain: Promise<unknown> = Promise.resolve();
 
 function migrate(db: DB): DB {
   db.pros = db.pros.map(normalizePro);
-  db.settings = withMailSettings(withRfqSettings(withTierSettings(db.settings)));
+  db.settings = withGrowthSettings(withMailSettings(withRfqSettings(withTierSettings(db.settings))));
   if (!db.settings.offerSeconds) db.settings.offerSeconds = 20;
   if (db.settings.commissionRate == null) db.settings.commissionRate = 0.15;
   if (!db.quotes) db.quotes = [];
@@ -49,6 +50,15 @@ function migrate(db: DB): DB {
   if (!db.offers) db.offers = [];
   if (!db.outboundEmails) db.outboundEmails = [];
   if (!db.supportTickets) db.supportTickets = [];
+  if (!db.walletLedgers) db.walletLedgers = [];
+  if (!db.referrals) db.referrals = [];
+  if (!db.promoCodes) db.promoCodes = [];
+  if (!db.promoRedemptions) db.promoRedemptions = [];
+  if (!db.slotPromos) db.slotPromos = [];
+  if (!db.recurringPlans) db.recurringPlans = [];
+  if (!db.products || db.products.length === 0) db.products = defaultCatalogProducts();
+  if (!db.missionProducts) db.missionProducts = [];
+  if (!db.guarantees) db.guarantees = [];
   db.disputes = (db.disputes ?? []).map((d) => ({
     ...d,
     category: d.category ?? "autre",
@@ -93,6 +103,12 @@ function migrate(db: DB): DB {
     liveLng: m.liveLng ?? null,
     liveUpdatedAt: m.liveUpdatedAt ?? null,
     payoutReleaseAt: m.payoutReleaseAt ?? null,
+    promoCodeId: m.promoCodeId ?? null,
+    promoDiscount: m.promoDiscount ?? 0,
+    guaranteeId: m.guaranteeId ?? null,
+    walletCreditUsed: m.walletCreditUsed ?? 0,
+    recurringPlanId: m.recurringPlanId ?? null,
+    slotPromoId: m.slotPromoId ?? null,
   }));
   db.payments = (db.payments ?? []).map((p) => ({
     ...p,
@@ -115,24 +131,30 @@ function migrate(db: DB): DB {
   }));
   db.users = db.users.map((u) => {
     if (u.role !== "client") {
-      return {
+      return ensureUserGrowthFields(
+        {
+          ...u,
+          privacyConsentAt: u.privacyConsentAt ?? null,
+          deletedAt: u.deletedAt ?? null,
+          phone: openPii(u.phone),
+        },
+        db.settings,
+      );
+    }
+    return ensureUserGrowthFields(
+      {
         ...u,
+        clientKind: u.clientKind ?? "particulier",
+        organizationName: u.organizationName ?? null,
+        organizationSiret: u.organizationSiret ?? null,
+        clientPlusUntil: u.clientPlusUntil ?? null,
+        clientPlusPlan: u.clientPlusPlan ?? "none",
         privacyConsentAt: u.privacyConsentAt ?? null,
         deletedAt: u.deletedAt ?? null,
         phone: openPii(u.phone),
-      };
-    }
-    return {
-      ...u,
-      clientKind: u.clientKind ?? "particulier",
-      organizationName: u.organizationName ?? null,
-      organizationSiret: u.organizationSiret ?? null,
-      clientPlusUntil: u.clientPlusUntil ?? null,
-      clientPlusPlan: u.clientPlusPlan ?? "none",
-      privacyConsentAt: u.privacyConsentAt ?? null,
-      deletedAt: u.deletedAt ?? null,
-      phone: openPii(u.phone),
-    };
+      },
+      db.settings,
+    );
   });
   db.addresses = (db.addresses ?? []).map((a) => ({
     ...a,
@@ -543,7 +565,7 @@ export function ensureInvoice(db: DB, m: Mission, now = new Date().toISOString()
   if (!m.proId) return null;
   if (!db.invoices) db.invoices = [];
   const tip = m.tip ?? 0;
-  const amount = m.price + m.supplement;
+  const amount = Math.max(0, m.price + m.supplement - (m.promoDiscount ?? 0));
   const commission = Math.round(amount * m.commissionRate * 100) / 100;
   const proAmount = Math.round((amount - commission + tip) * 100) / 100;
   if (m.invoiceId) {
@@ -629,10 +651,18 @@ export function enrichMission(db: DB, m: Mission, viewerId?: string) {
     pendingNegotiatePrice: m.pendingNegotiatePrice ?? null,
     pendingNegotiateNote: m.pendingNegotiateNote ?? null,
     isLargeWorks: m.isLargeWorks ?? false,
-    total: m.price + m.supplement,
-    tipTotal: m.price + m.supplement + (m.tip ?? 0),
-    commission: Math.round((m.price + m.supplement) * m.commissionRate * 100) / 100,
+    promoDiscount: m.promoDiscount ?? 0,
+    total: Math.max(0, m.price + m.supplement - (m.promoDiscount ?? 0)),
+    tipTotal: Math.max(0, m.price + m.supplement - (m.promoDiscount ?? 0) + (m.tip ?? 0)),
+    commission: Math.round(Math.max(0, m.price + m.supplement - (m.promoDiscount ?? 0)) * m.commissionRate * 100) / 100,
     contactsUnlocked: unlocked,
+    products: (db.missionProducts ?? [])
+      .filter((p) => p.missionId === m.id)
+      .map((p) => ({
+        ...p,
+        catalog: (db.products ?? []).find((c) => c.id === p.productId) ?? null,
+      })),
+    guarantee: m.guaranteeId ? (db.guarantees ?? []).find((g) => g.id === m.guaranteeId) ?? null : null,
     client: clientPublic
       ? {
           ...clientPublic,

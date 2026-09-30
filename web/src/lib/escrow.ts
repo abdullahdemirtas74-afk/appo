@@ -17,11 +17,12 @@ export function clientFundsCaptured(status: string | null | undefined) {
 }
 
 function amounts(m: Mission) {
-  const base = Math.round((m.price + (m.supplement ?? 0)) * 100) / 100;
+  const base = Math.round((m.price + (m.supplement ?? 0) - (m.promoDiscount ?? 0)) * 100) / 100;
   const tip = Math.max(0, Math.round((m.tip ?? 0) * 100) / 100);
-  const commission = Math.round(base * m.commissionRate * 100) / 100;
-  const proAmount = Math.round((base - commission + tip) * 100) / 100;
-  return { amount: Math.round((base + tip) * 100) / 100, commission, proAmount };
+  const charged = Math.max(0, base);
+  const commission = Math.round(charged * m.commissionRate * 100) / 100;
+  const proAmount = Math.round((charged - commission + tip) * 100) / 100;
+  return { amount: Math.round((charged + tip) * 100) / 100, commission, proAmount };
 }
 
 export function holdClientFunds(db: DB, m: Mission, now: string, method = "card") {
