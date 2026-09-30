@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
+import { Receipt } from "lucide-react";
 import { Logo } from "@/components/logo";
 
 export type NavItem = {
@@ -71,18 +72,46 @@ function CompactLink({
   );
 }
 
+function FacturesSideButton({ href }: { href: string }) {
+  const path = usePathname();
+  const on = path === href || path.startsWith(`${href}/`);
+  return (
+    <Link
+      href={href}
+      aria-label="Devis et factures"
+      title="Factures"
+      className={`fixed right-0 top-1/2 z-40 -translate-y-1/2 rounded-l-2xl border border-r-0 border-line px-2.5 py-4 shadow-lg transition ${
+        on ? "bg-appo text-white" : "bg-ink text-white hover:bg-appo"
+      }`}
+    >
+      <span className="flex flex-col items-center gap-2">
+        <Receipt size={20} />
+        <span
+          className="text-[10px] font-extrabold uppercase tracking-[0.18em]"
+          style={{ writingMode: "vertical-rl" }}
+        >
+          Factures
+        </span>
+      </span>
+    </Link>
+  );
+}
+
 export function AppShell({
   items,
   root,
   title,
   children,
   overlay,
+  facturesHref,
 }: {
   items: NavItem[];
   root: string;
   title: string;
   children: React.ReactNode;
   overlay?: React.ReactNode;
+  /** Bouton fixe sur le côté droit → devis / factures */
+  facturesHref?: string;
 }) {
   return (
     <div className="app-shell relative min-h-dvh overflow-x-hidden bg-background">
@@ -126,6 +155,7 @@ export function AppShell({
         </nav>
       </div>
 
+      {facturesHref ? <FacturesSideButton href={facturesHref} /> : null}
       {overlay}
     </div>
   );

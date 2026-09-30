@@ -8,7 +8,6 @@ import {
   Home,
   LayoutDashboard,
   MessageCircle,
-  Receipt,
   Sparkles,
   Wallet,
 } from "lucide-react";
@@ -18,7 +17,6 @@ export const CLIENT_NAV: NavItem[] = [
   { href: "/app", label: "Accueil", icon: Home },
   { href: "/app/assistant", label: "Assistant", icon: Sparkles },
   { href: "/app/missions", label: "Missions", icon: ClipboardList },
-  { href: "/app/factures", label: "Factures", icon: Receipt },
   { href: "/app/wallet", label: "Wallet", icon: Wallet },
   { href: "/app/messages", label: "Messages", icon: MessageCircle },
   { href: "/app/compte", label: "Compte", icon: CircleUser },
@@ -28,7 +26,6 @@ export const PRO_NAV: NavItem[] = [
   { href: "/pro", label: "Accueil", icon: LayoutDashboard },
   { href: "/pro/demandes", label: "Demandes", icon: FileText },
   { href: "/pro/missions", label: "Missions", icon: ClipboardList },
-  { href: "/pro/factures", label: "Factures", icon: Receipt },
   { href: "/pro/planning", label: "Planning", icon: Calendar },
   { href: "/pro/premium", label: "Offres", icon: Crown },
   { href: "/pro/business", label: "Business", icon: Building2 },
