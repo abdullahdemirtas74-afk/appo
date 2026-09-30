@@ -61,7 +61,7 @@ function CompactLink({
   return (
     <Link
       href={item.href}
-      className={`flex min-w-0 flex-1 flex-col items-center gap-1 px-1 py-2 text-[11px] font-semibold sm:text-xs ${
+      className={`flex w-[4.5rem] shrink-0 flex-col items-center gap-1 px-1 py-2 text-[11px] font-semibold sm:text-xs ${
         on ? "text-appo" : "text-muted"
       }`}
     >
@@ -116,7 +116,7 @@ export function AppShell({
           {children}
         </main>
 
-        <nav className="fixed inset-x-0 bottom-0 z-20 flex border-t border-line bg-card/95 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+        <nav className="fixed inset-x-0 bottom-0 z-20 flex overflow-x-auto border-t border-line bg-card/95 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {items.map((item) => (
             <CompactLink key={item.href} item={item} root={root} mode="bottom" />
           ))}

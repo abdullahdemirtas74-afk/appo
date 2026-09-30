@@ -101,9 +101,6 @@ function DocumentsHub({ role }: { role: "client" | "pro" }) {
                     >
                       {invoice.status === "paid" ? "Payée" : "Émise"}
                     </div>
-                    {role === "pro" ? (
-                      <div className="mt-0.5 text-xs text-muted">Net {moneyExact(invoice.proAmount)}</div>
-                    ) : null}
                   </div>
                 </div>
               </Link>

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { DocumentsEntry } from "@/components/documents-entry";
 import { usePoll } from "@/lib/hooks";
 import { STATUS_LABELS, formatDate, money } from "@/lib/format";
 import { Badge } from "@/components/ui";
@@ -11,6 +12,7 @@ export default function MissionsPage() {
   return (
     <div className="px-5 py-6">
       <h1 className="text-2xl font-extrabold">Mes réservations</h1>
+      <DocumentsEntry href="/app/factures" />
       <div className="mt-4 space-y-3">
         {list.map((m) => (
           <Link key={m.id} href={`/app/missions/${m.id}`} className="block rounded-3xl border border-line p-4">

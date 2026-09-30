@@ -156,6 +156,9 @@ export default function ProHome() {
           <Button href="/pro/missions" className="mt-3 w-full" variant="secondary">
             Voir les missions
           </Button>
+          <Button href="/pro/factures" className="mt-3 w-full" variant="secondary">
+            Devis & factures
+          </Button>
         </>
       )}
     </div>

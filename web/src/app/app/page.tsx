@@ -101,6 +101,14 @@ export default function ClientHome() {
           </p>
         </Link>
         <Link
+          href="/app/factures"
+          className="rounded-2xl border border-ink bg-ink p-4 text-white transition hover:bg-appo"
+        >
+          <div className="text-lg font-bold">Devis & factures</div>
+          <p className="mt-1 text-sm text-white/70">Documents électroniques de vos interventions.</p>
+          <p className="mt-2 text-xs font-semibold text-appo">Ouvrir →</p>
+        </Link>
+        <Link
           href="/app/wallet"
           className="rounded-2xl border border-line bg-card p-4 transition hover:border-appo/40"
         >

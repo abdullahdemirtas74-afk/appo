@@ -11,6 +11,7 @@ import {
   notify,
   processDispatch,
   proByUser,
+  publicInvoiceView,
   publicUser,
   publicUserMasked,
   requireUser,
@@ -406,6 +407,20 @@ export async function getMe(userId: string) {
     const notifications = db.notifications.filter((n) => n.userId === user.id).slice(0, 30);
     const favorites = db.favorites.filter((f) => f.clientId === user.id);
     const pro = proByUser(db, user.id);
+    const rawSettings = withClientPlusSettings(withTierSettings(db.settings));
+    const settings =
+      user.role === "admin"
+        ? rawSettings
+        : (() => {
+            const {
+              commissionRate: _a,
+              commissionPrime: _b,
+              commissionElite: _c,
+              commissionClientPlus: _d,
+              ...rest
+            } = rawSettings as typeof rawSettings & Record<string, unknown>;
+            return rest;
+          })();
     return {
       user: publicUser(user),
       addresses,
@@ -414,7 +429,7 @@ export async function getMe(userId: string) {
       unread: notifications.filter((n) => !n.read).length,
       walletBalance: user.walletBalance ?? 0,
       referralCode: user.referralCode || makeReferralCode(user),
-      settings: withClientPlusSettings(withTierSettings(db.settings)),
+      settings,
       clientPlusActive: user.role === "client" ? isClientPlusActive(user) : false,
       clientPlusDaysLeft: user.role === "client" ? clientPlusDaysLeft(user) : 0,
       pro: pro
@@ -834,8 +849,9 @@ export async function getInvoice(userId: string, invoiceId: string) {
     if (!allowed) throw new Error("FORBIDDEN");
     ensureInvoice(db, m);
     const fresh = db.invoices.find((i) => i.id === invoiceId)!;
+    const hideFees = user.role !== "admin";
     return {
-      invoice: fresh,
+      invoice: hideFees ? publicInvoiceView(fresh) : fresh,
       mission: enrichMission(db, m, userId),
     };
   }, true);
@@ -877,7 +893,10 @@ export async function listInvoices(userId: string) {
         return false;
       })
       .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""))
-      .map((invoice) => ({ invoice, mission: missionBrief(invoice.missionId) }));
+      .map((invoice) => ({
+        invoice: user.role === "admin" ? invoice : publicInvoiceView(invoice),
+        mission: missionBrief(invoice.missionId),
+      }));
 
     const quotes = (db.quotes ?? [])
       .filter((q) => {
@@ -1561,22 +1580,21 @@ export async function proStats(userId: string) {
     const month = new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime();
     const sum = (from: number) =>
       pays.filter((p) => new Date(p.paidAt ?? p.createdAt).getTime() >= from).reduce((a, p) => a + p.proAmount, 0);
-    const gross = (from: number) =>
-      pays.filter((p) => new Date(p.paidAt ?? p.createdAt).getTime() >= from).reduce((a, p) => a + p.amount, 0);
-    const fees = (from: number) =>
-      pays.filter((p) => new Date(p.paidAt ?? p.createdAt).getTime() >= from).reduce((a, p) => a + p.commission, 0);
     const offeredOrAssigned = db.missions.filter(
       (m) => m.proId === pro.id || m.candidateProIds.includes(pro.id) || m.offerProId === pro.id,
     ).length;
     const quotes = (db.quotes ?? []).filter((q) => q.proId === pro.id);
+    const stripPay = <T extends { commission?: number }>(p: T) => {
+      const { commission: _c, ...rest } = p;
+      return rest;
+    };
+    const { commissionRate: _cr, commissionPrime: _cp, commissionElite: _ce, commissionClientPlus: _ccp, ...safeSettings } =
+      settings as typeof settings & Record<string, unknown>;
     return {
       today: sum(today),
       week: sum(week),
       month: sum(month),
-      grossMonth: gross(month),
-      feesMonth: fees(month),
-      commissionPaidMonth: fees(month),
-      averageBasket: pays.length ? gross(0) / pays.length : 0,
+      averageBasket: pays.length ? sum(0) / pays.length : 0,
       conversionRate: offeredOrAssigned ? missionsCompleted / offeredOrAssigned : 0,
       missionsCompleted,
       reviewCount: pro.reviewCount,
@@ -1585,8 +1603,8 @@ export async function proStats(userId: string) {
         .reduce((a, p) => a + p.proAmount, 0),
       held: escrow.filter((p) => p.status === "held").reduce((a, p) => a + p.proAmount, 0),
       payoutDelayDays: clampPayoutDelay(pro.payoutDelayDays, 7),
-      escrow: escrow.sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? "")),
-      payments: pays.sort((a, b) => (b.paidAt ?? "").localeCompare(a.paidAt ?? "")),
+      escrow: escrow.sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? "")).map(stripPay),
+      payments: pays.sort((a, b) => (b.paidAt ?? "").localeCompare(a.paidAt ?? "")).map(stripPay),
       missions: myMissions.length,
       rating: pro.rating,
       online: pro.online,
@@ -1614,12 +1632,12 @@ export async function proStats(userId: string) {
       team: pro.team ?? [],
       businessEnabled: !!pro.businessEnabled,
       verifiedComplete: verifiedComplete(pro),
-      premium: settings,
-      settings,
+      premium: safeSettings,
+      settings: safeSettings,
       offer: (() => {
         if (!canReceiveNowOffer(db, pro)) return null;
         const raw = db.missions.find((m) => m.offerProId === pro.id && m.status === "offered") ?? null;
-        return raw ? enrichMission(db, raw) : null;
+        return raw ? enrichMission(db, raw, userId) : null;
       })(),
       offerStats: (() => {
         const mine = (db.offers ?? []).filter((o) => o.proId === pro.id);

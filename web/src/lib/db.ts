@@ -671,7 +671,10 @@ export function enrichMission(db: DB, m: Mission, viewerId?: string) {
   const displayLat = addressVisible ? m.lat : Math.round(m.lat * 100) / 100;
   const displayLng = addressVisible ? m.lng : Math.round(m.lng * 100) / 100;
 
-  return {
+  const rawInvoice = m.invoiceId ? (db.invoices ?? []).find((i) => i.id === m.invoiceId) ?? null : null;
+  const hidePlatformFees = viewer?.role !== "admin";
+
+  const enriched = {
     ...m,
     address: displayAddress,
     city: m.city,
@@ -685,7 +688,6 @@ export function enrichMission(db: DB, m: Mission, viewerId?: string) {
     promoDiscount: m.promoDiscount ?? 0,
     total: Math.max(0, m.price + m.supplement - (m.promoDiscount ?? 0)),
     tipTotal: Math.max(0, m.price + m.supplement - (m.promoDiscount ?? 0) + (m.tip ?? 0)),
-    commission: Math.round(Math.max(0, m.price + m.supplement - (m.promoDiscount ?? 0)) * m.commissionRate * 100) / 100,
     contactsUnlocked: unlocked,
     products: (db.missionProducts ?? [])
       .filter((p) => p.missionId === m.id)
@@ -714,11 +716,32 @@ export function enrichMission(db: DB, m: Mission, viewerId?: string) {
     contactedCount,
     messages,
     review,
-    payment,
+    payment: payment && hidePlatformFees
+      ? (() => {
+          const { commission: _c, ...rest } = payment;
+          return rest;
+        })()
+      : payment,
     quote: m.quoteId ? (db.quotes ?? []).find((q) => q.id === m.quoteId) ?? null : null,
-    invoice: m.invoiceId ? (db.invoices ?? []).find((i) => i.id === m.invoiceId) ?? null : null,
+    invoice: rawInvoice && hidePlatformFees ? publicInvoiceView(rawInvoice) : rawInvoice,
     team: pro?.team ?? [],
   };
+
+  if (hidePlatformFees) {
+    const { commissionRate: _r, ...safe } = enriched as typeof enriched & { commissionRate?: number };
+    return safe;
+  }
+
+  return {
+    ...enriched,
+    commission: Math.round(Math.max(0, m.price + m.supplement - (m.promoDiscount ?? 0)) * m.commissionRate * 100) / 100,
+  };
+}
+
+/** Facture exposée client/pro : sans commission plateforme ni montant net pro. */
+export function publicInvoiceView<T extends { commission?: number; proAmount?: number }>(invoice: T) {
+  const { commission: _c, proAmount: _p, ...rest } = invoice;
+  return rest;
 }
 
 export { nid, notify, STATUS_FLOW, labelFor };

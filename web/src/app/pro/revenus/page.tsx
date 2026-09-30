@@ -9,7 +9,7 @@ export default function RevenusPage() {
   return (
     <div className="px-4 py-5 sm:px-6 md:px-8 md:py-8">
       <h1 className="text-2xl font-extrabold md:text-3xl">Tableau de bord 📊</h1>
-      <p className="mt-1 text-sm text-muted">CA AppO, conversion, avis, commission et panier moyen.</p>
+      <p className="mt-1 text-sm text-muted">Vos gains, conversion, avis et panier moyen.</p>
 
       <div className="mt-4 flex flex-wrap gap-2">
         <Badge tone="premium">Niveau {data?.tier ?? "pro"}</Badge>
@@ -19,14 +19,13 @@ export default function RevenusPage() {
         ) : null}
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-2 text-center sm:grid-cols-3 lg:grid-cols-6">
+      <div className="mt-4 grid grid-cols-2 gap-2 text-center sm:grid-cols-3 lg:grid-cols-5">
         {[
           ["Aujourd’hui", moneyExact(data?.today ?? 0), true],
           ["Semaine", moneyExact(data?.week ?? 0), false],
-          ["Mois net", moneyExact(data?.month ?? 0), false],
-          ["CA brut mois", moneyExact(data?.grossMonth ?? 0), false],
-          ["Commission", moneyExact(data?.feesMonth ?? data?.commissionPaidMonth ?? 0), false],
+          ["Mois", moneyExact(data?.month ?? 0), false],
           ["Panier moyen", moneyExact(data?.averageBasket ?? 0), false],
+          ["Missions", String(data?.missionsCompleted ?? data?.missions ?? 0), false],
         ].map(([label, value, dark]) => (
           <div
             key={String(label)}
@@ -68,15 +67,7 @@ export default function RevenusPage() {
 
       <div className="mt-4 space-y-2 rounded-3xl bg-background p-4 text-sm">
         <div className="flex justify-between">
-          <span>Chiffre d’affaires (mois)</span>
-          <b>{moneyExact(data?.grossMonth ?? 0)}</b>
-        </div>
-        <div className="flex justify-between">
-          <span>Commissions AppO payées</span>
-          <b>{moneyExact(data?.feesMonth ?? data?.commissionPaidMonth ?? 0)}</b>
-        </div>
-        <div className="flex justify-between">
-          <span>Montant net</span>
+          <span>Gains du mois</span>
           <b>{moneyExact(data?.month ?? 0)}</b>
         </div>
         <div className="flex justify-between">
@@ -91,7 +82,7 @@ export default function RevenusPage() {
         {(data?.escrow ?? []).map((p: any) => (
           <div key={p.id} className="flex justify-between rounded-2xl border border-line px-4 py-3 text-sm">
             <div>
-              <div className="font-semibold">{moneyExact(p.proAmount)} net</div>
+              <div className="font-semibold">{moneyExact(p.proAmount)}</div>
               <div className="text-xs text-muted">
                 {p.status === "held"
                   ? "Conservé jusqu’à la fin de l’intervention"
@@ -108,12 +99,11 @@ export default function RevenusPage() {
         {(data?.payments ?? []).map((p: any) => (
           <div key={p.id} className="flex justify-between rounded-2xl border border-line px-4 py-3 text-sm">
             <div>
-              <div className="font-semibold">{moneyExact(p.proAmount)} net</div>
+              <div className="font-semibold">{moneyExact(p.proAmount)}</div>
               <div className="text-xs text-muted">
                 {formatDate(p.paidAt || p.createdAt)} · {p.method}
               </div>
             </div>
-            <div className="text-xs text-muted">com. {moneyExact(p.commission)}</div>
           </div>
         ))}
       </div>

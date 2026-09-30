@@ -94,7 +94,6 @@ export default function ProFacturesPage() {
                   </div>
                   <div className="shrink-0 text-right">
                     <div className="font-extrabold">{moneyExact(invoice.total)}</div>
-                    <div className="mt-1 text-xs text-muted">Net {moneyExact(invoice.proAmount)}</div>
                     <div
                       className={`mt-1 text-xs font-bold ${
                         invoice.status === "paid" ? "text-green" : "text-muted"
