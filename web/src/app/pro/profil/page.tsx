@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useMe } from "@/components/guard";
+import { LanguageSettings } from "@/components/language-settings";
 import { Button, Field, inputClass } from "@/components/ui";
 import { api } from "@/lib/hooks";
 import { useEffect, useState } from "react";
@@ -71,13 +72,12 @@ export default function ProProfil() {
           Vérification documents
         </Button>
       </div>
-        <Button
-          className="mt-8 w-full"
-          variant="secondary"
-          href="/pro/premium"
-        >
-          AppO Premium
-        </Button>
+      <div className="mt-8 rounded-3xl border border-line p-4">
+        <LanguageSettings onSaved={() => reload()} />
+      </div>
+      <Button className="mt-8 w-full" variant="secondary" href="/pro/premium">
+        AppO Premium
+      </Button>
       <Button
         className="mt-3 w-full"
         variant="secondary"

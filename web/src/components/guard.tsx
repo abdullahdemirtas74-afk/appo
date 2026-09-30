@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { usePoll } from "@/lib/hooks";
+import { useLocale } from "@/lib/i18n";
 import type { PublicUser, Address, AppNotification, Favorite, ProProfile, Settings } from "@/lib/types";
 
 export type Me = {
@@ -32,6 +33,7 @@ export function Guard({
 }) {
   const router = useRouter();
   const { data, loading } = useMe();
+  const { setLocale } = useLocale();
 
   useEffect(() => {
     if (loading) return;
@@ -44,6 +46,11 @@ export function Guard({
       router.replace(dest);
     }
   }, [data, loading, role, router]);
+
+  useEffect(() => {
+    const loc = data?.user?.locale;
+    if (loc) setLocale(loc);
+  }, [data?.user?.locale, setLocale]);
 
   if (loading || !data?.user || data.user.role !== role) {
     return (

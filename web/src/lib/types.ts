@@ -25,6 +25,8 @@ export type User = {
   privacyConsentAt?: string | null;
   /** Soft-delete / anonymisation */
   deletedAt?: string | null;
+  /** Preférence de langue (ISO 639-1) */
+  locale?: string | null;
   /** Code parrainage unique */
   referralCode?: string | null;
   /** Solde AppO Wallet (crédits) */

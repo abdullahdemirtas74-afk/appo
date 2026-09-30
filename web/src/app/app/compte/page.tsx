@@ -4,9 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useMe } from "@/components/guard";
+import { LanguageSettings } from "@/components/language-settings";
 import { Button, Field, inputClass } from "@/components/ui";
 import { api, usePoll } from "@/lib/hooks";
 import { money } from "@/lib/format";
+import { useLocale } from "@/lib/i18n";
+import { languageLabel } from "@/lib/languages";
 import type { ClientKind } from "@/lib/types";
 
 const KIND_LABEL: Record<ClientKind, string> = {
@@ -25,7 +28,10 @@ export default function ComptePage() {
   const paid = (missionsData?.missions ?? []).filter(
     (m) => ["held", "scheduled", "paid"].includes(m.paymentStatus) && m.invoice,
   );
-  const [section, setSection] = useState<"menu" | "profile" | "addresses" | "favorites" | "invoices" | "privacy">("menu");
+  const { locale } = useLocale();
+  const [section, setSection] = useState<
+    "menu" | "profile" | "addresses" | "favorites" | "invoices" | "privacy" | "language"
+  >("menu");
   const [firstName, setFirstName] = useState(user?.firstName ?? "");
   const [lastName, setLastName] = useState(user?.lastName ?? "");
   const [phone, setPhone] = useState(user?.phone ?? "");
@@ -197,6 +203,19 @@ export default function ComptePage() {
     );
   }
 
+  if (section === "language") {
+    return (
+      <div className="px-5 py-6">
+        <button className="text-sm font-semibold text-appo" onClick={() => setSection("menu")}>
+          ← Retour
+        </button>
+        <div className="mt-4">
+          <LanguageSettings onSaved={() => reload()} />
+        </div>
+      </div>
+    );
+  }
+
   if (section === "privacy") {
     return (
       <div className="px-5 py-6">
@@ -309,6 +328,11 @@ export default function ComptePage() {
           { k: "Mes factures", v: `${paid.length} facture(s)`, onClick: () => setSection("invoices") },
           { k: "Professionnels favoris", v: `${me?.favorites?.length ?? 0}`, onClick: () => setSection("favorites") },
           { k: "Mes réservations", v: `${missionsData?.missions?.length ?? 0} missions`, href: "/app/missions" },
+          {
+            k: "Langue",
+            v: languageLabel(user?.locale ?? locale, "fr").nativeName,
+            onClick: () => setSection("language"),
+          },
           { k: "Confidentialité", v: "Export & suppression", onClick: () => setSection("privacy") },
           { k: "Aide & litiges", v: "Support AppO", href: "/app/support" },
         ].map((row) => {

@@ -8,6 +8,7 @@ import {
   getMe,
   markNotificationsRead,
   setDefaultAddress,
+  setUserLocale,
   subscribeClientPlus,
   updateClientProfile,
 } from "@/lib/actions";
@@ -29,6 +30,10 @@ export async function POST(req: Request) {
   if (!session) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
   try {
     const body = await req.json();
+    if (body.action === "setLocale") {
+      const result = await setUserLocale(session.userId, String(body.locale ?? "fr"));
+      return NextResponse.json(result);
+    }
     if (body.action === "subscribePlus") {
       const result = await subscribeClientPlus(session.userId, body.plan === "yearly" ? "yearly" : "monthly");
       return NextResponse.json(result);

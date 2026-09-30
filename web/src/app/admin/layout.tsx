@@ -17,6 +17,7 @@ const links = [
   ["/admin/garanties", "Garanties"],
   ["/admin/categories", "Services"],
   ["/admin/litiges", "Litiges"],
+  ["/admin/reglages", "Réglages"],
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

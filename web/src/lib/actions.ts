@@ -1,5 +1,6 @@
 import { hashPassword, verifyPassword } from "./auth";
 import { makeReferralCode, creditWallet, withGrowthSettings } from "./growth";
+import { isValidLanguageCode } from "./languages";
 import {
   enrichMission,
   ensureInvoice,
@@ -116,6 +117,7 @@ export async function registerClient(input: {
       clientPlusPlan: "none" as const,
       privacyConsentAt: new Date().toISOString(),
       deletedAt: null as string | null,
+      locale: "fr",
       referralCode: "",
       walletBalance: 0,
       referredByUserId: null as string | null,
@@ -164,6 +166,7 @@ export async function updateClientProfile(
     firstName?: string;
     lastName?: string;
     phone?: string;
+    locale?: string;
   },
 ) {
   return mutate((db) => {
@@ -184,11 +187,22 @@ export async function updateClientProfile(
     if (patch.firstName) user.firstName = patch.firstName;
     if (patch.lastName) user.lastName = patch.lastName;
     if (patch.phone) user.phone = patch.phone;
+    if (patch.locale) user.locale = String(patch.locale).slice(0, 12);
     const kind = user.clientKind ?? "particulier";
     if ((kind === "entreprise" || kind === "syndicat") && !user.organizationName) {
       throw new Error("ORG_REQUIRED");
     }
     return publicUser(user);
+  });
+}
+
+export async function setUserLocale(userId: string, locale: string) {
+  return mutate((db) => {
+    const user = requireUser(db, userId);
+    const code = String(locale || "fr").trim().toLowerCase().slice(0, 12);
+    if (!isValidLanguageCode(code)) throw new Error("INVALID_LOCALE");
+    user.locale = code;
+    return { locale: user.locale, user: publicUser(user) };
   });
 }
 
@@ -311,6 +325,7 @@ export async function registerPro(input: {
       suspended: false,
       privacyConsentAt: new Date().toISOString(),
       deletedAt: null as string | null,
+      locale: "fr",
       referralCode: "",
       walletBalance: 0,
       referredByUserId: null as string | null,
@@ -1956,6 +1971,7 @@ export function errorStatus(e: unknown) {
     INVALID_FILE_TYPE: 400,
     FILE_REQUIRED: 400,
     CONFIRM_REQUIRED: 400,
+    INVALID_LOCALE: 400,
     RATE_LIMITED: 429,
     CONTACTS_LOCKED: 403,
     PLUS_REQUIRED: 403,
