@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { Guard } from "@/components/guard";
-import { PRO_NAV } from "@/components/nav";
+import { PRO_MOBILE_NAV, PRO_NAV } from "@/components/nav";
 import { AppShell } from "@/components/shell";
 import { Button } from "@/components/ui";
 import { api, usePoll } from "@/lib/hooks";
@@ -56,7 +56,13 @@ function OfferOverlay() {
 export default function ProLayout({ children }: { children: React.ReactNode }) {
   return (
     <Guard role="pro">
-      <AppShell items={PRO_NAV} root="/pro" title="Espace Pro" overlay={<OfferOverlay />}>
+      <AppShell
+        items={PRO_NAV}
+        mobileItems={PRO_MOBILE_NAV}
+        root="/pro"
+        title="Espace Pro"
+        overlay={<OfferOverlay />}
+      >
         {children}
       </AppShell>
     </Guard>

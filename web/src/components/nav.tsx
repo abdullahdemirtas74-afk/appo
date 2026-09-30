@@ -24,6 +24,7 @@ export const CLIENT_NAV: NavItem[] = [
   { href: "/app/compte", label: "Compte", icon: CircleUser },
 ];
 
+/** Nav complète (sidebar desktop / onglets tablette) */
 export const PRO_NAV: NavItem[] = [
   { href: "/pro", label: "Accueil", icon: LayoutDashboard },
   { href: "/pro/demandes", label: "Demandes", icon: FileText },
@@ -34,4 +35,25 @@ export const PRO_NAV: NavItem[] = [
   { href: "/pro/business", label: "Business", icon: Building2 },
   { href: "/pro/revenus", label: "Stats", icon: Wallet },
   { href: "/pro/profil", label: "Profil", icon: CircleUser },
+];
+
+/**
+ * Barre du bas téléphone — max 5 pour que Factures reste visible
+ * sans faire défiler.
+ */
+export const PRO_MOBILE_NAV: NavItem[] = [
+  { href: "/pro", label: "Accueil", icon: LayoutDashboard },
+  { href: "/pro/demandes", label: "Demandes", icon: FileText },
+  { href: "/pro/missions", label: "Missions", icon: ClipboardList },
+  { href: "/pro/factures", label: "Factures", icon: Receipt },
+  { href: "/pro/profil", label: "Profil", icon: CircleUser },
+];
+
+/** Client téléphone — Factures toujours visible */
+export const CLIENT_MOBILE_NAV: NavItem[] = [
+  { href: "/app", label: "Accueil", icon: Home },
+  { href: "/app/missions", label: "Missions", icon: ClipboardList },
+  { href: "/app/factures", label: "Factures", icon: Receipt },
+  { href: "/app/messages", label: "Messages", icon: MessageCircle },
+  { href: "/app/compte", label: "Compte", icon: CircleUser },
 ];

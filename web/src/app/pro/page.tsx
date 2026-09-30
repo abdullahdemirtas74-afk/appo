@@ -1,6 +1,7 @@
 "use client";
 
 import { BadgeCheck } from "lucide-react";
+import { DocumentsEntry } from "@/components/documents-entry";
 import { useMe } from "@/components/guard";
 import { Badge, Button } from "@/components/ui";
 import { api, usePoll } from "@/lib/hooks";
@@ -32,6 +33,7 @@ export default function ProHome() {
     <div className="px-5 py-6 md:px-8 md:py-8">
       <div className="text-sm text-muted md:hidden">AppO Pro</div>
       <h1 className="text-2xl font-extrabold md:text-3xl">Bonjour {me?.user?.firstName}</h1>
+      <DocumentsEntry href="/pro/factures" />
       {pending ? (
         <div className="mt-6 rounded-3xl border border-amber-200 bg-amber-50 p-4">
           <div className="font-bold">Compte en cours de vérification</div>
@@ -155,9 +157,6 @@ export default function ProHome() {
           </Button>
           <Button href="/pro/missions" className="mt-3 w-full" variant="secondary">
             Voir les missions
-          </Button>
-          <Button href="/pro/factures" className="mt-3 w-full" variant="secondary">
-            Devis & factures
           </Button>
         </>
       )}

@@ -72,14 +72,28 @@ export default function ProProfil() {
           Vérification documents
         </Button>
       </div>
+      <div className="mt-8 space-y-2">
+        <Button className="w-full" variant="secondary" href="/pro/factures">
+          Devis & factures
+        </Button>
+        <Button className="w-full" variant="secondary" href="/pro/planning">
+          Planning & congés
+        </Button>
+        <Button className="w-full" variant="secondary" href="/pro/revenus">
+          Stats & revenus
+        </Button>
+        <Button className="w-full" variant="secondary" href="/pro/business">
+          AppO Business
+        </Button>
+        <Button className="w-full" variant="secondary" href="/pro/premium">
+          AppO Premium
+        </Button>
+      </div>
       <div className="mt-8 rounded-3xl border border-line p-4">
         <LanguageSettings onSaved={() => reload()} />
       </div>
-      <Button className="mt-8 w-full" variant="secondary" href="/pro/premium">
-        AppO Premium
-      </Button>
       <Button
-        className="mt-3 w-full"
+        className="mt-8 w-full"
         variant="secondary"
         onClick={async () => {
           await api("/api/auth/logout", {});

@@ -61,7 +61,7 @@ function CompactLink({
   return (
     <Link
       href={item.href}
-      className={`flex w-[4.5rem] shrink-0 flex-col items-center gap-1 px-1 py-2 text-[11px] font-semibold sm:text-xs ${
+      className={`flex min-w-0 flex-1 flex-col items-center gap-1 px-1 py-2 text-[11px] font-semibold sm:text-xs ${
         on ? "text-appo" : "text-muted"
       }`}
     >
@@ -73,17 +73,21 @@ function CompactLink({
 
 export function AppShell({
   items,
+  mobileItems,
   root,
   title,
   children,
   overlay,
 }: {
   items: NavItem[];
+  /** Si fourni : barre du bas téléphone (sinon = items) */
+  mobileItems?: NavItem[];
   root: string;
   title: string;
   children: React.ReactNode;
   overlay?: React.ReactNode;
 }) {
+  const bottomItems = mobileItems ?? items;
   return (
     <div className="app-shell relative min-h-dvh overflow-x-hidden bg-background">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-line bg-card p-5 lg:flex xl:w-64">
@@ -116,8 +120,8 @@ export function AppShell({
           {children}
         </main>
 
-        <nav className="fixed inset-x-0 bottom-0 z-20 flex overflow-x-auto border-t border-line bg-card/95 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {items.map((item) => (
+        <nav className="fixed inset-x-0 bottom-0 z-20 flex border-t border-line bg-card/95 px-1 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
+          {bottomItems.map((item) => (
             <CompactLink key={item.href} item={item} root={root} mode="bottom" />
           ))}
         </nav>
