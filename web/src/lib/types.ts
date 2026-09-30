@@ -239,6 +239,23 @@ export type Quote = {
   signedAt: string | null;
 };
 
+export type InvoiceParty = {
+  name: string;
+  siret?: string | null;
+  address?: string | null;
+  city?: string | null;
+  zip?: string | null;
+  email?: string | null;
+  phone?: string | null;
+};
+
+export type InvoiceLine = {
+  label: string;
+  quantity: number;
+  unitPriceHt: number;
+  vatRate: number;
+};
+
 export type Invoice = {
   id: string;
   number: string;
@@ -254,6 +271,17 @@ export type Invoice = {
   status: "issued" | "paid";
   createdAt: string;
   paidAt: string | null;
+  /** Facture électronique — lignes & TVA */
+  currency?: string;
+  vatRate?: number;
+  amountHt?: number;
+  amountVat?: number;
+  lines?: InvoiceLine[];
+  seller?: InvoiceParty | null;
+  buyer?: InvoiceParty | null;
+  paymentMethod?: string | null;
+  serviceAt?: string | null;
+  note?: string | null;
 };
 
 export type Message = {

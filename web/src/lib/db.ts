@@ -20,6 +20,7 @@ import { createSeed } from "./seed";
 import { maskEmail, maskPhone, openPii, sealPii } from "./privacy";
 import { enqueueProEmail, flushProEmailQueue, withMailSettings } from "./mail";
 import { releaseDuePayouts } from "./escrow";
+import { applyElectronicInvoiceFields } from "./invoice";
 import { defaultCatalogProducts, ensureUserGrowthFields, withGrowthSettings } from "./growth";
 import { backupDir, dbPath, ensureDataDirs } from "./paths";
 import type {
@@ -128,7 +129,27 @@ function migrate(db: DB): DB {
     tip: inv.tip ?? 0,
     status: inv.status ?? (inv.paidAt ? "paid" : "issued"),
     paidAt: inv.paidAt ?? null,
+    currency: inv.currency ?? "EUR",
+    vatRate: inv.vatRate ?? 0.2,
+    amountHt: inv.amountHt,
+    amountVat: inv.amountVat,
+    lines: inv.lines ?? [],
+    seller: inv.seller ?? null,
+    buyer: inv.buyer ?? null,
+    paymentMethod: inv.paymentMethod ?? null,
+    serviceAt: inv.serviceAt ?? null,
+    note: inv.note ?? null,
   }));
+  // Backfill factures électroniques pour missions déjà payées
+  for (const m of db.missions ?? []) {
+    if (
+      m.proId &&
+      ["held", "scheduled", "paid"].includes(m.paymentStatus) &&
+      (m.status === "completed" || m.paymentStatus !== "none")
+    ) {
+      ensureInvoice(db, m);
+    }
+  }
   db.users = db.users.map((u) => {
     if (u.role !== "client") {
       return ensureUserGrowthFields(
@@ -581,24 +602,32 @@ export function ensureInvoice(db: DB, m: Mission, now = new Date().toISOString()
         existing.status = "paid";
         existing.paidAt = existing.paidAt ?? now;
       }
-      return existing;
+      existing.paymentMethod = existing.paymentMethod ?? m.paymentMethod ?? null;
+      return applyElectronicInvoiceFields(db, existing, m);
     }
   }
-  const invoice = {
-    id: nid("inv"),
-    number: `FAC-${new Date().getFullYear()}-${String(db.invoices.length + 1).padStart(4, "0")}`,
-    missionId: m.id,
-    quoteId: m.quoteId,
-    proId: m.proId,
-    clientId: m.clientId,
-    total: amount,
-    tip,
-    commission,
-    proAmount,
-    status: (m.paymentStatus === "held" || m.paymentStatus === "scheduled" || m.paymentStatus === "paid" ? "paid" : "issued") as "issued" | "paid",
-    createdAt: now,
-    paidAt: m.paymentStatus === "held" || m.paymentStatus === "scheduled" || m.paymentStatus === "paid" ? now : null,
-  };
+  const invoice = applyElectronicInvoiceFields(
+    db,
+    {
+      id: nid("inv"),
+      number: `FAC-${new Date().getFullYear()}-${String(db.invoices.length + 1).padStart(4, "0")}`,
+      missionId: m.id,
+      quoteId: m.quoteId,
+      proId: m.proId,
+      clientId: m.clientId,
+      total: amount,
+      tip,
+      commission,
+      proAmount,
+      status: (m.paymentStatus === "held" || m.paymentStatus === "scheduled" || m.paymentStatus === "paid"
+        ? "paid"
+        : "issued") as "issued" | "paid",
+      createdAt: now,
+      paidAt: m.paymentStatus === "held" || m.paymentStatus === "scheduled" || m.paymentStatus === "paid" ? now : null,
+      paymentMethod: m.paymentMethod ?? null,
+    },
+    m,
+  );
   db.invoices.push(invoice);
   m.invoiceId = invoice.id;
   return invoice;

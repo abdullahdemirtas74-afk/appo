@@ -188,7 +188,11 @@ export default function ComptePage() {
         <div className="mt-4 space-y-2">
           {paid.length === 0 ? <p className="text-sm text-muted">Aucune facture pour l’instant.</p> : null}
           {paid.map((m: any) => (
-            <Link key={m.id} href={`/app/missions/${m.id}`} className="block rounded-2xl border border-line px-4 py-3">
+            <Link
+              key={m.id}
+              href={m.invoice?.id ? `/app/factures/${m.invoice.id}` : `/app/missions/${m.id}`}
+              className="block rounded-2xl border border-line px-4 py-3"
+            >
               <div className="font-semibold">
                 {m.invoice?.number ?? m.id} · {money(m.invoice?.total ?? m.total)}
               </div>
@@ -196,6 +200,7 @@ export default function ComptePage() {
                 {m.category?.name} · {m.invoice?.status === "paid" ? "Payée" : "Émise"}
                 {m.tip ? ` · pourboire ${money(m.tip)}` : ""}
               </div>
+              <div className="mt-1 text-xs font-semibold text-appo">Voir la facture électronique →</div>
             </Link>
           ))}
         </div>
@@ -325,7 +330,7 @@ export default function ComptePage() {
             onClick: () => setSection("addresses"),
           },
           { k: "Demandes / devis", v: "RFQ", href: "/app/demandes" },
-          { k: "Mes factures", v: `${paid.length} facture(s)`, onClick: () => setSection("invoices") },
+          { k: "Mes factures", v: `${paid.length} facture(s)`, href: "/app/factures" },
           { k: "Professionnels favoris", v: `${me?.favorites?.length ?? 0}`, onClick: () => setSection("favorites") },
           { k: "Mes réservations", v: `${missionsData?.missions?.length ?? 0} missions`, href: "/app/missions" },
           {

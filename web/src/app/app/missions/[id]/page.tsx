@@ -354,11 +354,18 @@ export default function MissionClientPage() {
 
       {m.status === "completed" && m.invoice ? (
         <div className="mt-6 rounded-3xl border border-line p-4">
-          <div className="font-bold">Facture immédiate</div>
+          <div className="font-bold">Facture électronique</div>
           <p className="text-sm text-muted">
             {m.invoice.number} · {money(m.invoice.total)}
-            {m.invoice.tip ? ` + pourboire ${money(m.invoice.tip)}` : ""} · {m.invoice.status === "paid" ? "payée" : "à régler"}
+            {m.invoice.tip ? ` + pourboire ${money(m.invoice.tip)}` : ""} ·{" "}
+            {m.invoice.status === "paid" ? "payée" : "à régler"}
           </p>
+          <Link
+            href={`/app/factures/${m.invoice.id}`}
+            className="mt-3 inline-flex text-sm font-semibold text-appo"
+          >
+            Ouvrir la facture →
+          </Link>
         </div>
       ) : null}
 

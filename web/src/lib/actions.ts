@@ -819,6 +819,71 @@ export async function getMission(userId: string, id: string) {
   }, true);
 }
 
+export async function getInvoice(userId: string, invoiceId: string) {
+  return mutate((db) => {
+    const user = requireUser(db, userId);
+    const invoice = (db.invoices ?? []).find((i) => i.id === invoiceId);
+    if (!invoice) throw new Error("NOT_FOUND");
+    const m = db.missions.find((x) => x.id === invoice.missionId);
+    if (!m) throw new Error("NOT_FOUND");
+    const pro = proByUser(db, user.id);
+    const allowed =
+      user.role === "admin" ||
+      invoice.clientId === user.id ||
+      (pro && invoice.proId === pro.id);
+    if (!allowed) throw new Error("FORBIDDEN");
+    ensureInvoice(db, m);
+    const fresh = db.invoices.find((i) => i.id === invoiceId)!;
+    return {
+      invoice: fresh,
+      mission: enrichMission(db, m, userId),
+    };
+  }, true);
+}
+
+export async function listInvoices(userId: string) {
+  return mutate((db) => {
+    const user = requireUser(db, userId);
+    const pro = proByUser(db, user.id);
+    for (const m of db.missions) {
+      if (
+        m.proId &&
+        ["held", "scheduled", "paid"].includes(m.paymentStatus) &&
+        (user.role === "admin" ||
+          m.clientId === user.id ||
+          (pro && m.proId === pro.id))
+      ) {
+        ensureInvoice(db, m);
+      }
+    }
+    const invoices = (db.invoices ?? [])
+      .filter((inv) => {
+        if (user.role === "admin") return true;
+        if (inv.clientId === user.id) return true;
+        if (pro && inv.proId === pro.id) return true;
+        return false;
+      })
+      .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+    return invoices.map((invoice) => {
+      const m = db.missions.find((x) => x.id === invoice.missionId);
+      const enriched = m ? enrichMission(db, m, userId) : null;
+      return {
+        invoice,
+        mission: enriched
+          ? {
+              id: enriched.id,
+              description: enriched.description,
+              city: enriched.city,
+              status: enriched.status,
+              category: enriched.category,
+              total: enriched.total,
+            }
+          : null,
+      };
+    });
+  }, true);
+}
+
 export async function missionAction(userId: string, id: string, action: string, payload: Record<string, unknown> = {}) {
   return mutate((db) => {
     const user = requireUser(db, userId);

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Lock } from "lucide-react";
@@ -183,15 +184,20 @@ export default function ProMissionPage() {
           )}
           {m.invoice ? (
             <div className="mt-3 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-semibold text-green">
-              Facture {m.invoice.number} · {money(m.invoice.total)}
-              {m.invoice.tip ? ` + pourboire ${money(m.invoice.tip)}` : ""} ·{" "}
-              {m.paymentStatus === "held"
-                ? "encaissée par Appo"
-                : m.paymentStatus === "scheduled"
-                  ? "versement programmé"
-                  : m.invoice.status === "paid"
-                    ? "versée"
-                    : "émise"}
+              <div>
+                Facture {m.invoice.number} · {money(m.invoice.total)}
+                {m.invoice.tip ? ` + pourboire ${money(m.invoice.tip)}` : ""} ·{" "}
+                {m.paymentStatus === "held"
+                  ? "encaissée par Appo"
+                  : m.paymentStatus === "scheduled"
+                    ? "versement programmé"
+                    : m.invoice.status === "paid"
+                      ? "versée"
+                      : "émise"}
+              </div>
+              <Link href={`/pro/factures/${m.invoice.id}`} className="mt-1 inline-block text-appo underline-offset-2 hover:underline">
+                Voir la facture électronique →
+              </Link>
             </div>
           ) : null}
         </div>
