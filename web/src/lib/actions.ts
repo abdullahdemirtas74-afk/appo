@@ -1680,27 +1680,169 @@ export async function proStats(userId: string) {
 
 export async function adminOverview() {
   return mutate((db) => {
-    const paid = db.payments.filter((p) => p.status === "paid");
-    const volume = paid.reduce((a, p) => a + p.amount, 0);
-    const revenue = paid.reduce((a, p) => a + p.commission, 0);
+    const paid = db.payments.filter((p) => p.status === "paid" || p.status === "held" || p.status === "scheduled");
+    const paidDone = db.payments.filter((p) => p.status === "paid");
+    const volume = paidDone.reduce((a, p) => a + p.amount, 0);
+    const revenue = paidDone.reduce((a, p) => a + p.commission, 0);
     const cancelled = db.missions.filter((m) => m.status === "cancelled").length;
+    const requests = db.requests ?? [];
+    const invoices = db.invoices ?? [];
+    const tickets = db.supportTickets ?? [];
+    const openDisputes = db.disputes.filter((d) => d.status === "open" || d.status === "in_review").length;
+    const openRequests = requests.filter((r) => r.status === "open").length;
+    const openTickets = tickets.filter((t) => t.status === "open" || t.status === "in_review").length;
+    const pendingDocs = db.pros.filter((p) =>
+      (p.documents ?? []).some((d) => d.status === "pending"),
+    ).length;
+    const onlinePros = db.pros.filter((p) => p.online && p.verified).length;
+    const liveMissions = db.missions.filter((m) =>
+      ["offered", "accepted", "en_route", "arrived", "in_progress"].includes(m.status),
+    );
+
+    type ActivityItem = {
+      id: string;
+      at: string;
+      kind: string;
+      title: string;
+      detail: string;
+      href: string;
+      tone?: "ok" | "warn" | "danger" | "info";
+    };
+    const activity: ActivityItem[] = [];
+
+    for (const m of db.missions) {
+      const cat = db.categories.find((c) => c.id === m.categoryId)?.name ?? "Mission";
+      const client = db.users.find((u) => u.id === m.clientId);
+      activity.push({
+        id: `mission_${m.id}_${m.status}`,
+        at: m.createdAt,
+        kind: "mission",
+        title: `${cat} · ${m.status}`,
+        detail: `${client?.firstName ?? "Client"} · ${m.city} · ${m.type}`,
+        href: "/admin/missions",
+        tone: m.status === "cancelled" ? "danger" : liveMissions.some((x) => x.id === m.id) ? "warn" : "info",
+      });
+    }
+    for (const r of requests) {
+      const cat = db.categories.find((c) => c.id === r.categoryId)?.name ?? "Demande";
+      activity.push({
+        id: `req_${r.id}`,
+        at: r.createdAt,
+        kind: "request",
+        title: `Demande RFQ · ${cat}`,
+        detail: `${r.city} · ${r.status}`,
+        href: "/admin/missions",
+        tone: "info",
+      });
+    }
+    for (const p of db.payments) {
+      activity.push({
+        id: `pay_${p.id}`,
+        at: p.paidAt ?? p.createdAt,
+        kind: "payment",
+        title: `Paiement · ${p.status}`,
+        detail: `${p.amount} € (commission ${p.commission} €)`,
+        href: "/admin/paiements",
+        tone: p.status === "paid" ? "ok" : "warn",
+      });
+    }
+    for (const inv of invoices) {
+      activity.push({
+        id: `inv_${inv.id}`,
+        at: inv.createdAt,
+        kind: "invoice",
+        title: `Facture ${inv.number}`,
+        detail: `${inv.total} € · ${inv.status}`,
+        href: "/admin/paiements",
+        tone: "ok",
+      });
+    }
+    for (const d of db.disputes) {
+      activity.push({
+        id: `disp_${d.id}`,
+        at: d.updatedAt ?? d.createdAt,
+        kind: "dispute",
+        title: `Litige · ${d.status}`,
+        detail: d.reason?.slice(0, 80) ?? "",
+        href: "/admin/litiges",
+        tone: d.status === "open" || d.status === "in_review" ? "danger" : "ok",
+      });
+    }
+    for (const t of tickets) {
+      activity.push({
+        id: `tick_${t.id}`,
+        at: t.updatedAt ?? t.createdAt,
+        kind: "support",
+        title: `Support · ${t.status}`,
+        detail: t.subject ?? t.id,
+        href: "/admin/litiges",
+        tone: t.status === "closed" || t.status === "resolved" ? "ok" : "warn",
+      });
+    }
+    for (const pro of db.pros) {
+      const u = db.users.find((x) => x.id === pro.userId);
+      activity.push({
+        id: `pro_${pro.id}`,
+        at: u?.createdAt ?? new Date(0).toISOString(),
+        kind: "pro",
+        title: `Pro · ${pro.status}`,
+        detail: `${pro.company} · ${pro.city}`,
+        href: "/admin/pros",
+        tone: pro.status === "pending" ? "warn" : pro.status === "verified" ? "ok" : "danger",
+      });
+    }
+    for (const u of db.users.filter((x) => x.role === "client")) {
+      activity.push({
+        id: `client_${u.id}`,
+        at: u.createdAt,
+        kind: "client",
+        title: `Client inscrit`,
+        detail: `${u.firstName} ${u.lastName.charAt(0)}.`,
+        href: "/admin/clients",
+        tone: "info",
+      });
+    }
+
+    activity.sort((a, b) => b.at.localeCompare(a.at));
+
     return {
-      userCount: db.users.length,
-      clientCount: db.users.filter((u) => u.role === "client").length,
+      userCount: db.users.filter((u) => !u.deletedAt).length,
+      clientCount: db.users.filter((u) => u.role === "client" && !u.deletedAt).length,
       proCount: db.pros.length,
-      activePros: db.pros.filter((p) => p.online && p.verified).length,
+      activePros: onlinePros,
       pendingPros: db.pros.filter((p) => p.status === "pending").length,
+      pendingDocs,
       missionCount: db.missions.length,
-      liveMissions: db.missions.filter((m) => ["offered", "accepted", "en_route", "arrived", "in_progress"].includes(m.status)).length,
+      liveMissions: liveMissions.length,
+      openRequests,
+      openDisputes,
+      openTickets,
+      invoiceCount: invoices.length,
+      quoteCount: (db.quotes ?? []).length,
       volume,
       revenue,
-      averageBasket: paid.length ? volume / paid.length : 0,
+      heldFunds: db.payments.filter((p) => p.status === "held").reduce((a, p) => a + p.amount, 0),
+      averageBasket: paidDone.length ? volume / paidDone.length : 0,
       cancelRate: db.missions.length ? cancelled / db.missions.length : 0,
-      conversion: db.missions.length ? db.missions.filter((m) => m.status === "completed").length / db.missions.length : 0,
+      conversion: db.missions.length
+        ? db.missions.filter((m) => m.status === "completed").length / db.missions.length
+        : 0,
       settings: db.settings,
       categories: db.categories,
       disputes: db.disputes,
       payments: [...db.payments].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 80),
+      activity: activity.slice(0, 60),
+      liveMissionList: liveMissions
+        .map((m) => enrichMission(db, m))
+        .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? "")),
+      attention: {
+        pendingPros: db.pros.filter((p) => p.status === "pending").length,
+        pendingDocs,
+        openDisputes,
+        openTickets,
+        openRequests,
+        liveMissions: liveMissions.length,
+      },
     };
   }, false);
 }
@@ -2046,6 +2188,12 @@ export async function adminLists() {
       loyaltyBadge: computeLoyaltyBadge(p),
     })),
     missions: db.missions.map((m) => enrichMission(db, m)),
+    requests: (db.requests ?? []).map((r) => ({
+      ...r,
+      category: db.categories.find((c) => c.id === r.categoryId) ?? null,
+      client: publicUserMasked(db.users.find((u) => u.id === r.clientId)!),
+      offerCount: (db.offers ?? []).filter((o) => o.requestId === r.id).length,
+    })),
     payments: db.payments,
     quotes: db.quotes ?? [],
     invoices: db.invoices ?? [],
@@ -2061,6 +2209,7 @@ export async function adminLists() {
       ...e,
       to: e.to.replace(/(.{2}).+(@.+)/, "$1***$2"),
     })),
+    notifications: (db.notifications ?? []).slice(0, 40),
   }), false);
 }
 
