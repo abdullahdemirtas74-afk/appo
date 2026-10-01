@@ -93,6 +93,16 @@ export default function ProProfil() {
         <LanguageSettings onSaved={() => reload()} />
       </div>
       <Button
+        className="mt-4 w-full"
+        variant="secondary"
+        onClick={async () => {
+          await api("/api/me", { action: "resetOnboarding" });
+          router.push("/pro/onboarding");
+        }}
+      >
+        Revoir le guide de démarrage
+      </Button>
+      <Button
         className="mt-8 w-full"
         variant="secondary"
         onClick={async () => {

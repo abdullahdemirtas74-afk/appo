@@ -5,7 +5,7 @@
 **Repo :** https://github.com/abdullahdemirtas74-afk/appo  
 **App :** https://appo-production-10fb.up.railway.app  
 
-**Avancement estimé :** MVP produit ~92–94 % · Prod « sérieuse » ~45–50 %
+**Avancement estimé :** MVP produit ~94–95 % · Prod « sérieuse » ~45–50 %
 
 ---
 
@@ -91,7 +91,7 @@
 - [ ] Activer e-mails (Resend + `APPO_MAIL_*`)
 - [ ] SMS / push (offres Now, litiges, codes)
 - [ ] CGU / mentions légales / contrat pro plus formels
-- [ ] Parcours onboarding guidé (1er client / 1er pro)
+- [x] Parcours onboarding guidé (1er client / 1er pro)
 
 ### C. Qualité & robustesse
 - [ ] Nettoyer ESLint (erreurs historiques `any` / purity)

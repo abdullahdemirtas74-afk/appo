@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import { clearSession, getSession } from "@/lib/auth";
 import {
   addClientAddress,
+  completeOnboarding,
   deleteMyAccount,
   errorStatus,
   exportPersonalData,
   getMe,
   markNotificationsRead,
+  resetOnboarding,
   setDefaultAddress,
   setUserLocale,
   subscribeClientPlus,
@@ -34,8 +36,19 @@ export async function POST(req: Request) {
       const result = await setUserLocale(session.userId, String(body.locale ?? "fr"));
       return NextResponse.json(result);
     }
+    if (body.action === "completeOnboarding") {
+      const user = await completeOnboarding(session.userId);
+      return NextResponse.json({ user });
+    }
+    if (body.action === "resetOnboarding") {
+      const user = await resetOnboarding(session.userId);
+      return NextResponse.json({ user });
+    }
     if (body.action === "subscribePlus") {
-      const result = await subscribeClientPlus(session.userId, body.plan === "yearly" ? "yearly" : "monthly");
+      const result = await subscribeClientPlus(
+        session.userId,
+        body.plan === "yearly" ? "yearly" : "monthly",
+      );
       return NextResponse.json(result);
     }
     if (body.action === "markNotificationsRead") {

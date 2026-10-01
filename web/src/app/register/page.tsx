@@ -86,7 +86,7 @@ function RegisterForm() {
               },
             };
       const res = await api<{ user: { role: string } }>("/api/auth/register", body);
-      router.replace(res.user.role === "pro" ? "/pro" : "/app");
+      router.replace(res.user.role === "pro" ? "/pro/onboarding" : "/app/onboarding");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur");
     } finally {

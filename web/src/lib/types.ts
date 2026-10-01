@@ -33,6 +33,8 @@ export type User = {
   walletBalance?: number;
   /** Qui a parrainé ce compte */
   referredByUserId?: string | null;
+  /** null = onboarding à faire ; ISO = terminé / passé */
+  onboardingCompletedAt?: string | null;
 };
 
 export type Address = {

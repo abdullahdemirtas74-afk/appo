@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Guard } from "@/components/guard";
 import { PRO_MOBILE_NAV, PRO_NAV } from "@/components/nav";
 import { AppShell } from "@/components/shell";
@@ -10,7 +10,16 @@ import { money } from "@/lib/format";
 
 function OfferOverlay() {
   const router = useRouter();
-  const { data, reload } = usePoll<any>("/api/pro", 1000);
+  const { data, reload } = usePoll<{
+    offer?: {
+      id: string;
+      price: number;
+      city: string;
+      description: string;
+      offerExpiresAt?: string | null;
+      category?: { name?: string };
+    } | null;
+  }>("/api/pro", 1000);
   const offer = data?.offer ? data.offer : null;
   if (!offer) return null;
   const m = offer;
@@ -53,18 +62,26 @@ function OfferOverlay() {
   );
 }
 
+function ProChrome({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  if (pathname?.startsWith("/pro/onboarding")) return <>{children}</>;
+  return (
+    <AppShell
+      items={PRO_NAV}
+      mobileItems={PRO_MOBILE_NAV}
+      root="/pro"
+      title="Espace Pro"
+      overlay={<OfferOverlay />}
+    >
+      {children}
+    </AppShell>
+  );
+}
+
 export default function ProLayout({ children }: { children: React.ReactNode }) {
   return (
     <Guard role="pro">
-      <AppShell
-        items={PRO_NAV}
-        mobileItems={PRO_MOBILE_NAV}
-        root="/pro"
-        title="Espace Pro"
-        overlay={<OfferOverlay />}
-      >
-        {children}
-      </AppShell>
+      <ProChrome>{children}</ProChrome>
     </Guard>
   );
 }

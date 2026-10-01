@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { usePoll } from "@/lib/hooks";
 import { useLocale } from "@/lib/i18n";
@@ -32,6 +32,7 @@ export function Guard({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { data, loading } = useMe();
   const { setLocale } = useLocale();
 
@@ -44,8 +45,17 @@ export function Guard({
     if (data.user.role !== role) {
       const dest = data.user.role === "admin" ? "/admin" : data.user.role === "pro" ? "/pro" : "/app";
       router.replace(dest);
+      return;
     }
-  }, [data, loading, role, router]);
+    if (role === "client" || role === "pro") {
+      const needsOnboarding = data.user.onboardingCompletedAt == null;
+      const onOnboarding = pathname?.includes("/onboarding");
+      const isHome = pathname === "/app" || pathname === "/pro";
+      if (needsOnboarding && isHome && !onOnboarding) {
+        router.replace(role === "pro" ? "/pro/onboarding" : "/app/onboarding");
+      }
+    }
+  }, [data, loading, role, router, pathname]);
 
   useEffect(() => {
     const loc = data?.user?.locale;

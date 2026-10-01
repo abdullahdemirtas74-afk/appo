@@ -151,6 +151,8 @@ function migrate(db: DB): DB {
     }
   }
   db.users = db.users.map((u) => {
+    const onboardingCompletedAt =
+      "onboardingCompletedAt" in u ? (u.onboardingCompletedAt ?? null) : u.createdAt;
     if (u.role !== "client") {
       return ensureUserGrowthFields(
         {
@@ -159,6 +161,7 @@ function migrate(db: DB): DB {
           deletedAt: u.deletedAt ?? null,
           locale: u.locale ?? "fr",
           phone: openPii(u.phone),
+          onboardingCompletedAt,
         },
         db.settings,
       );
@@ -175,6 +178,7 @@ function migrate(db: DB): DB {
         deletedAt: u.deletedAt ?? null,
         locale: u.locale ?? "fr",
         phone: openPii(u.phone),
+        onboardingCompletedAt,
       },
       db.settings,
     );

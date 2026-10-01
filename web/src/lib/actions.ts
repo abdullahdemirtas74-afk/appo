@@ -122,6 +122,7 @@ export async function registerClient(input: {
       referralCode: "",
       walletBalance: 0,
       referredByUserId: null as string | null,
+      onboardingCompletedAt: null as string | null,
     };
     user.referralCode = makeReferralCode(user);
     db.users.push(user);
@@ -204,6 +205,24 @@ export async function setUserLocale(userId: string, locale: string) {
     if (!isValidLanguageCode(code)) throw new Error("INVALID_LOCALE");
     user.locale = code;
     return { locale: user.locale, user: publicUser(user) };
+  });
+}
+
+export async function completeOnboarding(userId: string) {
+  return mutate((db) => {
+    const user = requireUser(db, userId);
+    if (user.role !== "client" && user.role !== "pro") throw new Error("FORBIDDEN");
+    user.onboardingCompletedAt = new Date().toISOString();
+    return publicUser(user);
+  });
+}
+
+export async function resetOnboarding(userId: string) {
+  return mutate((db) => {
+    const user = requireUser(db, userId);
+    if (user.role !== "client" && user.role !== "pro") throw new Error("FORBIDDEN");
+    user.onboardingCompletedAt = null;
+    return publicUser(user);
   });
 }
 
@@ -330,6 +349,7 @@ export async function registerPro(input: {
       referralCode: "",
       walletBalance: 0,
       referredByUserId: null as string | null,
+      onboardingCompletedAt: null as string | null,
     };
     user.referralCode = makeReferralCode(user);
     db.users.push(user);

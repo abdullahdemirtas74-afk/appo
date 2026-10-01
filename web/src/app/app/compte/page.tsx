@@ -338,6 +338,14 @@ export default function ComptePage() {
             v: languageLabel(user?.locale ?? locale, "fr").nativeName,
             onClick: () => setSection("language"),
           },
+          {
+            k: "Guide de démarrage",
+            v: "Revoir l’onboarding",
+            onClick: async () => {
+              await api("/api/me", { action: "resetOnboarding" });
+              router.push("/app/onboarding");
+            },
+          },
           { k: "Confidentialité", v: "Export & suppression", onClick: () => setSection("privacy") },
           { k: "Aide & litiges", v: "Support AppO", href: "/app/support" },
         ].map((row) => {
