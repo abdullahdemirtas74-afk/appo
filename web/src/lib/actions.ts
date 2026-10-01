@@ -32,6 +32,7 @@ import {
   withClientPlusSettings,
 } from "./client-plus";
 import { etaMinutes, haversineKm } from "./geo";
+import { findCityByName } from "./cities";
 import {
   clampPayoutDelay,
   holdClientFunds,
@@ -294,17 +295,19 @@ export async function addClientAddress(
     requireUser(db, userId, "client");
     const mine = db.addresses.filter((a) => a.userId === userId);
     for (const a of mine) a.isDefault = false;
+    const cityMeta = findCityByName(input.city);
     const addr = {
       id: nid("adr"),
       userId,
-      label: String(input.label || "Adresse").trim(),
+      label: String(input.label || "Adresse").trim() || "Domicile",
       line: String(input.line).trim(),
-      city: String(input.city).trim(),
-      zip: String(input.zip || "").trim(),
-      lat: Number(input.lat ?? 45.8782),
-      lng: Number(input.lng ?? 6.0581),
+      city: String(input.city).trim() || cityMeta.name,
+      zip: String(input.zip || cityMeta.zipHint || "").trim(),
+      lat: Number(input.lat ?? cityMeta.lat),
+      lng: Number(input.lng ?? cityMeta.lng),
       isDefault: true,
     };
+    if (!addr.line) throw new Error("ADDRESS_REQUIRED");
     db.addresses.push(addr);
     return db.addresses.filter((a) => a.userId === userId);
   });

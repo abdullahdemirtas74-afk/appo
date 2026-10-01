@@ -14,6 +14,14 @@ export function readSavedCity(): ServiceCity {
   }
 }
 
+export function saveCity(city: ServiceCity) {
+  try {
+    localStorage.setItem(STORAGE_KEY, city.id);
+  } catch {
+    /* ignore */
+  }
+}
+
 export function CityPicker({
   value,
   onChange,
@@ -29,11 +37,7 @@ export function CityPicker({
         value={value.id}
         onChange={(e) => {
           const city = SERVICE_CITIES.find((c) => c.id === e.target.value) ?? SERVICE_CITIES[0];
-          try {
-            localStorage.setItem(STORAGE_KEY, city.id);
-          } catch {
-            /* ignore */
-          }
+          saveCity(city);
           onChange(city);
         }}
       >

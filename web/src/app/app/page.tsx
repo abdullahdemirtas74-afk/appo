@@ -3,27 +3,31 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { MapPin, Search } from "lucide-react";
-import { CityPicker, readSavedCity } from "@/components/city-picker";
+import { Search } from "lucide-react";
+import { AddressBanner } from "@/components/address-banner";
+import { readSavedCity } from "@/components/city-picker";
 import { Logo } from "@/components/logo";
 import { NotificationBell } from "@/components/notifications";
 import { Button } from "@/components/ui";
 import { useMe } from "@/components/guard";
+import { findCityByName, type ServiceCity } from "@/lib/cities";
 import { usePoll } from "@/lib/hooks";
-import type { ServiceCity } from "@/lib/cities";
 
 type Cat = { id: string; name: string; emoji: string };
 
 export default function ClientHome() {
   const router = useRouter();
-  const { data: me } = useMe();
+  const { data: me, reload } = useMe();
   const { data } = usePoll<{ categories: Cat[] }>("/api/categories", 0);
-  const addr = me?.addresses?.find((a) => a.isDefault);
+  const addr = me?.addresses?.find((a) => a.isDefault) ?? me?.addresses?.[0] ?? null;
   const [city, setCity] = useState<ServiceCity | null>(null);
+
   useEffect(() => {
-    setCity(readSavedCity());
-  }, []);
-  const place = addr ? `${addr.line}, ${addr.city}` : city?.name ?? "Rumilly";
+    if (addr?.city) setCity(findCityByName(addr.city));
+    else setCity(readSavedCity());
+  }, [addr?.city]);
+
+  const searchCity = city?.name ?? addr?.city;
 
   return (
     <div className="px-4 pt-5 sm:px-6 sm:pt-6 md:px-8 md:pt-8">
@@ -32,37 +36,34 @@ export default function ClientHome() {
         <NotificationBell />
       </div>
 
-      <div className="hidden items-start justify-between md:flex">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 text-sm text-muted">
-            <MapPin size={16} className="shrink-0 text-appo" />
-            <span className="truncate">{place}</span>
-          </div>
-          <h1 className="mt-2 text-3xl font-extrabold tracking-tight lg:text-4xl">
-            Quel service recherchez-vous ?
-          </h1>
-          <p className="mt-2 max-w-xl text-muted">
-            Trouvez un pro vérifié autour de vous — immédiatement ou sur rendez-vous.
-          </p>
+      <div className="mt-5 flex items-start justify-between gap-3 md:mt-0">
+        <div className="min-w-0 flex-1">
+          <AddressBanner
+            address={addr}
+            city={city}
+            onCityChange={setCity}
+            onSaved={() => reload()}
+          />
         </div>
-        <NotificationBell />
+        <div className="hidden md:block">
+          <NotificationBell />
+        </div>
       </div>
 
-      <div className="mt-5 flex items-center gap-2 text-sm text-muted md:hidden">
-        <MapPin size={16} className="shrink-0 text-appo" />
-        <span className="truncate">{place}</span>
-      </div>
-      <h1 className="mt-2 text-2xl font-extrabold md:hidden">Quel service recherchez-vous ?</h1>
-
-      {city ? (
-        <div className="mt-4 max-w-md">
-          <CityPicker value={city} onChange={setCity} />
-        </div>
-      ) : null}
+      <h1 className="mt-4 text-2xl font-extrabold tracking-tight md:text-3xl lg:text-4xl">
+        Quel service recherchez-vous ?
+      </h1>
+      <p className="mt-2 hidden max-w-xl text-muted md:block">
+        Trouvez un pro vérifié autour de vous — immédiatement ou sur rendez-vous.
+      </p>
 
       <button
         onClick={() =>
-          router.push(city ? `/app/recherche?city=${encodeURIComponent(city.name)}` : "/app/recherche")
+          router.push(
+            searchCity
+              ? `/app/recherche?city=${encodeURIComponent(searchCity)}`
+              : "/app/recherche",
+          )
         }
         className="mt-4 flex w-full max-w-2xl items-center gap-3 rounded-2xl border border-line bg-card px-4 py-3.5 text-left text-muted md:mt-6"
       >
@@ -140,8 +141,8 @@ export default function ClientHome() {
           <Link
             key={c.id}
             href={
-              city
-                ? `/app/recherche?categoryId=${c.id}&city=${encodeURIComponent(city.name)}`
+              searchCity
+                ? `/app/recherche?categoryId=${c.id}&city=${encodeURIComponent(searchCity)}`
                 : `/app/recherche?categoryId=${c.id}`
             }
             className="rounded-2xl border border-line bg-card p-3 text-center transition hover:border-appo/40 hover:shadow-sm"
