@@ -1,5 +1,5 @@
 /* AppO PWA — cache shell léger */
-const CACHE = "appo-shell-v1";
+const CACHE = "appo-shell-v2";
 const PRECACHE = ["/", "/manifest.webmanifest", "/icons/icon.svg"];
 
 self.addEventListener("install", (event) => {

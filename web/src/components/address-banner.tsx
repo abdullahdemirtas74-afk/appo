@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { MapPin, Pencil } from "lucide-react";
+import { MapPin } from "lucide-react";
 import { Button, inputClass } from "@/components/ui";
 import { findCityByName, SERVICE_CITIES, type ServiceCity } from "@/lib/cities";
 import { api } from "@/lib/hooks";
@@ -16,9 +16,9 @@ type Props = {
 };
 
 export function AddressBanner({ address, onSaved, city, onCityChange }: Props) {
-  const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [ok, setOk] = useState(false);
   const defaultCity = city ?? readSavedCity();
   const [line, setLine] = useState(address?.line ?? "");
   const [cityId, setCityId] = useState(
@@ -35,9 +35,6 @@ export function AddressBanner({ address, onSaved, city, onCityChange }: Props) {
   }, [address]);
 
   const selected = SERVICE_CITIES.find((c) => c.id === cityId) ?? SERVICE_CITIES[0];
-  const label = address
-    ? `${address.line}, ${address.city}${address.zip ? ` ${address.zip}` : ""}`
-    : "Indiquer mon adresse";
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -47,6 +44,7 @@ export function AddressBanner({ address, onSaved, city, onCityChange }: Props) {
     }
     setSaving(true);
     setError("");
+    setOk(false);
     try {
       await api("/api/me", {
         action: "addAddress",
@@ -59,7 +57,7 @@ export function AddressBanner({ address, onSaved, city, onCityChange }: Props) {
       });
       saveCity(selected);
       onCityChange?.(selected);
-      setOpen(false);
+      setOk(true);
       await onSaved?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur");
@@ -69,88 +67,64 @@ export function AddressBanner({ address, onSaved, city, onCityChange }: Props) {
   }
 
   return (
-    <div className="max-w-md">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-start gap-2 rounded-2xl border border-line bg-card px-3.5 py-3 text-left transition hover:border-appo/40"
-      >
-        <MapPin size={18} className="mt-0.5 shrink-0 text-appo" />
-        <div className="min-w-0 flex-1">
-          <div className="text-[11px] font-bold uppercase tracking-wide text-muted">
-            {address ? "Mon adresse" : "Où êtes-vous ?"}
-          </div>
-          <div className="mt-0.5 truncate text-sm font-semibold text-ink">{label}</div>
-          {!address ? (
-            <p className="mt-0.5 text-xs text-muted">Rue, ville — pour trouver les pros près de chez vous</p>
-          ) : null}
+    <div className="max-w-lg rounded-2xl border border-appo/25 bg-gradient-to-br from-appo/5 to-card p-4">
+      <div className="flex items-center gap-2">
+        <MapPin size={18} className="shrink-0 text-appo" />
+        <div>
+          <div className="text-xs font-bold uppercase tracking-wide text-appo">Votre adresse</div>
+          <p className="text-sm text-muted">Indiquez où vous êtes pour trouver les pros autour de vous.</p>
         </div>
-        <Pencil size={14} className="mt-1 shrink-0 text-muted" />
-      </button>
+      </div>
 
-      {open ? (
-        <form
-          onSubmit={save}
-          className="mt-2 space-y-2 rounded-2xl border border-line bg-white p-3 shadow-sm"
-        >
+      <form onSubmit={save} className="mt-3 space-y-2">
+        <label className="block">
+          <span className="sr-only">Rue et numéro</span>
+          <input
+            className={inputClass}
+            placeholder="Rue et numéro — ex. 12 rue de la République"
+            value={line}
+            onChange={(e) => setLine(e.target.value)}
+            required
+            autoComplete="street-address"
+          />
+        </label>
+        <div className="grid grid-cols-[1.4fr_0.8fr] gap-2">
           <label className="block">
-            <span className="text-xs font-bold uppercase tracking-wide text-muted">Adresse</span>
+            <span className="sr-only">Ville</span>
+            <select
+              className={inputClass}
+              value={cityId}
+              onChange={(e) => {
+                const c = SERVICE_CITIES.find((x) => x.id === e.target.value) ?? SERVICE_CITIES[0];
+                setCityId(c.id);
+                setZip(c.zipHint ?? "");
+              }}
+            >
+              {SERVICE_CITIES.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="sr-only">Code postal</span>
             <input
-              className={`${inputClass} mt-1`}
-              placeholder="12 rue de la République"
-              value={line}
-              onChange={(e) => setLine(e.target.value)}
-              autoFocus
-              required
+              className={inputClass}
+              placeholder="CP"
+              value={zip}
+              onChange={(e) => setZip(e.target.value)}
+              inputMode="numeric"
+              autoComplete="postal-code"
             />
           </label>
-          <div className="grid grid-cols-[1.4fr_0.8fr] gap-2">
-            <label className="block">
-              <span className="text-xs font-bold uppercase tracking-wide text-muted">Ville</span>
-              <select
-                className={`${inputClass} mt-1`}
-                value={cityId}
-                onChange={(e) => {
-                  const c = SERVICE_CITIES.find((x) => x.id === e.target.value) ?? SERVICE_CITIES[0];
-                  setCityId(c.id);
-                  setZip(c.zipHint ?? "");
-                }}
-              >
-                {SERVICE_CITIES.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block">
-              <span className="text-xs font-bold uppercase tracking-wide text-muted">CP</span>
-              <input
-                className={`${inputClass} mt-1`}
-                placeholder="74150"
-                value={zip}
-                onChange={(e) => setZip(e.target.value)}
-                inputMode="numeric"
-              />
-            </label>
-          </div>
-          {error ? <p className="text-sm text-red-600">{error}</p> : null}
-          <div className="flex gap-2 pt-1">
-            <Button type="submit" variant="now" className="flex-1 py-2.5" disabled={saving}>
-              {saving ? "Enregistrement…" : "Enregistrer"}
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              className="py-2.5"
-              onClick={() => setOpen(false)}
-              disabled={saving}
-            >
-              Annuler
-            </Button>
-          </div>
-        </form>
-      ) : null}
+        </div>
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        {ok ? <p className="text-sm font-semibold text-green">Adresse enregistrée</p> : null}
+        <Button type="submit" variant="now" className="w-full py-2.5" disabled={saving}>
+          {saving ? "Enregistrement…" : address ? "Mettre à jour mon adresse" : "Enregistrer mon adresse"}
+        </Button>
+      </form>
     </div>
   );
 }
