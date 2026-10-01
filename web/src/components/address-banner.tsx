@@ -13,9 +13,18 @@ type Props = {
   onSaved?: () => void | Promise<void>;
   city?: ServiceCity | null;
   onCityChange?: (city: ServiceCity) => void;
+  /** Affiche le formulaire seulement si pas d’adresse, ou si l’utilisateur ouvre l’édition */
+  compactWhenSet?: boolean;
 };
 
-export function AddressBanner({ address, onSaved, city, onCityChange }: Props) {
+export function AddressBanner({
+  address,
+  onSaved,
+  city,
+  onCityChange,
+  compactWhenSet = false,
+}: Props) {
+  const [editing, setEditing] = useState(!address);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [ok, setOk] = useState(false);
@@ -27,14 +36,19 @@ export function AddressBanner({ address, onSaved, city, onCityChange }: Props) {
   const [zip, setZip] = useState(address?.zip ?? defaultCity.zipHint ?? "");
 
   useEffect(() => {
-    if (!address) return;
+    if (!address) {
+      setEditing(true);
+      return;
+    }
     setLine(address.line);
     const c = findCityByName(address.city);
     setCityId(c.id);
     setZip(address.zip || c.zipHint || "");
-  }, [address]);
+    if (compactWhenSet) setEditing(false);
+  }, [address, compactWhenSet]);
 
   const selected = SERVICE_CITIES.find((c) => c.id === cityId) ?? SERVICE_CITIES[0];
+  const showForm = editing || !address;
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -58,12 +72,33 @@ export function AddressBanner({ address, onSaved, city, onCityChange }: Props) {
       saveCity(selected);
       onCityChange?.(selected);
       setOk(true);
+      if (compactWhenSet) setEditing(false);
       await onSaved?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur");
     } finally {
       setSaving(false);
     }
+  }
+
+  if (!showForm && address) {
+    return (
+      <button
+        type="button"
+        onClick={() => setEditing(true)}
+        className="flex w-full max-w-lg items-center gap-2 rounded-2xl border border-line bg-card px-3.5 py-3 text-left transition hover:border-appo/40"
+      >
+        <MapPin size={18} className="shrink-0 text-appo" />
+        <div className="min-w-0 flex-1">
+          <div className="text-[11px] font-bold uppercase tracking-wide text-muted">Mon adresse</div>
+          <div className="truncate text-sm font-semibold">
+            {address.line}, {address.city}
+            {address.zip ? ` ${address.zip}` : ""}
+          </div>
+        </div>
+        <span className="text-xs font-semibold text-appo">Modifier</span>
+      </button>
+    );
   }
 
   return (
@@ -121,9 +156,16 @@ export function AddressBanner({ address, onSaved, city, onCityChange }: Props) {
         </div>
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
         {ok ? <p className="text-sm font-semibold text-green">Adresse enregistrée</p> : null}
-        <Button type="submit" variant="now" className="w-full py-2.5" disabled={saving}>
-          {saving ? "Enregistrement…" : address ? "Mettre à jour mon adresse" : "Enregistrer mon adresse"}
-        </Button>
+        <div className="flex gap-2">
+          <Button type="submit" variant="now" className="flex-1 py-2.5" disabled={saving}>
+            {saving ? "Enregistrement…" : address ? "Mettre à jour" : "Enregistrer mon adresse"}
+          </Button>
+          {address && compactWhenSet ? (
+            <Button type="button" variant="secondary" className="py-2.5" onClick={() => setEditing(false)}>
+              Annuler
+            </Button>
+          ) : null}
+        </div>
       </form>
     </div>
   );
