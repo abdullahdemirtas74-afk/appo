@@ -2029,7 +2029,7 @@ export async function adminAction(userId: string, action: string, payload: Recor
       pro.subscriptionTier = "prime";
       pro.primePlan = "monthly";
       notify(db, pro.userId, "AppO Prime offert", `${days} jours Prime activés par l’admin`, "/pro/premium");
-      return { ...pro, tier: effectiveTier(pro), premiumActive: true };
+      return { ...pro, tier: effectiveTier(pro), premiumActive: isPrimeActive(pro), primeUntil: pro.primeUntil };
     }
     if (action === "grantBoost") {
       const pro = db.pros.find((p) => p.id === payload.proId);

@@ -38,6 +38,11 @@ export default function AdminPros() {
                   {p.premiumActive || p.tier === "prime" ? <Badge tone="premium">Prime</Badge> : null}
                   {p.boostActive ? <Badge tone="orange">Boost</Badge> : null}
                 </div>
+                {p.primeUntil || p.premiumUntil ? (
+                  <p className="mt-2 text-xs text-muted">
+                    Prime jusqu’au {new Date(p.primeUntil || p.premiumUntil).toLocaleDateString("fr-FR")}
+                  </p>
+                ) : null}
                 <div className="mt-3 space-y-2">
                   {(p.checklist ?? p.documents?.map((d: any) => ({ type: d.type, status: d.status, doc: d, label: DOC_LABEL[d.type] ?? d.type, required: d.type !== "certification" })) ?? []).map(
                     (row: any) => (
@@ -136,13 +141,22 @@ export default function AdminPros() {
                   </Button>
                 )}
                 <Button
-                  variant="secondary"
+                  variant="now"
                   onClick={async () => {
                     await api("/api/admin", { action: "grantPrime", proId: p.id, days: 30 });
                     reload();
                   }}
                 >
-                  +30j Prime
+                  Offrir Prime 30 j
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={async () => {
+                    await api("/api/admin", { action: "grantPrime", proId: p.id, days: 365 });
+                    reload();
+                  }}
+                >
+                  Offrir Prime 1 an
                 </Button>
                 <Button
                   variant="secondary"
