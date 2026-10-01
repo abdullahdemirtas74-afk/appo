@@ -331,7 +331,6 @@ export default function ComptePage() {
           },
           { k: "Demandes / devis", v: "RFQ", href: "/app/demandes" },
           { k: "Mes factures", v: `${paid.length} facture(s)`, href: "/app/factures" },
-          { k: "Assistant", v: "Décrire mon besoin", href: "/app/assistant" },
           { k: "Professionnels favoris", v: `${me?.favorites?.length ?? 0}`, onClick: () => setSection("favorites") },
           { k: "Mes réservations", v: `${missionsData?.missions?.length ?? 0} missions`, href: "/app/missions" },
           {

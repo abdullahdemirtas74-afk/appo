@@ -10,16 +10,16 @@ export const CLIENT_ONBOARDING: OnboardingStep[] = [
   {
     id: "welcome",
     title: "Bienvenue sur AppO",
-    body: "Indiquez votre adresse, puis demandez un pro en quelques étapes — immédiat, rendez-vous ou devis.",
+    body: "En quelques étapes, vous saurez comment trouver un pro vérifié près de chez vous — immédiatement ou sur rendez-vous.",
     ctaLabel: "Voir mon adresse",
-    href: "/app",
+    href: "/app/compte",
   },
   {
     id: "find",
-    title: "Demander un pro",
-    body: "Un seul bouton : choisissez le service, le moment (maintenant / rendez-vous / devis), et c’est parti.",
-    ctaLabel: "Demander un pro",
-    href: "/app/demander",
+    title: "Trouver un pro",
+    body: "Utilisez « Maintenant » pour une urgence, la recherche pour comparer, ou publiez une demande pour recevoir plusieurs devis.",
+    ctaLabel: "Ouvrir la recherche",
+    href: "/app/recherche",
   },
   {
     id: "follow",
@@ -30,10 +30,10 @@ export const CLIENT_ONBOARDING: OnboardingStep[] = [
   },
   {
     id: "docs",
-    title: "Factures & compte",
-    body: "Factures, wallet et réglages sont regroupés dans Compte — moins d’onglets, plus clair.",
-    ctaLabel: "Ouvrir Compte",
-    href: "/app/compte",
+    title: "Factures & crédits",
+    body: "Retrouvez devis et factures électroniques sous Factures. Wallet et parrainage vous donnent des crédits pour les prochaines interventions.",
+    ctaLabel: "Ouvrir Factures",
+    href: "/app/factures",
   },
 ];
 

@@ -16,9 +16,10 @@ import type { NavItem } from "@/components/shell";
 
 export const CLIENT_NAV: NavItem[] = [
   { href: "/app", label: "Accueil", icon: Home },
-  { href: "/app/demander", label: "Demander", icon: Sparkles },
+  { href: "/app/assistant", label: "Assistant", icon: Sparkles },
   { href: "/app/missions", label: "Missions", icon: ClipboardList },
   { href: "/app/factures", label: "Factures", icon: Receipt },
+  { href: "/app/wallet", label: "Wallet", icon: Wallet },
   { href: "/app/messages", label: "Messages", icon: MessageCircle },
   { href: "/app/compte", label: "Compte", icon: CircleUser },
 ];
@@ -48,11 +49,11 @@ export const PRO_MOBILE_NAV: NavItem[] = [
   { href: "/pro/profil", label: "Profil", icon: CircleUser },
 ];
 
-/** Client téléphone — 5 onglets max */
+/** Client téléphone — Factures toujours visible */
 export const CLIENT_MOBILE_NAV: NavItem[] = [
   { href: "/app", label: "Accueil", icon: Home },
-  { href: "/app/demander", label: "Demander", icon: Sparkles },
   { href: "/app/missions", label: "Missions", icon: ClipboardList },
+  { href: "/app/factures", label: "Factures", icon: Receipt },
   { href: "/app/messages", label: "Messages", icon: MessageCircle },
   { href: "/app/compte", label: "Compte", icon: CircleUser },
 ];
