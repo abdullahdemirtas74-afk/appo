@@ -1,9 +1,7 @@
 import {
-  Building2,
   Calendar,
   CircleUser,
   ClipboardList,
-  Crown,
   FileText,
   Home,
   LayoutDashboard,
@@ -31,15 +29,11 @@ export const PRO_NAV: NavItem[] = [
   { href: "/pro/missions", label: "Missions", icon: ClipboardList },
   { href: "/pro/factures", label: "Factures", icon: Receipt },
   { href: "/pro/planning", label: "Planning", icon: Calendar },
-  { href: "/pro/premium", label: "Offres", icon: Crown },
-  { href: "/pro/business", label: "Business", icon: Building2 },
-  { href: "/pro/revenus", label: "Stats", icon: Wallet },
   { href: "/pro/profil", label: "Profil", icon: CircleUser },
 ];
 
 /**
- * Barre du bas téléphone — max 5 pour que Factures reste visible
- * sans faire défiler.
+ * Barre du bas téléphone — max 5
  */
 export const PRO_MOBILE_NAV: NavItem[] = [
   { href: "/pro", label: "Accueil", icon: LayoutDashboard },

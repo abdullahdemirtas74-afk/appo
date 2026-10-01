@@ -41,9 +41,9 @@ export const PRO_ONBOARDING: OnboardingStep[] = [
   {
     id: "welcome",
     title: "Bienvenue AppO Pro",
-    body: "Complétez votre profil pour apparaître auprès des clients de votre zone. On vous guide sur les points essentiels.",
-    ctaLabel: "Mon profil",
-    href: "/pro/profil",
+    body: "Le bouton DISPONIBLE sur l’accueil active les missions Now. Complétez ensuite docs et planning.",
+    ctaLabel: "Mon accueil",
+    href: "/pro",
   },
   {
     id: "docs",
@@ -55,15 +55,15 @@ export const PRO_ONBOARDING: OnboardingStep[] = [
   {
     id: "planning",
     title: "Planning & dispo",
-    body: "Définissez vos créneaux, absences et rayon d’intervention. Les clients ne voient que les pros réellement disponibles.",
+    body: "Définissez vos créneaux, absences et rayon. Les clients ne voient que les pros réellement disponibles.",
     ctaLabel: "Ouvrir le planning",
     href: "/pro/planning",
   },
   {
     id: "offers",
-    title: "Offres & revenus",
-    body: "Les missions Now apparaissent en alerte. Acceptez, suivez le GPS client, puis consultez vos stats et versements.",
-    ctaLabel: "Voir mes revenus",
-    href: "/pro/revenus",
+    title: "Demandes & missions",
+    body: "Les alertes Now apparaissent en pop-up. Les devis clients sont dans Demandes. Suivez le reste dans Missions.",
+    ctaLabel: "Voir les demandes",
+    href: "/pro/demandes",
   },
 ];

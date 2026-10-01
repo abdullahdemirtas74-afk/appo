@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { BadgeCheck } from "lucide-react";
 import { DocumentsEntry } from "@/components/documents-entry";
 import { useMe } from "@/components/guard";
@@ -7,13 +8,37 @@ import { Badge, Button } from "@/components/ui";
 import { api, usePoll } from "@/lib/hooks";
 import { formatDate, money, stars } from "@/lib/format";
 
+type ProApi = {
+  today?: number;
+  month?: number;
+  missions?: number;
+  rating?: number;
+  availability?: { availableNow?: boolean; label?: string; reason?: string; backAt?: string | null };
+  offer?: { id: string } | null;
+  openRequests?: number;
+};
+
 export default function ProHome() {
   const { data: me, reload: reloadMe } = useMe();
-  const { data, reload } = usePoll<any>("/api/pro", 3000);
-  const pro = me?.pro as any;
+  const { data, reload } = usePoll<ProApi>("/api/pro", 3000);
+  const { data: reqData } = usePoll<{ requests: { id: string }[] }>("/api/requests", 5000);
+  const { data: missionsData } = usePoll<{ missions: { id: string; status: string }[] }>("/api/missions", 5000);
+  const pro = me?.pro as
+    | (NonNullable<typeof me>["pro"] & {
+        availability?: ProApi["availability"];
+        tier?: string;
+        premiumActive?: boolean;
+        boostActive?: boolean;
+      })
+    | null
+    | undefined;
   const pending = pro && pro.status !== "verified";
   const availability = pro?.availability ?? data?.availability;
   const onAbsence = availability?.reason === "absence";
+  const openRequests = (reqData?.requests ?? []).length;
+  const activeMissions = (missionsData?.missions ?? []).filter((m) =>
+    ["accepted", "en_route", "arrived", "in_progress"].includes(m.status),
+  ).length;
 
   async function toggle() {
     try {
@@ -34,11 +59,12 @@ export default function ProHome() {
       <div className="text-sm text-muted md:hidden">AppO Pro</div>
       <h1 className="text-2xl font-extrabold md:text-3xl">Bonjour {me?.user?.firstName}</h1>
       <DocumentsEntry href="/pro/factures" />
+
       {pending ? (
-        <div className="mt-6 rounded-3xl border border-amber-200 bg-amber-50 p-4">
+        <div className="mt-6 rounded-3xl border border-amber-200 bg-amber-50 p-4 md:max-w-xl">
           <div className="font-bold">Compte en cours de vérification</div>
           <p className="mt-1 text-sm">
-            Déposez identité, Kbis et RC Pro, puis soumettez le dossier. L’admin valide document par document.
+            Déposez identité, Kbis et RC Pro, puis soumettez le dossier.
           </p>
           <Button href="/pro/verification" className="mt-3" variant="secondary">
             Ouvrir ma vérification
@@ -47,7 +73,7 @@ export default function ProHome() {
       ) : (
         <>
           {onAbsence ? (
-            <div className="mt-4 rounded-3xl border border-amber-200 bg-amber-50 p-4">
+            <div className="mt-4 rounded-3xl border border-amber-200 bg-amber-50 p-4 md:max-w-xl">
               <div className="font-bold">{availability?.label}</div>
               <p className="mt-1 text-sm">
                 Aucune alerte AppO Now pendant cette période.
@@ -58,6 +84,7 @@ export default function ProHome() {
               </Button>
             </div>
           ) : null}
+
           <button
             onClick={toggle}
             disabled={onAbsence}
@@ -74,9 +101,10 @@ export default function ProHome() {
             <div className="text-sm opacity-90">
               {availability?.availableNow
                 ? "Recevez des missions AppO Now près de chez vous."
-                : "Activez la dispo seulement si vous pouvez accepter maintenant."}
+                : "Touchez pour vous rendre disponible."}
             </div>
           </button>
+
           <div className="mt-4 grid grid-cols-2 gap-3 md:max-w-xl">
             <div className="rounded-3xl bg-ink p-4 text-white">
               <div className="text-xs opacity-70">Aujourd’hui</div>
@@ -87,6 +115,7 @@ export default function ProHome() {
               <div className="text-2xl font-black">{money(data?.month ?? 0)}</div>
             </div>
           </div>
+
           <div className="mt-3 flex flex-wrap gap-3 text-sm">
             <Badge>{data?.missions ?? 0} missions</Badge>
             <Badge tone="green">⭐ {stars(data?.rating ?? 0)}</Badge>
@@ -95,35 +124,31 @@ export default function ProHome() {
                 <BadgeCheck size={12} /> Pro vérifié
               </Badge>
             ) : null}
-            {(pro as any)?.tier === "elite" ? <Badge tone="premium">Elite</Badge> : null}
-            {(pro as any)?.tier === "prime" || (pro as any)?.premiumActive ? <Badge tone="premium">Prime</Badge> : null}
-            {(pro as any)?.boostActive ? <Badge tone="orange">Boost</Badge> : null}
+            {pro?.tier === "elite" ? <Badge tone="premium">Elite</Badge> : null}
+            {pro?.tier === "prime" || pro?.premiumActive ? <Badge tone="premium">Prime</Badge> : null}
+            {pro?.boostActive ? <Badge tone="orange">Boost</Badge> : null}
           </div>
-          {(pro as any)?.tier === "elite" || (pro as any)?.premiumActive || (pro as any)?.boostActive ? (
-            <div className="mt-4 rounded-3xl border border-appo/30 bg-appo/5 p-4 md:max-w-xl">
-              <div className="font-bold">Priorité matching active</div>
-              <p className="mt-1 text-sm text-muted">
-                {(pro as any)?.tier === "elite"
-                  ? "Elite : vous voyez les missions Now et RFQ en premier."
-                  : (pro as any)?.premiumActive
-                    ? "Prime : fenêtre exclusive + meilleur score de matching."
-                    : "Boost : mise en avant temporaire dans le matching."}
-                {(pro as any)?.boostActive ? " Boost en cours." : ""}
-              </p>
-              <Button href="/pro/premium" className="mt-3" variant="secondary">
-                Voir Offres
-              </Button>
-            </div>
-          ) : (
-            <div className="mt-4 rounded-3xl border border-line p-4 md:max-w-xl">
-              <div className="font-bold">Passez devant les autres pros</div>
-              <p className="mt-1 text-sm text-muted">Prime et Boost améliorent votre place dans AppO Now et les demandes.</p>
-              <Button href="/pro/premium" className="mt-3" variant="now">
-                Découvrir Prime
-              </Button>
-            </div>
-          )}
-          <div className="mt-6">
+
+          <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 md:max-w-xl">
+            <Link
+              href="/pro/demandes"
+              className="rounded-3xl border border-line bg-card p-4 transition hover:border-appo/40"
+            >
+              <div className="text-xs font-bold uppercase tracking-wide text-muted">À traiter</div>
+              <div className="mt-1 text-2xl font-black">{openRequests}</div>
+              <div className="text-sm text-muted">demande{openRequests === 1 ? "" : "s"} client</div>
+            </Link>
+            <Link
+              href="/pro/missions"
+              className="rounded-3xl border border-line bg-card p-4 transition hover:border-appo/40"
+            >
+              <div className="text-xs font-bold uppercase tracking-wide text-muted">En cours</div>
+              <div className="mt-1 text-2xl font-black">{activeMissions}</div>
+              <div className="text-sm text-muted">mission{activeMissions === 1 ? "" : "s"} active{activeMissions === 1 ? "" : "s"}</div>
+            </Link>
+          </div>
+
+          <div className="mt-6 md:max-w-xl">
             <div className="text-sm font-bold">Rayon d’intervention</div>
             <div className="mt-2 flex flex-wrap gap-2">
               {[5, 10, 25, 50].map((n) => (
@@ -142,22 +167,27 @@ export default function ProHome() {
               ))}
             </div>
           </div>
-          <Button href="/pro/planning" className="mt-6 w-full" variant="secondary">
-            Planning & congés
-          </Button>
-          <Button href="/pro/premium" className="mt-3 w-full" variant={(pro as any)?.tier === "pro" ? "now" : "secondary"}>
-            {(pro as any)?.tier === "elite"
-              ? "Espace Elite"
-              : (pro as any)?.tier === "prime" || (pro as any)?.premiumActive
-                ? "Gérer Prime / Boost"
-                : "Passer AppO Prime"}
-          </Button>
-          <Button href="/pro/business" className="mt-3 w-full" variant="secondary">
-            AppO Business
-          </Button>
-          <Button href="/pro/missions" className="mt-3 w-full" variant="secondary">
-            Voir les missions
-          </Button>
+
+          <div className="mt-6 grid grid-cols-2 gap-2 md:max-w-xl">
+            <Button href="/pro/planning" variant="secondary" className="w-full">
+              Planning
+            </Button>
+            <Button href="/pro/revenus" variant="secondary" className="w-full">
+              Revenus
+            </Button>
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-sm md:max-w-xl">
+            <Link href="/pro/premium" className="font-semibold text-appo">
+              {pro?.tier === "pro" && !pro?.premiumActive ? "Passer Prime →" : "Offres Prime / Boost →"}
+            </Link>
+            <Link href="/pro/business" className="font-semibold text-muted">
+              Business →
+            </Link>
+            <Link href="/pro/profil" className="font-semibold text-muted">
+              Profil →
+            </Link>
+          </div>
         </>
       )}
     </div>
