@@ -12,6 +12,12 @@ export const metadata: Metadata = {
   title: "AppO — Le bon pro, sans attendre",
   description:
     "Plomberie, électricité, serrurerie… AppO trouve un professionnel vérifié autour de vous, suit la mission et sécurise le paiement.",
+  applicationName: "AppO",
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: [{ url: "/icons/icon.svg", type: "image/svg+xml" }, { url: "/icons/icon-192.png", sizes: "192x192" }],
+    apple: [{ url: "/icons/icon-192.png", sizes: "192x192" }],
+  },
   appleWebApp: {
     capable: true,
     title: "AppO",

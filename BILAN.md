@@ -1,11 +1,11 @@
 # AppO — Bilan projet
 
-**Dernière mise à jour :** 9 septembre 2026  
-**Stack :** Next.js + TypeScript + Tailwind · DB fichier JSON · GitHub · Railway  
+**Dernière mise à jour :** 30 septembre 2026  
+**Stack :** Next.js + TypeScript + Tailwind · DB fichier JSON (+ fondation Postgres) · GitHub · Railway · PWA  
 **Repo :** https://github.com/abdullahdemirtas74-afk/appo  
 **App :** https://appo-production-10fb.up.railway.app  
 
-**Avancement estimé :** MVP produit ~90–92 % · Prod « sérieuse » ~35–40 %
+**Avancement estimé :** MVP produit ~92–94 % · Prod « sérieuse » ~45–50 %
 
 ---
 
@@ -18,6 +18,9 @@
 - [x] Comptes démo (`appo123`)
 - [x] UI responsive (mobile / tablette / desktop)
 - [x] Landing « Le bon pro, sans attendre »
+- [x] PWA installable (manifest + service worker + icônes)
+- [x] Multi-villes Haute-Savoie (sélecteur + distances)
+- [x] CI GitHub Actions (typecheck / build / smoke)
 
 ### Moteurs métier
 - [x] AppO Now (matching immédiat)
@@ -40,12 +43,13 @@
 ### Clients
 - [x] Particulier / entreprise / syndicat (à l’inscription)
 - [x] Compte : profil, adresses, favoris, factures
-- [x] Recherche de pros
+- [x] Recherche de pros (filtre ville)
 - [x] Messages mission
 - [x] AppO+ (abo + négociation de prix)
 - [x] Contacts masqués jusqu’à acceptation
-- [x] Facture post-mission + pourboires (simulés)
+- [x] Facture électronique post-mission (HT/TVA, commission masquée côté client/pro)
 - [x] Aide & litiges (tickets + litiges mission)
+- [x] Langues (ISO) via réglages
 
 ### Admin
 - [x] Validation / refus / suspension pros
@@ -59,16 +63,18 @@
 - [x] Secret sessions (`APPO_SECRET`)
 - [x] Cookies sécurisés, rate-limit login
 - [x] Écritures DB atomiques + backups rotatifs
-- [x] Healthcheck `/api/health`
+- [x] Healthcheck `/api/health` (+ statut Postgres si `DATABASE_URL`)
 - [x] Chiffrement téléphone / adresses au repos
 - [x] Consentement + page confidentialité
 - [x] Export / suppression compte
 
 ### Infra récente
 - [x] Upload disque (photos + docs PDF/images)
-- [x] GPS live pro + ETA recalculée
+- [x] GPS live pro + ETA recalculée + carte OSM
 - [x] `DATA_DIR` + volume Docker pour persistance
 - [x] Scaffolding mail Resend (désactivé)
+- [x] Monitoring stdout + prêt pour Sentry (`SENTRY_DSN`)
+- [x] Fondation Postgres (`sql/001_schema.sql`, client `pg`, activé si `DATABASE_URL`)
 
 ---
 
@@ -78,34 +84,33 @@
 - [ ] Monter un volume Railway sur `/data` + `DATA_DIR=/data`
 - [ ] Vérifier / fixer `APPO_SECRET` en prod
 - [ ] (Optionnel) migrer `railway.toml` → Infrastructure as Code Railway
+- [ ] (Optionnel) brancher Sentry : `SENTRY_DSN` + `npm i @sentry/nextjs`
 
 ### B. Pour clôturer la MVP produit
 - [ ] Paiements réels (Stripe + Stripe Connect pros)
 - [ ] Activer e-mails (Resend + `APPO_MAIL_*`)
 - [ ] SMS / push (offres Now, litiges, codes)
 - [ ] CGU / mentions légales / contrat pro plus formels
-- [ ] PWA / installation mobile
 - [ ] Parcours onboarding guidé (1er client / 1er pro)
 
 ### C. Qualité & robustesse
+- [ ] Nettoyer ESLint (erreurs historiques `any` / purity)
+- [x] Smoke geo + CI typecheck/build
 - [ ] Tests automatisés (API + parcours critiques)
-- [ ] CI GitHub (lint / build / tests)
-- [ ] Monitoring (Sentry, uptime, alertes)
-- [ ] Logs structurés + rétention
+- [ ] Uptime / alertes prod
 - [ ] Anti-fraude basique (multi-comptes, abus matching)
 
 ### D. Prod « sérieuse » (hors JSON)
-- [ ] Postgres (ou DB managée) à la place de `db.json`
+- [ ] Migration complète JSON → Postgres (adapter runtime)
 - [ ] Stockage fichiers cloud (S3/R2) au lieu du disque local
 - [ ] KYC pro avancé (OCR, contrôles auto)
 - [ ] Routing / trafic réel (Maps API)
-- [ ] Multi-ville / multi-région
 - [ ] Rôles admin fins + audit trail complet
-- [ ] Facturation légale (numérotation, TVA, PDF)
+- [ ] Facturation légale PDF (numérotation complète)
 
 ### E. Croissance produit (après MVP)
-- [ ] App native iOS / Android
-- [ ] Programme parrainage
+- [ ] App native iOS / Android (Capacitor / stores)
+- [ ] Programme parrainage (déjà wallet — à pousser)
 - [ ] Chat support live
 - [ ] Analytics produit (funnels conversion)
 - [ ] Marketplace B2B élargie
@@ -114,8 +119,8 @@
 
 ## 3. Synthèse
 
-**Fait :** marketplace locale complète (Now + RFQ + abos + admin + RGPD + uploads + GPS), déployée et jouable en démo.  
-**Reste :** paiements réels, notifs hors app, volume Railway, puis base/prod « vraie » (Postgres, cloud, KYC, monitoring).
+**Fait :** marketplace locale complète (Now + RFQ + abos + admin + RGPD + uploads + GPS + factures e-invoices + multi-villes + PWA), déployée et jouable en démo.  
+**Reste :** paiements réels, notifs hors app, volume Railway, puis bascule Postgres runtime + apps natives.
 
 ### Comptes démo
 Mot de passe : `appo123`

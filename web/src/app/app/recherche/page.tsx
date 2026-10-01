@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { CityPicker, readSavedCity } from "@/components/city-picker";
 import { Badge, Stars } from "@/components/ui";
+import { findCityByName, type ServiceCity } from "@/lib/cities";
 import { usePoll } from "@/lib/hooks";
 import { km, money, stars } from "@/lib/format";
 
@@ -32,6 +34,11 @@ function SearchInner() {
   const [maxKm, setMaxKm] = useState("");
   const [minRating, setMinRating] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
+  const [city, setCity] = useState<ServiceCity | null>(null);
+  useEffect(() => {
+    const fromUrl = params.get("city");
+    setCity(fromUrl ? findCityByName(fromUrl) : readSavedCity());
+  }, [params]);
   const qs = useMemo(() => {
     const p = new URLSearchParams();
     if (q) p.set("q", q);
@@ -40,8 +47,9 @@ function SearchInner() {
     if (maxKm) p.set("maxKm", maxKm);
     if (minRating) p.set("minRating", minRating);
     if (maxPrice) p.set("maxPrice", maxPrice);
+    if (city) p.set("city", city.name);
     return `/api/pros?${p.toString()}`;
-  }, [q, categoryId, available, maxKm, minRating, maxPrice]);
+  }, [q, categoryId, available, maxKm, minRating, maxPrice, city]);
   const { data } = usePoll<{ pros: Pro[] }>(qs, 4000);
   const { data: cats } = usePoll<{ categories: { id: string; name: string }[] }>("/api/categories", 0);
   const when = params.get("when");
@@ -49,6 +57,11 @@ function SearchInner() {
   return (
     <div className="px-5 py-6 md:px-8 md:py-8">
       <h1 className="text-2xl font-extrabold md:text-3xl">Professionnels</h1>
+      {city ? (
+        <div className="mt-4 max-w-sm">
+          <CityPicker value={city} onChange={setCity} />
+        </div>
+      ) : null}
       <input
         className="mt-4 w-full rounded-2xl border border-line bg-card px-4 py-3 md:max-w-xl"
         placeholder="Rechercher un nom, une entreprise…"

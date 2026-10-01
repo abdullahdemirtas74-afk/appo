@@ -1,14 +1,25 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { MapPin, Navigation } from "lucide-react";
+import { etaMinutes, haversineKm } from "@/lib/geo";
 
 type Point = { lat: number; lng: number };
+
+function osmEmbed(bbox: string, markerLat: number, markerLng: number) {
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${markerLat}%2C${markerLng}`;
+}
+
+function mapsOpenUrl(lat: number, lng: number, label?: string) {
+  const q = encodeURIComponent(label || `${lat},${lng}`);
+  return `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}#map=15/${lat}/${lng}&q=${q}`;
+}
 
 /** Suivi live : destination + position pro (GPS ou estimation) + ETA. */
 export function TrackingMap({
   destination,
   pro,
-  etaMinutes,
+  etaMinutes: etaProp,
   label,
   unlocked = true,
   source,
@@ -26,12 +37,19 @@ export function TrackingMap({
     return () => clearInterval(id);
   }, []);
 
-  const points = useMemo(() => {
+  const distanceKm = useMemo(() => {
     void tick;
+    if (!pro || !unlocked) return null;
+    return haversineKm(pro.lat, pro.lng, destination.lat, destination.lng);
+  }, [destination, pro, unlocked, tick]);
+
+  const eta = etaProp ?? (distanceKm != null ? etaMinutes(distanceKm) : null);
+
+  const points = useMemo(() => {
     const list = [destination];
     if (pro && unlocked) list.push(pro);
     return list;
-  }, [destination, pro, unlocked, tick]);
+  }, [destination, pro, unlocked]);
 
   const lats = points.map((p) => p.lat);
   const lngs = points.map((p) => p.lng);
@@ -39,11 +57,11 @@ export function TrackingMap({
   const maxLat = Math.max(...lats);
   const minLng = Math.min(...lngs);
   const maxLng = Math.max(...lngs);
-  const pad = 0.02;
+  const pad = Math.max(0.015, (maxLat - minLat) * 0.4, (maxLng - minLng) * 0.4);
   const bbox = `${minLng - pad}%2C${minLat - pad}%2C${maxLng + pad}%2C${maxLat + pad}`;
   const markerLat = pro && unlocked ? pro.lat : destination.lat;
   const markerLng = pro && unlocked ? pro.lng : destination.lng;
-  const src = `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&layer=mapnik&marker=${markerLat}%2C${markerLng}`;
+  const src = osmEmbed(bbox, markerLat, markerLng);
   const sourceLabel =
     source === "gps" ? "GPS live" : source === "estimate" ? "Position estimée" : "Suivi";
 
@@ -52,8 +70,8 @@ export function TrackingMap({
       <div className="flex items-center justify-between gap-3 bg-ink px-4 py-2.5 text-white">
         <div className="text-sm font-semibold">
           {unlocked
-            ? etaMinutes && etaMinutes > 0
-              ? `En route · arrivée estimée ${etaMinutes} min`
+            ? eta && eta > 0
+              ? `En route · arrivée estimée ${eta} min`
               : label ?? "Suivi en temps réel"
             : "Carte masquée jusqu’à acceptation"}
         </div>
@@ -71,17 +89,48 @@ export function TrackingMap({
           L’adresse exacte et la position du pro apparaissent dès que la mission est acceptée — pour éviter les contacts hors AppO.
         </div>
       )}
-      {unlocked && pro ? (
-        <div className="grid grid-cols-2 gap-2 bg-white px-4 py-2 text-xs text-muted sm:text-sm">
-          <div>
-            <span className="font-semibold text-ink">Pro</span> · {sourceLabel}
+      {unlocked ? (
+        <div className="space-y-2 bg-white px-4 py-3 text-xs text-muted sm:text-sm">
+          <div className="grid grid-cols-2 gap-2">
+            <div className="flex items-center gap-1.5">
+              <Navigation size={14} className="text-appo" />
+              <span>
+                {pro ? (
+                  <>
+                    <span className="font-semibold text-ink">Pro</span> · {sourceLabel}
+                    {distanceKm != null ? ` · ${distanceKm.toFixed(1)} km` : ""}
+                  </>
+                ) : (
+                  <span className="font-semibold text-ink">Destination</span>
+                )}
+              </span>
+            </div>
+            <div className="flex items-center justify-end gap-1.5 text-right">
+              <MapPin size={14} className="text-ink" />
+              <span className="font-semibold text-ink">{label ?? "Intervention"}</span>
+            </div>
           </div>
-          <div className="text-right">
-            <span className="font-semibold text-ink">Lieu</span> · {label ?? "Intervention"}
+          <div className="flex flex-wrap gap-2">
+            <a
+              className="rounded-full border border-line px-3 py-1 font-semibold text-ink hover:bg-background"
+              href={mapsOpenUrl(destination.lat, destination.lng, label)}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Ouvrir le lieu
+            </a>
+            {pro ? (
+              <a
+                className="rounded-full border border-line px-3 py-1 font-semibold text-ink hover:bg-background"
+                href={mapsOpenUrl(pro.lat, pro.lng, "Pro")}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Position pro
+              </a>
+            ) : null}
           </div>
         </div>
-      ) : unlocked && label ? (
-        <div className="bg-white px-4 py-2 text-sm text-muted">{label}</div>
       ) : null}
     </div>
   );

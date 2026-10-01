@@ -16,7 +16,7 @@ export function haversineKm(
 }
 
 export function etaMinutes(distanceKm: number): number {
-  return Math.max(4, Math.round((distanceKm / 32) * 60));
+  return Math.max(4, Math.round((distanceKm / 28) * 60));
 }
 
 export function interpolate(
@@ -33,4 +33,5 @@ export function interpolate(
   };
 }
 
-export const RUMILLY = { lat: 45.8782, lng: 6.0581, city: "Rumilly" };
+export { RUMILLY, SERVICE_CITIES, findCityByName, nearestCity } from "./cities";
+export type { ServiceCity } from "./cities";

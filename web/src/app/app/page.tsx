@@ -1,13 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MapPin, Search } from "lucide-react";
+import { CityPicker, readSavedCity } from "@/components/city-picker";
 import { Logo } from "@/components/logo";
 import { NotificationBell } from "@/components/notifications";
 import { Button } from "@/components/ui";
 import { useMe } from "@/components/guard";
 import { usePoll } from "@/lib/hooks";
+import type { ServiceCity } from "@/lib/cities";
 
 type Cat = { id: string; name: string; emoji: string };
 
@@ -16,6 +19,11 @@ export default function ClientHome() {
   const { data: me } = useMe();
   const { data } = usePoll<{ categories: Cat[] }>("/api/categories", 0);
   const addr = me?.addresses?.find((a) => a.isDefault);
+  const [city, setCity] = useState<ServiceCity | null>(null);
+  useEffect(() => {
+    setCity(readSavedCity());
+  }, []);
+  const place = addr ? `${addr.line}, ${addr.city}` : city?.name ?? "Rumilly";
 
   return (
     <div className="px-4 pt-5 sm:px-6 sm:pt-6 md:px-8 md:pt-8">
@@ -28,7 +36,7 @@ export default function ClientHome() {
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-sm text-muted">
             <MapPin size={16} className="shrink-0 text-appo" />
-            <span className="truncate">{addr ? `${addr.line}, ${addr.city}` : "Rumilly"}</span>
+            <span className="truncate">{place}</span>
           </div>
           <h1 className="mt-2 text-3xl font-extrabold tracking-tight lg:text-4xl">
             Quel service recherchez-vous ?
@@ -42,12 +50,20 @@ export default function ClientHome() {
 
       <div className="mt-5 flex items-center gap-2 text-sm text-muted md:hidden">
         <MapPin size={16} className="shrink-0 text-appo" />
-        <span className="truncate">{addr ? `${addr.line}, ${addr.city}` : "Rumilly"}</span>
+        <span className="truncate">{place}</span>
       </div>
       <h1 className="mt-2 text-2xl font-extrabold md:hidden">Quel service recherchez-vous ?</h1>
 
+      {city ? (
+        <div className="mt-4 max-w-md">
+          <CityPicker value={city} onChange={setCity} />
+        </div>
+      ) : null}
+
       <button
-        onClick={() => router.push("/app/recherche")}
+        onClick={() =>
+          router.push(city ? `/app/recherche?city=${encodeURIComponent(city.name)}` : "/app/recherche")
+        }
         className="mt-4 flex w-full max-w-2xl items-center gap-3 rounded-2xl border border-line bg-card px-4 py-3.5 text-left text-muted md:mt-6"
       >
         <Search size={18} className="shrink-0" />
@@ -123,7 +139,11 @@ export default function ClientHome() {
         {(data?.categories ?? []).map((c) => (
           <Link
             key={c.id}
-            href={`/app/recherche?categoryId=${c.id}`}
+            href={
+              city
+                ? `/app/recherche?categoryId=${c.id}&city=${encodeURIComponent(city.name)}`
+                : `/app/recherche?categoryId=${c.id}`
+            }
             className="rounded-2xl border border-line bg-card p-3 text-center transition hover:border-appo/40 hover:shadow-sm"
           >
             <div className="text-2xl">{c.emoji}</div>
