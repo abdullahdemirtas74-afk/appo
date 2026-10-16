@@ -1,6 +1,6 @@
 import type { CapacitorConfig } from "@capacitor/cli";
 
-const PROD_URL = "https://appo-production-10fb.up.railway.app";
+const PROD_URL = "https://appo-ad.com";
 
 const config: CapacitorConfig = {
   appId: "com.appo.app",
@@ -11,6 +11,8 @@ const config: CapacitorConfig = {
     cleartext: false,
     androidScheme: "https",
     allowNavigation: [
+      "appo-ad.com",
+      "www.appo-ad.com",
       "appo-production-10fb.up.railway.app",
       "*.up.railway.app",
       "localhost",

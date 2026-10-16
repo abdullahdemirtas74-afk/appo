@@ -3,7 +3,8 @@
 **Dernière mise à jour :** 16 octobre 2026  
 **Stack :** Next.js + TypeScript + Tailwind · DB fichier JSON (+ fondation Postgres) · GitHub · Railway · PWA · Capacitor (stores)  
 **Repo :** https://github.com/abdullahdemirtas74-afk/appo  
-**App :** https://appo-production-10fb.up.railway.app  
+**App :** https://appo-ad.com · Domaine Cloudflare branché Railway (`docs/DOMAIN.md`)  
+
 
 **Avancement estimé :** MVP produit ~94–95 % · Prod « sérieuse » ~50–55 % · Stores (shell) ~70 % (soumission manuelle restante)
 
