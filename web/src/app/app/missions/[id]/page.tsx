@@ -36,6 +36,19 @@ export default function MissionClientPage() {
     reload();
   };
 
+  const payWithStripe = async (mode: "pay" | "hold" = "pay") => {
+    const res = await api<{ url: string }>("/api/payments/checkout", {
+      missionId: m.id,
+      tip,
+      mode,
+    });
+    if (res.url) {
+      window.location.href = res.url;
+      return;
+    }
+    reload();
+  };
+
   const searching = m.status === "searching" || m.status === "offered";
   const unlocked = Boolean(m.contactsUnlocked);
   const plus = Boolean(me?.clientPlusActive);
@@ -382,6 +395,19 @@ export default function MissionClientPage() {
         </div>
       ) : null}
 
+      {m.paymentStatus === "pending" && m.status !== "completed" ? (
+        <div className="mt-6 rounded-3xl border border-appo/30 bg-appo/5 p-5">
+          <div className="font-bold text-ink">Paiement Stripe en attente</div>
+          <p className="mt-1 text-sm text-muted">
+            Finalisez le paiement sécurisé ({money(m.total)}) — AppO séquestre les fonds jusqu’à la fin de
+            l’intervention.
+          </p>
+          <Button className="mt-4 w-full" variant="now" onClick={() => payWithStripe("hold")}>
+            Payer via Stripe
+          </Button>
+        </div>
+      ) : null}
+
       {m.status === "completed" && (m.paymentStatus === "none" || m.paymentStatus === "pending") ? (
         <div className="mt-6 rounded-3xl bg-ink p-5 text-white">
           <div className="text-sm opacity-70">Intervention terminée</div>
@@ -407,9 +433,16 @@ export default function MissionClientPage() {
               </button>
             ))}
           </div>
-          <Button className="mt-4 w-full" variant="now" onClick={() => act("pay", { method: payMethod, tip })}>
-            Payer {money(m.total + tip)}
+          <Button className="mt-4 w-full" variant="now" onClick={() => payWithStripe("pay")}>
+            Payer {money(m.total + tip)} via Stripe
           </Button>
+          <button
+            type="button"
+            className="mt-2 w-full text-center text-xs text-white/50 underline"
+            onClick={() => act("pay", { method: payMethod, tip })}
+          >
+            Paiement simulé (secours)
+          </button>
         </div>
       ) : null}
 

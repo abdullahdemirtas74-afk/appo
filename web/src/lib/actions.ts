@@ -959,14 +959,21 @@ export async function missionAction(userId: string, id: string, action: string, 
       m.liveLng = null;
       m.liveUpdatedAt = null;
       m.timeline.push({ status: "accepted", at: now, label: labelFor("accepted") });
-      const held = holdClientFunds(db, m, now, "card");
+      const held = holdClientFunds(db, m, now, process.env.STRIPE_SECRET_KEY ? "stripe" : "card");
+      if (process.env.STRIPE_SECRET_KEY) {
+        // Real card capture happens via Stripe Checkout (client confirms on mission page).
+        held.status = "pending";
+        m.paymentStatus = "pending";
+      }
       ensureInvoice(db, m, now);
       notify(db, m.clientId, "Mission confirmée ✅", `${user.firstName} a accepté votre mission. Coordonnées débloquées.`, `/app/missions/${m.id}`);
       notify(
         db,
         m.clientId,
-        "Paiement sécurisé chez Appo",
-        `${held.amount} € prélevés. Appo conserve ce montant jusqu’à la fin de l’intervention.`,
+        process.env.STRIPE_SECRET_KEY ? "Confirmer le paiement Stripe" : "Paiement sécurisé chez Appo",
+        process.env.STRIPE_SECRET_KEY
+          ? `${held.amount} € à confirmer sur la mission — séquestre AppO jusqu’à la fin de l’intervention.`
+          : `${held.amount} € prélevés. Appo conserve ce montant jusqu’à la fin de l’intervention.`,
         `/app/missions/${m.id}`,
       );
       notify(db, m.clientId, "Confidentialité", "Téléphone et adresse exacte sont maintenant visibles des deux côtés.", `/app/missions/${m.id}`);

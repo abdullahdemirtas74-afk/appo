@@ -3,6 +3,7 @@ import { assertSecretConfigured, secretMode } from "@/lib/auth";
 import { readDb } from "@/lib/db";
 import { persistenceStatus } from "@/lib/paths";
 import { pgHealth } from "@/lib/pg";
+import { isStripeEnabled, stripeMode } from "@/lib/stripe";
 
 export async function GET() {
   const started = Date.now();
@@ -25,6 +26,11 @@ export async function GET() {
       node: process.version,
       env: process.env.NODE_ENV,
       secretMode: secretMode(),
+      stripe: {
+        enabled: isStripeEnabled(),
+        mode: stripeMode(),
+        webhook: Boolean(process.env.STRIPE_WEBHOOK_SECRET?.trim()),
+      },
       persistence,
       database,
     });
