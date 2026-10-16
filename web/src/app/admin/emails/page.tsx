@@ -31,8 +31,8 @@ export default function AdminEmails() {
           <div className="mt-1 text-xl font-black">{active ? "Actif" : "Fermé"}</div>
           <div className="mt-1 text-xs text-muted">
             {provider?.configured
-              ? `Resend · ${provider.from}`
-              : "Configurer APPO_MAIL_FROM + APPO_RESEND_API_KEY + APPO_MAIL_ENABLED=true"}
+              ? `${provider.provider === "gmail" ? "Gmail SMTP" : provider.provider === "smtp" ? "SMTP" : "Resend"} · ${provider.from}`
+              : "Configurer Gmail SMTP (APPO_SMTP_*) ou Resend + APPO_MAIL_ENABLED=true"}
           </div>
         </div>
         <div className="rounded-3xl border border-line bg-white p-4">

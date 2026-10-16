@@ -159,7 +159,7 @@ export async function growthAction(userId: string, action: string, payload: Reco
         // allow from accepted onward; also searching/offered for demo flexibility after create
       }
       const g = createGuarantee(db, m, settings);
-      creditWallet(db, user.id, 0, "avoir", `Garantie AppO ${g.premium} € (simulée)`, m.id);
+      creditWallet(db, user.id, 0, "avoir", `Garantie AppO ${g.premium} €`, m.id);
       notify(db, user.id, "Garantie AppO activée", `Couverture ${g.coverageAmount} € · ${settings.guaranteeDays} jours`, `/app/missions/${m.id}`);
       return { guarantee: g, mission: enrichMission(db, m, userId) };
     }
