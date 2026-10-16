@@ -1633,6 +1633,14 @@ export async function proStats(userId: string) {
         .reduce((a, p) => a + p.proAmount, 0),
       held: escrow.filter((p) => p.status === "held").reduce((a, p) => a + p.proAmount, 0),
       payoutDelayDays: clampPayoutDelay(pro.payoutDelayDays, 7),
+      stripeConnect: {
+        accountId: pro.stripeAccountId ?? null,
+        ready: Boolean(pro.stripeAccountId && pro.stripePayoutsEnabled),
+        detailsSubmitted: Boolean(pro.stripeDetailsSubmitted),
+        chargesEnabled: Boolean(pro.stripeChargesEnabled),
+        payoutsEnabled: Boolean(pro.stripePayoutsEnabled),
+        onboardingComplete: Boolean(pro.stripeOnboardingComplete),
+      },
       escrow: escrow.sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? "")).map(stripPay),
       payments: pays.sort((a, b) => (b.paidAt ?? "").localeCompare(a.paidAt ?? "")).map(stripPay),
       missions: myMissions.length,
@@ -2250,6 +2258,9 @@ export function errorStatus(e: unknown) {
     DISPUTE_EXISTS: 409,
     MESSAGE_REQUIRED: 400,
     DOCS_INCOMPLETE: 400,
+    ONBOARDING_REQUIRED: 400,
+    STRIPE_ACCOUNT_MISSING: 400,
+    STRIPE_NOT_CONFIGURED: 503,
   };
   return { status: map[msg] ?? 400, error: msg };
 }
