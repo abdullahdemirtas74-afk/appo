@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import { AddressBanner } from "@/components/address-banner";
@@ -10,7 +10,9 @@ import { Logo } from "@/components/logo";
 import { NotificationBell } from "@/components/notifications";
 import { Button } from "@/components/ui";
 import { useMe } from "@/components/guard";
+import { suggestNeeds } from "@/lib/assistant";
 import { findCityByName, type ServiceCity } from "@/lib/cities";
+import { money } from "@/lib/format";
 import { usePoll } from "@/lib/hooks";
 
 type Cat = { id: string; name: string; emoji: string };
@@ -21,6 +23,7 @@ export default function ClientHome() {
   const { data } = usePoll<{ categories: Cat[] }>("/api/categories", 0);
   const addr = me?.addresses?.find((a) => a.isDefault) ?? me?.addresses?.[0] ?? null;
   const [city, setCity] = useState<ServiceCity | null>(null);
+  const [need, setNeed] = useState("");
 
   useEffect(() => {
     if (addr?.city) setCity(findCityByName(addr.city));
@@ -28,6 +31,30 @@ export default function ClientHome() {
   }, [addr?.city]);
 
   const searchCity = city?.name ?? addr?.city;
+  const suggestions = useMemo(() => suggestNeeds(need, 4), [need]);
+
+  function goWithQuery(path: string, extra?: Record<string, string>) {
+    const p = new URLSearchParams(extra);
+    if (searchCity) p.set("city", searchCity);
+    if (need.trim()) p.set("q", need.trim());
+    const qs = p.toString();
+    router.push(qs ? `${path}?${qs}` : path);
+  }
+
+  function submitNeed(e: React.FormEvent) {
+    e.preventDefault();
+    const q = need.trim();
+    if (!q) {
+      goWithQuery("/app/recherche");
+      return;
+    }
+    const top = suggestions[0];
+    if (top) {
+      goWithQuery("/app/recherche", { categoryId: top.categoryId, q });
+      return;
+    }
+    goWithQuery("/app/assistant", { q });
+  }
 
   return (
     <div className="px-4 pt-5 sm:px-6 sm:pt-6 md:px-8 md:pt-8">
@@ -54,22 +81,73 @@ export default function ClientHome() {
         Quel service recherchez-vous ?
       </h1>
       <p className="mt-2 hidden max-w-xl text-muted md:block">
-        Trouvez un pro vérifié autour de vous — immédiatement ou sur rendez-vous.
+        Décrivez votre besoin — AppO propose le bon métier et les pros autour de vous.
       </p>
 
-      <button
-        onClick={() =>
-          router.push(
-            searchCity
-              ? `/app/recherche?city=${encodeURIComponent(searchCity)}`
-              : "/app/recherche",
-          )
-        }
-        className="mt-4 flex w-full max-w-2xl items-center gap-3 rounded-2xl border border-line bg-card px-4 py-3.5 text-left text-muted md:mt-6"
-      >
-        <Search size={18} className="shrink-0" />
-        Plombier, électricien, ménage…
-      </button>
+      <form onSubmit={submitNeed} className="relative mt-4 max-w-2xl md:mt-6">
+        <div className="flex items-center gap-2 rounded-2xl border border-line bg-card px-3 py-2 shadow-sm focus-within:border-appo/50 focus-within:ring-2 focus-within:ring-appo/20">
+          <Search size={18} className="shrink-0 text-muted" />
+          <input
+            className="min-w-0 flex-1 bg-transparent py-2 text-[15px] outline-none placeholder:text-muted"
+            placeholder="Ex. mon évier fuit, prise HS, tonte de pelouse…"
+            value={need}
+            onChange={(e) => setNeed(e.target.value)}
+            autoComplete="off"
+            aria-label="Décrire mon besoin"
+          />
+          <Button type="submit" variant="now" className="shrink-0 px-4 py-2.5 text-sm">
+            Chercher
+          </Button>
+        </div>
+
+        {need.trim().length >= 2 ? (
+          <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-2xl border border-line bg-white shadow-lg">
+            {suggestions.length > 0 ? (
+              <ul>
+                {suggestions.map((s) => (
+                  <li key={s.categoryId}>
+                    <button
+                      type="button"
+                      className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm hover:bg-appo/5"
+                      onClick={() =>
+                        goWithQuery("/app/recherche", {
+                          categoryId: s.categoryId,
+                          q: need.trim(),
+                        })
+                      }
+                    >
+                      <span>
+                        <span className="font-semibold text-ink">{s.categoryName}</span>
+                        {s.urgency ? (
+                          <span className="ml-2 text-xs font-semibold text-appo">Urgence</span>
+                        ) : null}
+                      </span>
+                      <span className="text-xs text-muted">dès {money(s.price)}</span>
+                    </button>
+                  </li>
+                ))}
+                <li>
+                  <button
+                    type="button"
+                    className="w-full border-t border-line px-4 py-3 text-left text-sm font-semibold text-appo hover:bg-appo/5"
+                    onClick={() => goWithQuery("/app/assistant", { q: need.trim() })}
+                  >
+                    Affiner avec l’assistant →
+                  </button>
+                </li>
+              </ul>
+            ) : (
+              <button
+                type="button"
+                className="w-full px-4 py-3 text-left text-sm hover:bg-appo/5"
+                onClick={() => goWithQuery("/app/assistant", { q: need.trim() })}
+              >
+                Pas de catégorie exacte — <span className="font-semibold text-appo">ouvrir l’assistant</span>
+              </button>
+            )}
+          </div>
+        ) : null}
+      </form>
 
       <div className="mt-5 grid max-w-2xl grid-cols-1 gap-3 min-[420px]:grid-cols-3 md:mt-6">
         <Button href="/app/now" variant="now" className="h-24 flex-col md:h-28">

@@ -38,6 +38,10 @@ function SearchInner() {
   useEffect(() => {
     const fromUrl = params.get("city");
     setCity(fromUrl ? findCityByName(fromUrl) : readSavedCity());
+    const qUrl = params.get("q");
+    if (qUrl != null) setQ(qUrl);
+    const catUrl = params.get("categoryId");
+    if (catUrl != null) setCategoryId(catUrl);
   }, [params]);
   const qs = useMemo(() => {
     const p = new URLSearchParams();
@@ -64,7 +68,7 @@ function SearchInner() {
       ) : null}
       <input
         className="mt-4 w-full rounded-2xl border border-line bg-card px-4 py-3 md:max-w-xl"
-        placeholder="Rechercher un nom, une entreprise…"
+        placeholder="Métier, besoin, nom ou entreprise…"
         value={q}
         onChange={(e) => setQ(e.target.value)}
       />

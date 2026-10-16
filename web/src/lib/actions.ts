@@ -671,14 +671,22 @@ export async function listPros(params: {
     if (params.categoryId) list = list.filter((p) => p.categoryIds.includes(params.categoryId!));
     if (params.minRating) list = list.filter((p) => p.rating >= params.minRating!);
     if (params.maxPrice) list = list.filter((p) => p.startingPrice <= params.maxPrice!);
-    if (params.q) {
+    // Free-text need ("évier fuit") is handled via categoryId from home search.
+    // Only apply q as name/company filter when no category is selected.
+    if (params.q && !params.categoryId) {
       const q = params.q.toLowerCase();
+      const catHits = new Set(
+        db.categories
+          .filter((c) => c.name.toLowerCase().includes(q) || q.includes(c.name.toLowerCase()))
+          .map((c) => c.id),
+      );
       list = list.filter((p) => {
         const u = db.users.find((x) => x.id === p.userId);
         return (
           p.company.toLowerCase().includes(q) ||
           u?.firstName.toLowerCase().includes(q) ||
-          u?.lastName.toLowerCase().includes(q)
+          u?.lastName.toLowerCase().includes(q) ||
+          p.categoryIds.some((id) => catHits.has(id))
         );
       });
     }

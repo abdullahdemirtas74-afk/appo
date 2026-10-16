@@ -59,7 +59,18 @@ export function Button({
   const cls = `inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3.5 text-[15px] font-semibold transition disabled:opacity-50 ${styles[variant]} ${className}`;
   if (href) {
     return (
-      <a href={href} className={cls}>
+      <a
+        href={disabled ? undefined : href}
+        className={cls}
+        aria-disabled={disabled || undefined}
+        onClick={(e) => {
+          if (disabled) {
+            e.preventDefault();
+            return;
+          }
+          onClick?.();
+        }}
+      >
         {children}
       </a>
     );
