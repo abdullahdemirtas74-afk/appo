@@ -19,6 +19,9 @@ Périmètre v1 : **app client** (particuliers / entreprises). Les pros restent s
 Autres éléments demandés par les stores :
 
 - Politique de confidentialité : `https://appo-production-10fb.up.railway.app/confidentialite`
+- CGU : `https://appo-production-10fb.up.railway.app/cgu`
+- Remboursements : `https://appo-production-10fb.up.railway.app/remboursement`
+- Mentions légales : `https://appo-production-10fb.up.railway.app/mentions-legales`
 - E-mail support éditeur
 - Icône **1024×1024** PNG (départ : `mobile/resources/icon.png` — à remplacer par une version HD)
 - Captures d’écran téléphone (5,5" / 6,7" iPhone + téléphone Android)

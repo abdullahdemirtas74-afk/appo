@@ -36,6 +36,12 @@ Lifestyle / Business
 
 https://appo-production-10fb.up.railway.app/confidentialite
 
+## Autres URL légales (stores)
+
+- CGU : https://appo-production-10fb.up.railway.app/cgu
+- Remboursements : https://appo-production-10fb.up.railway.app/remboursement
+- Mentions légales : https://appo-production-10fb.up.railway.app/mentions-legales
+
 ## Support
 
 support@appo.fr (à remplacer par ton e-mail éditeur)

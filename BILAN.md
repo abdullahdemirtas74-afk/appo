@@ -90,7 +90,8 @@
 - [ ] Paiements réels (Stripe + Stripe Connect pros)
 - [ ] Activer e-mails (Resend + `APPO_MAIL_*`)
 - [ ] SMS / push (offres Now, litiges, codes)
-- [ ] CGU / mentions légales / contrat pro plus formels
+- [x] CGU / confidentialité / remboursements / mentions légales (pages publiques + liens inscription/compte)
+- [ ] Compléter raison sociale / SIRET dans mentions légales (éditeur)
 - [x] Parcours onboarding guidé (1er client / 1er pro)
 
 ### C. Qualité & robustesse

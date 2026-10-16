@@ -124,9 +124,21 @@ export default function Landing() {
           </div>
         </div>
         <p className="mx-auto mt-8 max-w-6xl pb-8 text-center text-xs text-white/40">
-          AppO V1 · paiements simulés ·{" "}
+          AppO ·{" "}
           <a className="underline hover:text-white/70" href="/confidentialite">
-            confidentialité & RGPD
+            confidentialité
+          </a>
+          {" · "}
+          <a className="underline hover:text-white/70" href="/cgu">
+            CGU
+          </a>
+          {" · "}
+          <a className="underline hover:text-white/70" href="/remboursement">
+            remboursements
+          </a>
+          {" · "}
+          <a className="underline hover:text-white/70" href="/mentions-legales">
+            mentions légales
           </a>
         </p>
       </section>
