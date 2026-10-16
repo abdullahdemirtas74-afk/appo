@@ -1,12 +1,6 @@
 import Link from "next/link";
 import { Logo } from "@/components/logo";
-
-const LINKS = [
-  { href: "/confidentialite", label: "Confidentialité" },
-  { href: "/cgu", label: "CGU" },
-  { href: "/remboursement", label: "Remboursements" },
-  { href: "/mentions-legales", label: "Mentions légales" },
-] as const;
+import { LEGAL, LEGAL_LINKS } from "@/lib/legal";
 
 export function LegalShell({
   title,
@@ -23,12 +17,23 @@ export function LegalShell({
     <div className="min-h-dvh bg-background text-ink">
       <header className="mx-auto flex max-w-3xl items-center justify-between gap-4 px-5 py-5">
         <Logo />
-        <Link href="/" className="shrink-0 text-sm font-semibold text-appo">
-          Accueil
-        </Link>
+        <div className="flex items-center gap-3 text-sm font-semibold">
+          <Link href="/legal" className="text-muted hover:text-ink">
+            Légal
+          </Link>
+          <Link href="/" className="text-appo">
+            Accueil
+          </Link>
+        </div>
       </header>
       <nav className="mx-auto flex max-w-3xl gap-2 overflow-x-auto px-5 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {LINKS.map((l) => (
+        <Link
+          href="/legal"
+          className="shrink-0 rounded-full border border-line bg-card px-3 py-1.5 text-xs font-semibold text-muted hover:text-ink"
+        >
+          Vue d’ensemble
+        </Link>
+        {LEGAL_LINKS.map((l) => (
           <Link
             key={l.href}
             href={l.href}
@@ -46,13 +51,18 @@ export function LegalShell({
       </main>
       <footer className="border-t border-line px-5 py-8 text-center text-xs text-muted">
         <div className="mx-auto flex max-w-3xl flex-wrap justify-center gap-x-4 gap-y-2">
-          {LINKS.map((l) => (
+          <Link href="/legal" className="font-semibold hover:text-ink">
+            Légal
+          </Link>
+          {LEGAL_LINKS.map((l) => (
             <Link key={l.href} href={l.href} className="font-semibold hover:text-ink">
               {l.label}
             </Link>
           ))}
         </div>
-        <p className="mt-3">AppO — Le bon pro, sans attendre</p>
+        <p className="mt-3">
+          {LEGAL.legalName} — {LEGAL.tagline}
+        </p>
       </footer>
     </div>
   );

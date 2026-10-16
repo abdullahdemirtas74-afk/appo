@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import { Logo } from "@/components/logo";
+import { SiteLegalFooter, SiteLegalLinks } from "@/components/site-legal-links";
 
 export type NavItem = {
   href: string;
@@ -93,12 +94,15 @@ export function AppShell({
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-line bg-card p-5 lg:flex xl:w-64">
         <Logo size="sm" />
         <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-muted">{title}</p>
-        <nav className="mt-8 flex flex-1 flex-col gap-1">
+        <nav className="mt-8 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
           {items.map((item) => (
             <SideLink key={item.href} item={item} root={root} />
           ))}
         </nav>
-        <p className="text-xs text-muted">Le bon pro, sans attendre</p>
+        <div className="mt-4 space-y-2 border-t border-line pt-4">
+          <p className="text-xs text-muted">Le bon pro, sans attendre</p>
+          <SiteLegalLinks tone="muted" className="!justify-start" />
+        </div>
       </aside>
 
       <div className="flex min-h-dvh min-w-0 flex-col lg:pl-60 xl:pl-64">
@@ -152,8 +156,9 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
           <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-appo/30 blur-3xl" />
           <div className="pointer-events-none absolute -bottom-20 left-10 h-56 w-56 rounded-full bg-white/10 blur-3xl" />
         </div>
-        <div className="flex items-start justify-center px-4 py-6 sm:px-8 sm:py-10 lg:items-center lg:py-12">
+        <div className="flex flex-col items-center justify-center px-4 py-6 sm:px-8 sm:py-10 lg:py-12">
           <div className="w-full max-w-md md:max-w-lg lg:max-w-md">{children}</div>
+          <SiteLegalFooter className="mt-8 w-full max-w-md" tone="muted" />
         </div>
       </div>
     </div>

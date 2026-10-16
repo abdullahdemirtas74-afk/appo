@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { LegalSection, LegalShell } from "@/components/legal-shell";
+import { LEGAL } from "@/lib/legal";
 
 export const metadata: Metadata = {
   title: "Annulations & remboursements — AppO",
@@ -11,90 +12,83 @@ export default function RemboursementPage() {
   return (
     <LegalShell
       title="Annulations & remboursements"
-      subtitle="Protection client et professionnel — règles de remboursement AppO"
-      updated="16 octobre 2026"
+      subtitle="Règles de protection pour les clients et les professionnels"
+      updated={LEGAL.updated}
     >
       <LegalSection title="1. Principe">
         <p>
-          Les fonds d’une mission sont en principe conservés par AppO (séquestre) jusqu’à la fin de
+          Les fonds d’une mission sont en principe séquestrés par {LEGAL.brand} jusqu’à la fin de
           l’intervention, puis versés au professionnel selon le calendrier de payout. Un remboursement client
-          est possible tant que les fonds n’ont pas été définitivement libérés, ou sur décision de médiation.
+          est possible tant que les fonds sont encore séquestrés, ou après décision de médiation.
         </p>
       </LegalSection>
 
-      <LegalSection title="2. Annulation avant intervention">
+      <LegalSection title="2. Avant l’intervention">
         <ul className="list-disc space-y-1 pl-5">
           <li>
-            <strong>Avant acceptation / sans pro assigné</strong> : annulation libre, aucun prélèvement
+            <strong>Sans pro assigné / avant acceptation</strong> : annulation libre, pas de prélèvement
             définitif
           </li>
           <li>
-            <strong>Après acceptation, avant « En route »</strong> : remboursement intégral des fonds encore
-            séquestrés, sauf abus répétés
+            <strong>Après acceptation, avant « En route »</strong> : remboursement des fonds séquestrés (sauf
+            abus répétés)
           </li>
           <li>
-            <strong>Pro qui annule</strong> : le client est remboursé ; AppO peut pénaliser le pro (score,
+            <strong>Annulation par le pro</strong> : remboursement client ; sanctions possibles (score,
             suspension)
           </li>
         </ul>
       </LegalSection>
 
-      <LegalSection title="3. Pendant ou après l’intervention">
+      <LegalSection title="3. Pendant / après l’intervention">
         <ul className="list-disc space-y-1 pl-5">
-          <li>Si la mission n’a pas pu être réalisée (no-show pro, impossibilité) : remboursement client</li>
-          <li>
-            Si la mission est terminée et payée : ouverture d’un <strong>litige</strong> via Aide & support
-          </li>
-          <li>
-            La médiation AppO peut aboutir à un remboursement total, partiel, ou un avoir Wallet selon les
-            éléments fournis (photos, messages, devis)
-          </li>
+          <li>Mission non réalisée (no-show, impossibilité) → remboursement client</li>
+          <li>Mission terminée et payée → ouverture d’un litige via Aide & support</li>
+          <li>Médiation : remboursement total, partiel ou avoir Wallet selon preuves</li>
         </ul>
       </LegalSection>
 
-      <LegalSection title="4. Délais">
+      <LegalSection title="4. Délais de remboursement">
         <p>
-          Un remboursement décidé apparaît en général sous quelques jours ouvrés selon le moyen de paiement
-          (carte, crédits Wallet). Les crédits Wallet sont réutilisables immédiatement sur de nouvelles
-          missions.
+          Après décision : quelques jours ouvrés selon le moyen de paiement. Les crédits Wallet sont
+          réutilisables immédiatement sur AppO.
         </p>
       </LegalSection>
 
       <LegalSection title="5. Droit de rétractation">
         <p>
-          Pour les prestations de services à domicile exécutées à une date convenue, le droit de rétractation
-          de 14 jours peut ne pas s’appliquer une fois l’exécution commencée avec votre accord. Les
-          abonnements numériques (ex. AppO+) peuvent être résiliés selon les modalités affichées à la
-          souscription ; les périodes déjà consommées ne sont en principe pas remboursées.
+          Pour une prestation à date convenue, le délai de rétractation de 14 jours peut ne plus s’appliquer
+          une fois l’exécution commencée avec votre accord. Les abonnements numériques (AppO+, offres Pro)
+          se résilient selon l’écran de souscription ; les périodes déjà consommées ne sont en principe pas
+          remboursées.
         </p>
       </LegalSection>
 
-      <LegalSection title="6. Garantie AppO (optionnelle)">
+      <LegalSection title="6. Garantie AppO">
         <p>
-          La Garantie AppO est une couverture optionnelle souscrite mission par mission. Les conditions
-          d’éligibilité et de claim sont rappelées dans l’app (
+          Couverture optionnelle mission par mission. Claim depuis la mission ou{" "}
           <Link href="/app/garantie" className="font-semibold text-appo">
             Garantie
           </Link>
-          ). Un claim validé donne lieu à un crédit Wallet, pas nécessairement à un virement bancaire.
+          . Claim validé → crédit Wallet.
         </p>
       </LegalSection>
 
-      <LegalSection title="7. Comment demander un remboursement">
+      <LegalSection title="7. Demander un remboursement">
         <ol className="list-decimal space-y-1 pl-5">
-          <li>Ouvrez la mission concernée ou Aide & litiges</li>
-          <li>Décrivez le problème et joignez des preuves si possible</li>
-          <li>Attendez la décision support / admin AppO</li>
+          <li>Ouvrir la mission ou Aide & litiges</li>
+          <li>Décrire le problème + preuves (photos, messages)</li>
+          <li>Attendre la décision support / admin</li>
         </ol>
         <p>
-          Contact :{" "}
-          <a className="font-semibold text-appo" href="mailto:aide@appo.fr">
-            aide@appo.fr
+          E-mail :{" "}
+          <a className="font-semibold text-appo" href={`mailto:${LEGAL.supportEmail}`}>
+            {LEGAL.supportEmail}
           </a>
         </p>
       </LegalSection>
 
-      <LegalSection title="8. Documents associés">
+      <LegalSection title="8. Documents liés">
         <p>
           <Link href="/cgu" className="font-semibold text-appo">
             CGU

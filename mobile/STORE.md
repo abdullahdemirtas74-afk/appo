@@ -18,6 +18,7 @@ Périmètre v1 : **app client** (particuliers / entreprises). Les pros restent s
 
 Autres éléments demandés par les stores :
 
+- Hub légal : `https://appo-production-10fb.up.railway.app/legal`
 - Politique de confidentialité : `https://appo-production-10fb.up.railway.app/confidentialite`
 - CGU : `https://appo-production-10fb.up.railway.app/cgu`
 - Remboursements : `https://appo-production-10fb.up.railway.app/remboursement`

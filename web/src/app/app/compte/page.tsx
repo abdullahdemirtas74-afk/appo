@@ -356,6 +356,7 @@ export default function ComptePage() {
             },
           },
           { k: "Confidentialité", v: "Export & suppression", onClick: () => setSection("privacy") },
+          { k: "Informations légales", v: "CGU, remboursements…", href: "/legal" },
           { k: "Aide & litiges", v: "Support AppO", href: "/app/support" },
         ].map((row) => {
           const inner = (

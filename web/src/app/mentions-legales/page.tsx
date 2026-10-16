@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { LegalSection, LegalShell } from "@/components/legal-shell";
+import { LEGAL, legalAddress } from "@/lib/legal";
 
 export const metadata: Metadata = {
   title: "Mentions légales — AppO",
@@ -11,80 +12,88 @@ export default function MentionsLegalesPage() {
   return (
     <LegalShell
       title="Mentions légales"
-      subtitle="Informations légales sur l’éditeur et l’hébergement d’AppO"
-      updated="16 octobre 2026"
+      subtitle="Éditeur, hébergement et propriété intellectuelle"
+      updated={LEGAL.updated}
     >
-      <LegalSection title="1. Éditeur">
+      <LegalSection title="1. Éditeur du site et des applications">
         <p>
-          <strong>Nom commercial :</strong> AppO
+          <strong>Nom commercial :</strong> {LEGAL.brand}
           <br />
-          <strong>Slogan :</strong> Le bon pro, sans attendre
+          <strong>Raison sociale :</strong> {LEGAL.legalName}
           <br />
-          <strong>Contact :</strong>{" "}
-          <a className="font-semibold text-appo" href="mailto:aide@appo.fr">
-            aide@appo.fr
+          <strong>Forme juridique :</strong> {LEGAL.legalForm}
+          <br />
+          <strong>Capital :</strong> {LEGAL.capital}
+          <br />
+          <strong>SIRET :</strong> {LEGAL.siret}
+          <br />
+          <strong>Siège :</strong> {legalAddress()} ({LEGAL.region})
+          <br />
+          <strong>E-mail :</strong>{" "}
+          <a className="font-semibold text-appo" href={`mailto:${LEGAL.supportEmail}`}>
+            {LEGAL.supportEmail}
           </a>
-        </p>
-        <p className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950">
-          À compléter avant publication stores / prod : raison sociale ou nom de l’auto-entrepreneur, forme
-          juridique, SIRET, adresse du siège, responsable de publication.
+          {" · "}
+          <a className="font-semibold text-appo" href={`mailto:${LEGAL.contactEmail}`}>
+            {LEGAL.contactEmail}
+          </a>
         </p>
       </LegalSection>
 
       <LegalSection title="2. Directeur de la publication">
-        <p>Le directeur de la publication est le représentant légal de l’éditeur AppO.</p>
+        <p>
+          Directeur de la publication : <strong>{LEGAL.publisher}</strong>, représentant de {LEGAL.legalName}.
+        </p>
       </LegalSection>
 
       <LegalSection title="3. Hébergement">
         <p>
-          Application web hébergée via Railway (infrastructure cloud). Stockage fichiers éventuel via service
-          S3-compatible. Les données sont traitées dans le cadre décrit par la{" "}
+          Hébergement applicatif : {LEGAL.host}. Stockage de fichiers éventuel via service compatible S3.
+          Traitement des données décrit dans la{" "}
           <Link href="/confidentialite" className="font-semibold text-appo">
             politique de confidentialité
           </Link>
           .
         </p>
         <p>
-          URL de production :{" "}
-          <a
-            className="font-semibold text-appo break-all"
-            href="https://appo-production-10fb.up.railway.app"
-            target="_blank"
-            rel="noreferrer"
-          >
-            https://appo-production-10fb.up.railway.app
+          Site :{" "}
+          <a className="break-all font-semibold text-appo" href={LEGAL.publicUrl} target="_blank" rel="noreferrer">
+            {LEGAL.publicUrl}
           </a>
         </p>
       </LegalSection>
 
       <LegalSection title="4. Applications mobiles">
         <p>
-          Les applications iOS et Android AppO (identifiant <code className="text-ink">com.appo.app</code>)
-          affichent le service web AppO dans une enveloppe native. Les mêmes mentions, CGU et politique de
-          confidentialité s’appliquent.
+          Applications iOS et Android AppO (identifiant technique <code className="text-ink">{LEGAL.appId}</code>
+          ). Elles présentent le service AppO ; les présentes mentions, les CGU, la politique de
+          confidentialité et la politique de remboursement s’y appliquent.
         </p>
       </LegalSection>
 
       <LegalSection title="5. Propriété intellectuelle">
         <p>
-          L’ensemble des éléments du site et des applications (textes, graphismes, logo, structure) est protégé.
-          Toute reproduction non autorisée est interdite.
+          Marques, logos, textes, interfaces et éléments graphiques d’AppO sont protégés. Toute reproduction
+          non autorisée est interdite. Les contenus utilisateurs restent la propriété de leurs auteurs, avec
+          licence d’usage nécessaire au fonctionnement du service.
         </p>
       </LegalSection>
 
-      <LegalSection title="6. Documents associés">
+      <LegalSection title="6. Médiation & contact">
         <p>
+          Pour toute réclamation :{" "}
+          <a className="font-semibold text-appo" href={`mailto:${LEGAL.supportEmail}`}>
+            {LEGAL.supportEmail}
+          </a>
+          . Voir aussi{" "}
+          <Link href="/remboursement" className="font-semibold text-appo">
+            annulations & remboursements
+          </Link>{" "}
+          et les{" "}
           <Link href="/cgu" className="font-semibold text-appo">
             CGU
           </Link>
-          {" · "}
-          <Link href="/confidentialite" className="font-semibold text-appo">
-            Confidentialité
-          </Link>
-          {" · "}
-          <Link href="/remboursement" className="font-semibold text-appo">
-            Remboursements
-          </Link>
+          .
         </p>
       </LegalSection>
     </LegalShell>
