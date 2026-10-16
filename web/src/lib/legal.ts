@@ -17,7 +17,7 @@ export const LEGAL = {
   supportEmail: "aide@appo.fr",
   contactEmail: "contact@appo.fr",
   phone: null as string | null,
-  publicUrl: "https://appo-production-10fb.up.railway.app",
+  publicUrl: "https://appo-ad.com",
   host: "Railway (cloud)",
   appId: "com.appo.app",
   updated: "16 octobre 2026",

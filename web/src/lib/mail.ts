@@ -66,7 +66,7 @@ function trimLog(db: DB) {
 function appBaseUrl() {
   return (process.env.APPO_PUBLIC_URL || process.env.RAILWAY_PUBLIC_DOMAIN
     ? process.env.APPO_PUBLIC_URL || `https://${process.env.RAILWAY_PUBLIC_DOMAIN}`
-    : "https://appo-production-10fb.up.railway.app"
+    : "https://appo-ad.com"
   ).replace(/\/$/, "");
 }
 

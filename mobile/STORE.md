@@ -2,7 +2,7 @@
 
 Shell natif **Capacitor** (`com.appo.app`) qui charge la prod :
 
-**https://appo-production-10fb.up.railway.app**
+**https://appo-ad.com**
 
 Périmètre v1 : **app client** (particuliers / entreprises). Les pros restent sur le web / PWA.
 
@@ -18,11 +18,11 @@ Périmètre v1 : **app client** (particuliers / entreprises). Les pros restent s
 
 Autres éléments demandés par les stores :
 
-- Hub légal : `https://appo-production-10fb.up.railway.app/legal`
-- Politique de confidentialité : `https://appo-production-10fb.up.railway.app/confidentialite`
-- CGU : `https://appo-production-10fb.up.railway.app/cgu`
-- Remboursements : `https://appo-production-10fb.up.railway.app/remboursement`
-- Mentions légales : `https://appo-production-10fb.up.railway.app/mentions-legales`
+- Hub légal : `https://appo-ad.com/legal`
+- Politique de confidentialité : `https://appo-ad.com/confidentialite`
+- CGU : `https://appo-ad.com/cgu`
+- Remboursements : `https://appo-ad.com/remboursement`
+- Mentions légales : `https://appo-ad.com/mentions-legales`
 - E-mail support éditeur
 - Icône **1024×1024** PNG (départ : `mobile/resources/icon.png` — à remplacer par une version HD)
 - Captures d’écran téléphone (5,5" / 6,7" iPhone + téléphone Android)
@@ -122,7 +122,7 @@ Dans Xcode :
 > AppO est une marketplace de services à domicile (plomberie, électricité…).  
 > Les paiements concernent des prestations physiques réalisées par des professionnels.  
 > Compte démo : sarah@appo.fr / appo123  
-> URL : https://appo-production-10fb.up.railway.app
+> URL : https://appo-ad.com
 
 5. TestFlight → soumission review.
 
