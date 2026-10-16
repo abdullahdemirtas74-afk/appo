@@ -20,6 +20,8 @@ import { createSeed } from "./seed";
 import { maskEmail, maskPhone, openPii, sealPii } from "./privacy";
 import { enqueueProEmail, flushProEmailQueue, withMailSettings } from "./mail";
 import { releaseDuePayouts } from "./escrow";
+import { processConnectPayouts } from "./stripe-connect";
+import { isStripeEnabled } from "./stripe";
 import { applyElectronicInvoiceFields } from "./invoice";
 import { defaultCatalogProducts, ensureUserGrowthFields, withGrowthSettings } from "./growth";
 import { backupDir, dbPath, ensureDataDirs } from "./paths";
@@ -276,6 +278,18 @@ export function mutate<T>(fn: (db: DB) => T | Promise<T>, persist = true) {
     const db = await readFile();
     processDispatch(db);
     broadcastRfqToFreePros(db);
+    if (persist && isStripeEnabled()) {
+      const connectReleased = await processConnectPayouts(db);
+      for (const released of connectReleased) {
+        notify(
+          db,
+          released.proUserId,
+          "Versement effectué",
+          `${released.proAmount} € versés sur votre compte Stripe`,
+          "/pro/revenus",
+        );
+      }
+    }
     const result = await fn(db);
     if (persist) {
       await flushProEmailQueue(db);

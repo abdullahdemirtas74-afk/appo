@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { ensureInvoice, mutate } from "@/lib/db";
 import { getStripe, isStripeEnabled } from "@/lib/stripe";
+import { syncProStripeAccount } from "@/lib/stripe-connect";
 import { log } from "@/lib/logger";
 
 export const runtime = "nodejs";
@@ -106,6 +107,38 @@ export async function POST(req: Request) {
       if (session.payment_status === "paid" || session.status === "complete") {
         const result = await applyCheckoutPaid(session);
         log("info", "stripe_checkout_applied", result);
+      }
+    } else if (event.type === "account.updated") {
+      const account = event.data.object as Stripe.Account;
+      await mutate(async (db) => {
+        const pro = db.pros.find((p) => p.stripeAccountId === account.id);
+        if (!pro) return;
+        await syncProStripeAccount(pro);
+        log("info", "stripe_connect_account_synced", {
+          proId: pro.id,
+          accountId: account.id,
+          payoutsEnabled: pro.stripePayoutsEnabled,
+        });
+      });
+    } else if (event.type === "transfer.created" || event.type === "transfer.updated") {
+      const transfer = event.data.object as Stripe.Transfer;
+      const paymentId = transfer.metadata?.appoPaymentId;
+      if (paymentId) {
+        await mutate((db) => {
+          const pay = db.payments.find((p) => p.id === paymentId);
+          if (!pay) return;
+          pay.stripeTransferId = transfer.id;
+          if (pay.status === "scheduled") {
+            const now = new Date().toISOString();
+            pay.status = "paid";
+            pay.paidAt = now;
+            const m = db.missions.find((x) => x.id === pay.missionId);
+            if (m) {
+              m.paymentStatus = "paid";
+              m.payoutReleaseAt = pay.releaseAt ?? now;
+            }
+          }
+        });
       }
     }
     return NextResponse.json({ received: true });
