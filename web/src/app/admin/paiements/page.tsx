@@ -10,7 +10,8 @@ export default function AdminPaiements() {
     <div>
       <h1 className="text-3xl font-extrabold">Paiements</h1>
       <p className="text-sm text-muted">
-        Séquestre simulé : prélevé à l’acceptation, conservé par Appo jusqu’à la fin, puis versé selon le délai du pro (0–30 j). Stripe à brancher plus tard.
+        Séquestre Stripe : encaissement client à l’acceptation / fin de mission, conservation jusqu’à la fin, puis
+        versement automatique au pro (Stripe Connect) selon son délai (0–30 j).
       </p>
       <div className="mt-4 space-y-2">
         {(data?.payments ?? []).map((p: any) => (

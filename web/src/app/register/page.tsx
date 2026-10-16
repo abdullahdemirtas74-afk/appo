@@ -1,13 +1,27 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { Logo } from "@/components/logo";
 import { AuthShell } from "@/components/shell";
 import { Button, Field, inputClass } from "@/components/ui";
 import { api, usePoll } from "@/lib/hooks";
-import { RUMILLY } from "@/lib/geo";
+import { SERVICE_CITIES } from "@/lib/cities";
 import type { ClientKind } from "@/lib/types";
+
+const ERROR_LABEL: Record<string, string> = {
+  EMAIL_TAKEN: "Cet e-mail existe déjà",
+  ORG_REQUIRED: "Indiquez le nom de l’organisation",
+  PRIVACY_CONSENT_REQUIRED: "Acceptez la politique de confidentialité pour continuer",
+  NAME_REQUIRED: "Indiquez votre prénom et votre nom",
+  EMAIL_REQUIRED: "Indiquez un e-mail valide",
+  PHONE_REQUIRED: "Indiquez un numéro de téléphone valide (ex. 06 12 34 56 78)",
+  PASSWORD_TOO_SHORT: "Mot de passe : 8 caractères minimum",
+  ADDRESS_REQUIRED: "Indiquez votre adresse complète (rue, ville, code postal)",
+  CITY_UNSUPPORTED: "Choisissez une ville desservie par AppO",
+  COMPANY_REQUIRED: "Indiquez le nom de l’entreprise",
+  SIRET_REQUIRED: "Indiquez un SIRET valide",
+};
 
 function RegisterForm() {
   const router = useRouter();
@@ -22,28 +36,53 @@ function RegisterForm() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const { data } = usePoll<{ categories: { id: string; name: string }[] }>("/api/categories", 0);
+  const categories = data?.categories ?? [];
+
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
     email: "",
     phone: "",
-    password: "appo123",
+    password: "",
     company: "",
     siret: "",
     organizationName: "",
     organizationSiret: "",
-    categoryId: "cat_plomberie",
+    categoryId: "",
     radiusKm: 25,
     startingPrice: 59,
     description: "",
+    addressLine: "",
+    cityId: "",
+    zip: "",
   });
 
   useEffect(() => {
     if (params.get("role") === "pro") setRole("pro");
   }, [params]);
 
+  useEffect(() => {
+    if (!form.categoryId && categories.length > 0) {
+      setForm((f) => ({ ...f, categoryId: categories[0].id }));
+    }
+  }, [categories, form.categoryId]);
+
+  const selectedCity = useMemo(
+    () => SERVICE_CITIES.find((c) => c.id === form.cityId) ?? null,
+    [form.cityId],
+  );
+
   function set<K extends keyof typeof form>(k: K, v: (typeof form)[K]) {
     setForm((f) => ({ ...f, [k]: v }));
+  }
+
+  function onCityChange(cityId: string) {
+    const city = SERVICE_CITIES.find((c) => c.id === cityId);
+    setForm((f) => ({
+      ...f,
+      cityId,
+      zip: city?.zipHint && (!f.zip || f.zip === selectedCity?.zipHint) ? city.zipHint : f.zip || city?.zipHint || "",
+    }));
   }
 
   async function submit(e: React.FormEvent) {
@@ -52,39 +91,64 @@ function RegisterForm() {
       setError("PRIVACY_CONSENT_REQUIRED");
       return;
     }
+    if (!form.cityId || !selectedCity) {
+      setError("CITY_UNSUPPORTED");
+      return;
+    }
+    if (role === "client" && !form.addressLine.trim()) {
+      setError("ADDRESS_REQUIRED");
+      return;
+    }
+    if (form.password.length < 8) {
+      setError("PASSWORD_TOO_SHORT");
+      return;
+    }
+
     setLoading(true);
     setError("");
     try {
       const body =
         role === "pro"
           ? {
-              role: "pro",
-              ...form,
+              role: "pro" as const,
+              firstName: form.firstName.trim(),
+              lastName: form.lastName.trim(),
+              email: form.email.trim(),
+              phone: form.phone.trim(),
+              password: form.password,
+              company: form.company.trim(),
+              siret: form.siret.trim(),
               categoryIds: [form.categoryId],
-              city: RUMILLY.city,
-              lat: RUMILLY.lat,
-              lng: RUMILLY.lng,
+              radiusKm: form.radiusKm,
+              startingPrice: form.startingPrice,
+              description: form.description.trim(),
+              city: selectedCity.name,
+              lat: selectedCity.lat,
+              lng: selectedCity.lng,
               privacyConsent: true,
             }
           : {
-              role: "client",
-              firstName: form.firstName,
-              lastName: form.lastName,
-              email: form.email,
-              phone: form.phone,
+              role: "client" as const,
+              firstName: form.firstName.trim(),
+              lastName: form.lastName.trim(),
+              email: form.email.trim(),
+              phone: form.phone.trim(),
               password: form.password,
               clientKind,
-              organizationName: form.organizationName,
-              organizationSiret: form.organizationSiret,
+              organizationName: form.organizationName.trim(),
+              organizationSiret: form.organizationSiret.trim(),
               privacyConsent: true,
               address: {
-                line: "12 rue de la République",
-                city: RUMILLY.city,
-                zip: "74150",
-                lat: RUMILLY.lat,
-                lng: RUMILLY.lng,
+                line: form.addressLine.trim(),
+                city: selectedCity.name,
+                zip: form.zip.trim() || selectedCity.zipHint || "",
+                lat: selectedCity.lat,
+                lng: selectedCity.lng,
+                label:
+                  clientKind === "syndicat" ? "Copropriété" : clientKind === "entreprise" ? "Siège" : "Domicile",
               },
             };
+
       const res = await api<{ user: { role: string } }>("/api/auth/register", body);
       router.replace(res.user.role === "pro" ? "/pro/onboarding" : "/app/onboarding");
     } catch (err) {
@@ -100,6 +164,9 @@ function RegisterForm() {
         <Logo />
       </div>
       <h1 className="mt-8 text-3xl font-extrabold lg:mt-0">Créer un compte</h1>
+      <p className="mt-2 text-sm text-muted">
+        Renseignez vos informations complètes pour être opérationnel immédiatement.
+      </p>
       <div className="mt-4 grid grid-cols-2 gap-2 rounded-2xl bg-background p-1">
         <button
           type="button"
@@ -141,21 +208,58 @@ function RegisterForm() {
       <form onSubmit={submit} className="mt-6 space-y-3 pb-4">
         <div className="grid grid-cols-2 gap-3">
           <Field label="Prénom">
-            <input className={inputClass} required value={form.firstName} onChange={(e) => set("firstName", e.target.value)} />
+            <input
+              className={inputClass}
+              required
+              autoComplete="given-name"
+              value={form.firstName}
+              onChange={(e) => set("firstName", e.target.value)}
+            />
           </Field>
           <Field label="Nom">
-            <input className={inputClass} required value={form.lastName} onChange={(e) => set("lastName", e.target.value)} />
+            <input
+              className={inputClass}
+              required
+              autoComplete="family-name"
+              value={form.lastName}
+              onChange={(e) => set("lastName", e.target.value)}
+            />
           </Field>
         </div>
         <Field label="E-mail">
-          <input className={inputClass} type="email" required value={form.email} onChange={(e) => set("email", e.target.value)} />
+          <input
+            className={inputClass}
+            type="email"
+            required
+            autoComplete="email"
+            value={form.email}
+            onChange={(e) => set("email", e.target.value)}
+          />
         </Field>
         <Field label="Téléphone">
-          <input className={inputClass} required value={form.phone} onChange={(e) => set("phone", e.target.value)} />
+          <input
+            className={inputClass}
+            type="tel"
+            required
+            autoComplete="tel"
+            inputMode="tel"
+            placeholder="06 12 34 56 78"
+            value={form.phone}
+            onChange={(e) => set("phone", e.target.value)}
+          />
         </Field>
-        <Field label="Mot de passe">
-          <input className={inputClass} type="password" required value={form.password} onChange={(e) => set("password", e.target.value)} />
+        <Field label="Mot de passe (8 caractères min.)">
+          <input
+            className={inputClass}
+            type="password"
+            required
+            minLength={8}
+            autoComplete="new-password"
+            value={form.password}
+            onChange={(e) => set("password", e.target.value)}
+          />
         </Field>
+
         {role === "client" && clientKind !== "particulier" ? (
           <>
             <Field label={clientKind === "syndicat" ? "Nom du syndicat / copropriété" : "Nom de l’entreprise"}>
@@ -167,21 +271,95 @@ function RegisterForm() {
               />
             </Field>
             <Field label="SIRET (optionnel)">
-              <input className={inputClass} value={form.organizationSiret} onChange={(e) => set("organizationSiret", e.target.value)} />
+              <input
+                className={inputClass}
+                value={form.organizationSiret}
+                onChange={(e) => set("organizationSiret", e.target.value)}
+              />
             </Field>
           </>
         ) : null}
+
+        {role === "client" ? (
+          <div className="space-y-3 rounded-2xl border border-line bg-background/50 p-3">
+            <div className="text-sm font-semibold">Adresse d’intervention</div>
+            <Field label="Rue et numéro">
+              <input
+                className={inputClass}
+                required
+                autoComplete="street-address"
+                placeholder="Ex. 12 rue de la République"
+                value={form.addressLine}
+                onChange={(e) => set("addressLine", e.target.value)}
+              />
+            </Field>
+            <div className="grid gap-3 sm:grid-cols-[1.4fr_0.8fr]">
+              <Field label="Ville">
+                <select
+                  className={inputClass}
+                  required
+                  value={form.cityId}
+                  onChange={(e) => onCityChange(e.target.value)}
+                >
+                  <option value="">Choisir une ville…</option>
+                  {SERVICE_CITIES.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Code postal">
+                <input
+                  className={inputClass}
+                  required
+                  autoComplete="postal-code"
+                  inputMode="numeric"
+                  value={form.zip}
+                  onChange={(e) => set("zip", e.target.value)}
+                />
+              </Field>
+            </div>
+          </div>
+        ) : null}
+
         {role === "pro" ? (
           <>
             <Field label="Entreprise">
-              <input className={inputClass} required value={form.company} onChange={(e) => set("company", e.target.value)} />
+              <input
+                className={inputClass}
+                required
+                value={form.company}
+                onChange={(e) => set("company", e.target.value)}
+              />
             </Field>
             <Field label="SIRET">
               <input className={inputClass} required value={form.siret} onChange={(e) => set("siret", e.target.value)} />
             </Field>
+            <Field label="Ville d’intervention">
+              <select
+                className={inputClass}
+                required
+                value={form.cityId}
+                onChange={(e) => onCityChange(e.target.value)}
+              >
+                <option value="">Choisir une ville…</option>
+                {SERVICE_CITIES.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
             <Field label="Métier">
-              <select className={inputClass} value={form.categoryId} onChange={(e) => set("categoryId", e.target.value)}>
-                {(data?.categories ?? []).map((c) => (
+              <select
+                className={inputClass}
+                required
+                value={form.categoryId}
+                onChange={(e) => set("categoryId", e.target.value)}
+              >
+                {categories.length === 0 ? <option value="">Chargement…</option> : null}
+                {categories.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
                   </option>
@@ -190,20 +368,41 @@ function RegisterForm() {
             </Field>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Rayon d’intervention (km)">
-                <input className={inputClass} type="number" value={form.radiusKm} onChange={(e) => set("radiusKm", Number(e.target.value))} />
+                <input
+                  className={inputClass}
+                  type="number"
+                  min={1}
+                  max={100}
+                  required
+                  value={form.radiusKm}
+                  onChange={(e) => set("radiusKm", Number(e.target.value))}
+                />
               </Field>
               <Field label="Prix de départ (€)">
-                <input className={inputClass} type="number" value={form.startingPrice} onChange={(e) => set("startingPrice", Number(e.target.value))} />
+                <input
+                  className={inputClass}
+                  type="number"
+                  min={1}
+                  required
+                  value={form.startingPrice}
+                  onChange={(e) => set("startingPrice", Number(e.target.value))}
+                />
               </Field>
             </div>
             <Field label="Description">
-              <textarea className={inputClass} rows={3} value={form.description} onChange={(e) => set("description", e.target.value)} />
+              <textarea
+                className={inputClass}
+                rows={3}
+                value={form.description}
+                onChange={(e) => set("description", e.target.value)}
+              />
             </Field>
             <p className="text-xs text-muted">
-              Documents (identité, Kbis, RC Pro) : simulés et envoyés pour validation admin.
+              Après inscription, déposez vos documents (identité, Kbis, RC Pro) pour validation AppO.
             </p>
           </>
         ) : null}
+
         <label className="flex items-start gap-3 rounded-2xl border border-line bg-background/60 px-3 py-3 text-sm">
           <input
             type="checkbox"
@@ -227,17 +426,7 @@ function RegisterForm() {
             .
           </span>
         </label>
-        {error ? (
-          <p className="text-sm text-red-600">
-            {error === "EMAIL_TAKEN"
-              ? "Cet e-mail existe déjà"
-              : error === "ORG_REQUIRED"
-                ? "Indiquez le nom de l’organisation"
-                : error === "PRIVACY_CONSENT_REQUIRED"
-                  ? "Acceptez la politique de confidentialité pour continuer"
-                  : error}
-          </p>
-        ) : null}
+        {error ? <p className="text-sm text-red-600">{ERROR_LABEL[error] || error}</p> : null}
         <Button type="submit" variant="now" className="w-full" disabled={loading}>
           {loading
             ? "Création…"

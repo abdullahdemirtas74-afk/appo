@@ -42,8 +42,8 @@ export const PRO_ONBOARDING: OnboardingStep[] = [
     id: "welcome",
     title: "Bienvenue AppO Pro",
     body: "Le bouton DISPONIBLE sur l’accueil active les missions Now. Complétez ensuite docs et planning.",
-    ctaLabel: "Mon accueil",
-    href: "/pro",
+    ctaLabel: "Voir mon profil",
+    href: "/pro/profil",
   },
   {
     id: "docs",

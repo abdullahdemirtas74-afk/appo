@@ -4,6 +4,7 @@ import Link from "next/link";
 import { api, usePoll } from "@/lib/hooks";
 import { STATUS_LABELS, formatDate, money, moneyExact } from "@/lib/format";
 import { Badge, Button } from "@/components/ui";
+import { isDemoUiEnabled } from "@/lib/launch";
 
 type Activity = {
   id: string;
@@ -129,17 +130,19 @@ export default function AdminHome() {
           >
             Export backup
           </Button>
-          <Button
-            variant="secondary"
-            onClick={async () => {
-              const typed = prompt("Tapez RESET pour confirmer la réinitialisation (exportez avant) :");
-              if (typed !== "RESET") return;
-              await api("/api/admin", { action: "reset", confirm: "RESET" });
-              reload();
-            }}
-          >
-            Reset démo
-          </Button>
+          {isDemoUiEnabled() ? (
+            <Button
+              variant="secondary"
+              onClick={async () => {
+                const typed = prompt("Tapez RESET pour confirmer la réinitialisation (exportez avant) :");
+                if (typed !== "RESET") return;
+                await api("/api/admin", { action: "reset", confirm: "RESET" });
+                reload();
+              }}
+            >
+              Reset démo
+            </Button>
+          ) : null}
         </div>
       </div>
 

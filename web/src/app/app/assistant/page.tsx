@@ -1,16 +1,17 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMe } from "@/components/guard";
-import { Button, Field, inputClass } from "@/components/ui";
+import { Button, inputClass } from "@/components/ui";
 import { api } from "@/lib/hooks";
 import { money } from "@/lib/format";
 
 type Msg = { role: "assistant" | "user"; text: string };
 
-export default function AssistantPage() {
+function AssistantInner() {
   const router = useRouter();
+  const params = useSearchParams();
   const { data: me } = useMe();
   const [text, setText] = useState("");
   const [history, setHistory] = useState<Msg[]>([
@@ -18,16 +19,23 @@ export default function AssistantPage() {
   ]);
   const [result, setResult] = useState<any>(null);
   const [busy, setBusy] = useState(false);
+  const bootstrapped = useRef(false);
   const addr = me?.addresses?.find((a) => a.isDefault) ?? me?.addresses?.[0];
 
-  async function send() {
-    if (!text.trim()) return;
-    const nextHistory = [...history, { role: "user" as const, text }];
+  async function sendText(raw: string, baseHistory?: Msg[]) {
+    const value = raw.trim();
+    if (!value) return;
+    const prev = baseHistory ?? history;
+    const nextHistory = [...prev, { role: "user" as const, text: value }];
     setHistory(nextHistory);
     setText("");
     setBusy(true);
     try {
-      const res = await api<any>("/api/growth", { action: "assistant", text: nextHistory[nextHistory.length - 1].text, history: nextHistory });
+      const res = await api<any>("/api/growth", {
+        action: "assistant",
+        text: value,
+        history: nextHistory,
+      });
       setResult(res);
       setHistory((h) => [...h, ...res.messages]);
     } catch (e) {
@@ -37,10 +45,25 @@ export default function AssistantPage() {
     }
   }
 
+  useEffect(() => {
+    const q = params.get("q")?.trim();
+    if (!q || bootstrapped.current) return;
+    bootstrapped.current = true;
+    void sendText(q, [
+      { role: "assistant", text: "Bonjour, je suis l’assistant AppO. Décrivez votre problème (ex. « mon évier fuit »)." },
+    ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params]);
+
+  async function send() {
+    await sendText(text);
+  }
+
   async function createMission(kind: "now" | "rfq") {
     if (!result?.categoryId) return;
     if (!addr?.line) {
-      alert("Ajoutez une adresse dans Mon compte.");
+      alert("Ajoutez une adresse pour lancer la mission.");
+      router.push("/app/compte");
       return;
     }
     setBusy(true);
@@ -121,5 +144,17 @@ export default function AssistantPage() {
         </div>
       ) : null}
     </div>
+  );
+}
+
+export default function AssistantPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="px-5 py-6 text-sm text-muted">Chargement de l’assistant…</div>
+      }
+    >
+      <AssistantInner />
+    </Suspense>
   );
 }
