@@ -134,7 +134,7 @@ export function AppShell({
 
 export function AuthShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-dvh overflow-x-hidden bg-background">
+    <div className="auth-safe min-h-dvh overflow-x-hidden bg-background">
       <div className="mx-auto grid min-h-dvh w-full max-w-6xl lg:grid-cols-[1.05fr_0.95fr]">
         <div className="relative hidden overflow-hidden bg-ink px-8 py-10 text-white md:px-10 md:py-12 lg:flex lg:flex-col lg:justify-between">
           <Logo light />

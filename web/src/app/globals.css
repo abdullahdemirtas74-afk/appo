@@ -73,6 +73,27 @@ textarea {
   min-height: 100dvh;
 }
 
+/* Capacitor / notch safe areas (also applied when class is set by NativeBridge) */
+html.app-native,
+body.app-native {
+  padding: 0;
+}
+
+body.app-native .app-shell {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+body.app-native .app-shell > .flex > header.sticky {
+  top: 0;
+}
+
+@supports (padding: max(0px)) {
+  body.app-native .auth-safe {
+    padding-top: max(1.5rem, env(safe-area-inset-top));
+    padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+  }
+}
+
 .pulse-ring {
   animation: pulse-ring 1.6s ease-out infinite;
 }

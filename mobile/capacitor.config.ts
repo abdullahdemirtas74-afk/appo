@@ -1,0 +1,48 @@
+import type { CapacitorConfig } from "@capacitor/cli";
+
+const PROD_URL = "https://appo-production-10fb.up.railway.app";
+
+const config: CapacitorConfig = {
+  appId: "com.appo.app",
+  appName: "AppO",
+  webDir: "www",
+  server: {
+    url: process.env.APPO_MOBILE_URL?.trim() || PROD_URL,
+    cleartext: false,
+    androidScheme: "https",
+    allowNavigation: [
+      "appo-production-10fb.up.railway.app",
+      "*.up.railway.app",
+      "localhost",
+      "127.0.0.1",
+    ],
+  },
+  plugins: {
+    SplashScreen: {
+      launchShowDuration: 1800,
+      launchAutoHide: true,
+      backgroundColor: "#FF4D1C",
+      showSpinner: false,
+      splashFullScreen: true,
+      splashImmersive: true,
+    },
+    StatusBar: {
+      style: "DARK",
+      backgroundColor: "#FF4D1C",
+    },
+    PushNotifications: {
+      presentationOptions: ["badge", "sound", "alert"],
+    },
+  },
+  android: {
+    allowMixedContent: false,
+    backgroundColor: "#FF4D1C",
+  },
+  ios: {
+    contentInset: "automatic",
+    backgroundColor: "#FF4D1C",
+    preferredContentMode: "mobile",
+  },
+};
+
+export default config;

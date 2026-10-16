@@ -1,0 +1,79 @@
+# Codemagic CI — build iOS (TestFlight) + Android (AAB) without a local Mac.
+# Docs: https://docs.codemagic.io/yaml/yaml-getting-started/
+#
+# Required group "appo_stores" env vars / files in Codemagic UI:
+#   APP_STORE_CONNECT_ISSUER_ID, APP_STORE_CONNECT_KEY_IDENTIFIER,
+#   APP_STORE_CONNECT_PRIVATE_KEY (file), CERTIFICATE_PRIVATE_KEY,
+#   CM_KEYSTORE (file), CM_KEYSTORE_PASSWORD, CM_KEY_ALIAS, CM_KEY_PASSWORD
+
+workflows:
+  android-aab:
+    name: AppO Android AAB
+    max_build_duration: 60
+    instance_type: linux_x2
+    environment:
+      groups:
+        - appo_stores
+      vars:
+        PACKAGE_NAME: "com.appo.app"
+      android_signing:
+        - appo_keystore
+    scripts:
+      - name: Install JS deps
+        script: |
+          cd mobile
+          npm ci
+      - name: Sync Capacitor Android
+        script: |
+          cd mobile
+          npx cap sync android
+      - name: Build release bundle
+        script: |
+          cd mobile/android
+          ./gradlew bundleRelease
+    artifacts:
+      - mobile/android/app/build/outputs/**/*.aab
+
+  ios-testflight:
+    name: AppO iOS TestFlight
+    max_build_duration: 90
+    instance_type: mac_mini_m2
+    integrations:
+      app_store_connect: appo_asc
+    environment:
+      groups:
+        - appo_stores
+      vars:
+        XCODE_WORKSPACE: "ios/App/App.xcworkspace"
+        XCODE_SCHEME: "App"
+        BUNDLE_ID: "com.appo.app"
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.appo.app
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: Install JS deps
+        script: |
+          cd mobile
+          npm ci
+      - name: Sync Capacitor iOS
+        script: |
+          cd mobile
+          npx cap sync ios
+      - name: Pod install
+        script: |
+          cd mobile/ios/App
+          pod install
+      - name: Build IPA
+        script: |
+          cd mobile
+          xcode-project build-ipa \
+            --workspace "$XCODE_WORKSPACE" \
+            --scheme "$XCODE_SCHEME"
+    artifacts:
+      - build/ios/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true

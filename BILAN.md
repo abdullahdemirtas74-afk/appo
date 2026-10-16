@@ -1,11 +1,11 @@
 # AppO — Bilan projet
 
-**Dernière mise à jour :** 30 septembre 2026  
-**Stack :** Next.js + TypeScript + Tailwind · DB fichier JSON (+ fondation Postgres) · GitHub · Railway · PWA  
+**Dernière mise à jour :** 16 octobre 2026  
+**Stack :** Next.js + TypeScript + Tailwind · DB fichier JSON (+ fondation Postgres) · GitHub · Railway · PWA · Capacitor (stores)  
 **Repo :** https://github.com/abdullahdemirtas74-afk/appo  
 **App :** https://appo-production-10fb.up.railway.app  
 
-**Avancement estimé :** MVP produit ~94–95 % · Prod « sérieuse » ~45–50 %
+**Avancement estimé :** MVP produit ~94–95 % · Prod « sérieuse » ~50–55 % · Stores (shell) ~70 % (soumission manuelle restante)
 
 ---
 
@@ -109,7 +109,11 @@
 - [ ] Facturation légale PDF (numérotation complète)
 
 ### E. Croissance produit (après MVP)
-- [ ] App native iOS / Android (Capacitor / stores)
+- [x] Shell natif Capacitor iOS / Android (`mobile/`, appId `com.appo.app`)
+- [x] Ajustements web WebView (safe-area, liens externes, pas de SW PWA en natif)
+- [x] Projet Android + signature release + guide AAB / Play (`mobile/STORE.md`)
+- [x] Projet iOS + Info.plist + Codemagic TestFlight (`mobile/codemagic.yaml`)
+- [ ] Comptes Play / Apple + assets 1024 + soumission review (hors code)
 - [ ] Programme parrainage (déjà wallet — à pousser)
 - [ ] Chat support live
 - [ ] Analytics produit (funnels conversion)
@@ -119,8 +123,8 @@
 
 ## 3. Synthèse
 
-**Fait :** marketplace locale complète (Now + RFQ + abos + admin + RGPD + uploads + GPS + factures e-invoices + multi-villes + PWA), déployée et jouable en démo.  
-**Reste :** paiements réels, notifs hors app, volume Railway, puis bascule Postgres runtime + apps natives.
+**Fait :** marketplace locale complète (Now + RFQ + abos + admin + RGPD + uploads + GPS + factures e-invoices + multi-villes + PWA) + shell Capacitor stores (Android AAB buildable, iOS sources + CI Codemagic).  
+**Reste :** paiements réels, notifs hors app, volume Railway, soumission stores (comptes + captures), bascule Postgres runtime.
 
 ### Comptes démo
 Mot de passe : `appo123`
