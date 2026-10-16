@@ -15,24 +15,35 @@ function NowForm() {
   const [addressId, setAddressId] = useState("");
   const addresses = me?.addresses ?? [];
   const addr = addresses.find((a) => a.id === addressId) ?? addrDefault ?? addresses[0];
-  const [categoryId, setCategoryId] = useState(params.get("categoryId") || "cat_plomberie");
-  const [description, setDescription] = useState("Fuite sous évier");
+  const [categoryId, setCategoryId] = useState(params.get("categoryId") || "");
+  const [description, setDescription] = useState(params.get("q") || "");
   const [photos, setPhotos] = useState<string[]>([]);
   const [urgency, setUrgency] = useState(false);
   const [loading, setLoading] = useState(false);
-  const cat = data?.categories.find((c) => c.id === categoryId);
+  const categories = data?.categories ?? [];
+  const cat = categories.find((c) => c.id === categoryId) ?? categories[0];
+  const effectiveCategoryId = categoryId || cat?.id || "";
 
   async function submit() {
     if (!addr?.line) {
       alert("Ajoutez une adresse dans Mon compte avant de lancer AppO Now.");
+      router.push("/app/compte");
+      return;
+    }
+    if (!effectiveCategoryId) {
+      alert("Choisissez un service.");
+      return;
+    }
+    if (!description.trim()) {
+      alert("Décrivez brièvement le problème.");
       return;
     }
     setLoading(true);
     try {
       const res = await api<{ mission: { id: string } }>("/api/missions", {
         type: urgency ? "urgence" : "now",
-        categoryId,
-        description,
+        categoryId: effectiveCategoryId,
+        description: description.trim(),
         photos,
         address: addr.line,
         city: addr.city,
@@ -53,8 +64,13 @@ function NowForm() {
       <p className="mt-1 text-sm text-muted">J’ai besoin d’un professionnel maintenant.</p>
       <div className="mt-6 space-y-4">
         <Field label="Service recherché">
-          <select className={inputClass} value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-            {(data?.categories ?? []).map((c) => (
+          <select
+            className={inputClass}
+            value={effectiveCategoryId}
+            onChange={(e) => setCategoryId(e.target.value)}
+          >
+            {categories.length === 0 ? <option value="">Chargement…</option> : null}
+            {categories.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>
@@ -74,7 +90,14 @@ function NowForm() {
           </div>
         </button>
         <Field label="Problème rencontré">
-          <textarea className={inputClass} rows={4} value={description} onChange={(e) => setDescription(e.target.value)} />
+          <textarea
+            className={inputClass}
+            rows={4}
+            required
+            placeholder="Ex. fuite sous l’évier, plus de courant…"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
         </Field>
         <Field label="Adresse">
           {addresses.length > 1 ? (
@@ -89,8 +112,16 @@ function NowForm() {
                 </option>
               ))}
             </select>
+          ) : addr?.line ? (
+            <input className={inputClass} readOnly value={`${addr.line}, ${addr.city}`} />
           ) : (
-            <input className={inputClass} readOnly value={addr ? `${addr.line}, ${addr.city}` : "Rumilly"} />
+            <button
+              type="button"
+              className={`${inputClass} text-left text-appo`}
+              onClick={() => router.push("/app/compte")}
+            >
+              Ajouter une adresse →
+            </button>
           )}
         </Field>
         <Field label="Photos (optionnel)">
