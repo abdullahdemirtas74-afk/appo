@@ -1,7 +1,7 @@
 import { Logo } from "@/components/logo";
 import { SiteLegalFooter } from "@/components/site-legal-links";
 import { Button } from "@/components/ui";
-import { DEMO_ACCOUNTS } from "@/lib/demo";
+import { publicDemoAccounts } from "@/lib/demo";
 import { ArrowRight, BadgeCheck, Clock, MapPin, Shield } from "lucide-react";
 
 const cats = [
@@ -112,21 +112,27 @@ export default function Landing() {
       </section>
 
       <section className="border-t border-white/10 px-4 py-10 sm:px-6 sm:py-12">
-        <div className="mx-auto max-w-6xl rounded-3xl bg-white/5 p-4 sm:p-6">
-          <h2 className="font-bold">Comptes de démo — V1 locale</h2>
-          <p className="mt-1 text-sm text-white/60">
-            Mot de passe : appo123 — ouvrez deux onglets pour tester AppO Now.
-          </p>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {DEMO_ACCOUNTS.map((a) => (
-              <div key={a.email} className="rounded-2xl bg-black/30 p-4 text-sm">
-                <div className="text-xs font-bold text-appo">{a.role}</div>
-                <div className="font-semibold">{a.name}</div>
-                <div className="break-all text-white/60">{a.email}</div>
+        {(() => {
+          const demos = publicDemoAccounts();
+          if (demos.length === 0) return null;
+          return (
+            <div className="mx-auto max-w-6xl rounded-3xl bg-white/5 p-4 sm:p-6">
+              <h2 className="font-bold">Comptes de démo</h2>
+              <p className="mt-1 text-sm text-white/60">
+                Mot de passe : appo123 — ouvrez deux onglets pour tester AppO Now.
+              </p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {demos.map((a) => (
+                  <div key={a.email} className="rounded-2xl bg-black/30 p-4 text-sm">
+                    <div className="text-xs font-bold text-appo">{a.role}</div>
+                    <div className="font-semibold">{a.name}</div>
+                    <div className="break-all text-white/60">{a.email}</div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </div>
+            </div>
+          );
+        })()}
         <div className="mx-auto mt-8 max-w-6xl space-y-3 pb-8 text-center">
           <a href="/legal" className="text-sm font-semibold text-white/70 underline-offset-2 hover:text-white hover:underline">
             Informations légales & protection

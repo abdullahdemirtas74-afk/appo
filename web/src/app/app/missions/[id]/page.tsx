@@ -9,6 +9,7 @@ import { useMe } from "@/components/guard";
 import { Badge, Button, Field, inputClass } from "@/components/ui";
 import { api, usePoll } from "@/lib/hooks";
 import { STATUS_LABELS, formatDate, formatTime, money } from "@/lib/format";
+import { isDemoUiEnabled } from "@/lib/launch";
 
 const STEPS = ["accepted", "en_route", "arrived", "in_progress", "completed"];
 const TIP_PRESETS = [0, 2, 5, 10];
@@ -436,13 +437,15 @@ export default function MissionClientPage() {
           <Button className="mt-4 w-full" variant="now" onClick={() => payWithStripe("pay")}>
             Payer {money(m.total + tip)} via Stripe
           </Button>
-          <button
-            type="button"
-            className="mt-2 w-full text-center text-xs text-white/50 underline"
-            onClick={() => act("pay", { method: payMethod, tip })}
-          >
-            Paiement simulé (secours)
-          </button>
+          {isDemoUiEnabled() ? (
+            <button
+              type="button"
+              className="mt-2 w-full text-center text-xs text-white/50 underline"
+              onClick={() => act("pay", { method: payMethod, tip })}
+            >
+              Paiement simulé (secours)
+            </button>
+          ) : null}
         </div>
       ) : null}
 

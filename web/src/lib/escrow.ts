@@ -1,4 +1,5 @@
 import type { DB, Mission, Payment, ProProfile } from "./types";
+import { isStripeEnabled } from "./stripe";
 
 export const MAX_PAYOUT_DELAY_DAYS = 30;
 
@@ -65,7 +66,12 @@ export function scheduleProPayout(db: DB, m: Mission, pro: ProProfile, now: stri
   if (pay.status === "paid" || pay.status === "refunded") return pay;
   syncEscrowAmount(db, m);
   const delay = clampPayoutDelay(pro.payoutDelayDays, 0);
-  if (delay <= 0) {
+  const release = new Date(now);
+  release.setDate(release.getDate() + delay);
+  const releaseAt = release.toISOString();
+
+  // With Stripe Connect, even delay=0 stays "scheduled" until a Transfer succeeds.
+  if (delay <= 0 && !isStripeEnabled()) {
     pay.status = "paid";
     pay.paidAt = now;
     pay.releaseAt = now;
@@ -73,9 +79,7 @@ export function scheduleProPayout(db: DB, m: Mission, pro: ProProfile, now: stri
     m.payoutReleaseAt = now;
     return pay;
   }
-  const release = new Date(now);
-  release.setDate(release.getDate() + delay);
-  const releaseAt = release.toISOString();
+
   pay.status = "scheduled";
   pay.releaseAt = releaseAt;
   pay.paidAt = null;
@@ -84,7 +88,12 @@ export function scheduleProPayout(db: DB, m: Mission, pro: ProProfile, now: stri
   return pay;
 }
 
+/**
+ * Simulated / offline release. When Stripe is configured, real money moves via
+ * processConnectPayouts (Connect Transfer) — this path is a no-op.
+ */
 export function releaseDuePayouts(db: DB, now = new Date().toISOString()) {
+  if (isStripeEnabled()) return [];
   const t = new Date(now).getTime();
   const released: { proUserId: string; proAmount: number }[] = [];
   for (const pay of db.payments) {

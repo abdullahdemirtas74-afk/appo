@@ -27,7 +27,7 @@ function RegisterForm() {
     lastName: "",
     email: "",
     phone: "",
-    password: "appo123",
+    password: "",
     company: "",
     siret: "",
     organizationName: "",
@@ -200,7 +200,7 @@ function RegisterForm() {
               <textarea className={inputClass} rows={3} value={form.description} onChange={(e) => set("description", e.target.value)} />
             </Field>
             <p className="text-xs text-muted">
-              Documents (identité, Kbis, RC Pro) : simulés et envoyés pour validation admin.
+              Après inscription, déposez vos documents (identité, Kbis, RC Pro) pour validation AppO.
             </p>
           </>
         ) : null}
