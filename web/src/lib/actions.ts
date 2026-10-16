@@ -40,6 +40,7 @@ import {
   scheduleProPayout,
   syncEscrowAmount,
 } from "./escrow";
+import { isDemoUiEnabled } from "./launch";
 import {
   commissionForPro,
   computeLoyaltyBadge,
@@ -2178,6 +2179,7 @@ export async function adminAction(userId: string, action: string, payload: Recor
       };
     }
     if (action === "reset") {
+      if (!isDemoUiEnabled()) throw new Error("FORBIDDEN");
       if (payload.confirm !== "RESET") throw new Error("CONFIRM_REQUIRED");
       return { ok: true, reset: true };
     }
