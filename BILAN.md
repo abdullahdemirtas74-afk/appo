@@ -88,7 +88,7 @@
 - [ ] (Optionnel) brancher Sentry : `SENTRY_DSN` + `npm i @sentry/nextjs`
 
 ### B. Pour clôturer la MVP produit
-- [ ] Paiements réels (Stripe + Stripe Connect pros)
+- [x] Stripe live branché (Checkout + webhook) — Connect pros encore à faire
 - [ ] Activer e-mails (Resend + `APPO_MAIL_*`)
 - [ ] SMS / push (offres Now, litiges, codes)
 - [x] CGU / confidentialité / remboursements / mentions légales (pages publiques + liens inscription/compte)

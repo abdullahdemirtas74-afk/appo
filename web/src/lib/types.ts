@@ -318,6 +318,10 @@ export type Payment = {
   paidAt: string | null;
   /** Date the pro should receive the payout. Null while Appo still holds the funds. */
   releaseAt?: string | null;
+  /** Stripe Checkout / PaymentIntent ids when real card capture is used */
+  stripeSessionId?: string | null;
+  stripePaymentIntentId?: string | null;
+  stripeCheckoutUrl?: string | null;
 };
 
 export type AppNotification = {
