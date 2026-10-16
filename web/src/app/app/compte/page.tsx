@@ -259,7 +259,16 @@ export default function ComptePage() {
             Exporter mes données
           </Button>
           <Link href="/confidentialite" className="block rounded-2xl border border-line px-4 py-3 text-sm font-semibold">
-            Lire la politique de confidentialité
+            Politique de confidentialité
+          </Link>
+          <Link href="/cgu" className="block rounded-2xl border border-line px-4 py-3 text-sm font-semibold">
+            Conditions générales d’utilisation
+          </Link>
+          <Link href="/remboursement" className="block rounded-2xl border border-line px-4 py-3 text-sm font-semibold">
+            Annulations & remboursements
+          </Link>
+          <Link href="/mentions-legales" className="block rounded-2xl border border-line px-4 py-3 text-sm font-semibold">
+            Mentions légales
           </Link>
           <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
             <div className="font-bold text-red-800">Supprimer mon compte</div>
@@ -347,6 +356,7 @@ export default function ComptePage() {
             },
           },
           { k: "Confidentialité", v: "Export & suppression", onClick: () => setSection("privacy") },
+          { k: "Informations légales", v: "CGU, remboursements…", href: "/legal" },
           { k: "Aide & litiges", v: "Support AppO", href: "/app/support" },
         ].map((row) => {
           const inner = (
@@ -380,7 +390,15 @@ export default function ComptePage() {
       <p className="mt-4 text-xs text-muted">
         Données chiffrées au repos ·{" "}
         <Link href="/confidentialite" className="font-semibold text-appo">
-          Politique de confidentialité
+          confidentialité
+        </Link>
+        {" · "}
+        <Link href="/cgu" className="font-semibold text-appo">
+          CGU
+        </Link>
+        {" · "}
+        <Link href="/remboursement" className="font-semibold text-appo">
+          remboursements
         </Link>
         . AppO ne stocke jamais de numéro de carte.
       </p>

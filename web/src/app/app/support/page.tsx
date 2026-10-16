@@ -30,7 +30,21 @@ export default function SupportPage() {
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-extrabold">Aide & litiges</h1>
-          <p className="mt-1 text-sm text-muted">Contactez le support AppO ou suivez un litige mission.</p>
+          <p className="mt-1 text-sm text-muted">
+            Contactez le support AppO ou suivez un litige mission. Voir aussi{" "}
+            <Link href="/remboursement" className="font-semibold text-appo">
+              remboursements
+            </Link>
+            ,{" "}
+            <Link href="/cgu" className="font-semibold text-appo">
+              CGU
+            </Link>{" "}
+            et{" "}
+            <Link href="/legal" className="font-semibold text-appo">
+              infos légales
+            </Link>
+            .
+          </p>
         </div>
         <Button variant="now" onClick={() => setOpen(true)}>
           Nouveau

@@ -102,6 +102,16 @@ export default function ProProfil() {
       >
         Revoir le guide de démarrage
       </Button>
+      <div className="mt-6 space-y-2 text-sm">
+        <a href="/legal" className="flex w-full items-center justify-between rounded-2xl border border-line px-4 py-3 font-semibold">
+          Informations légales
+          <span className="text-muted">CGU · confidentialité</span>
+        </a>
+        <a href="/remboursement" className="flex w-full items-center justify-between rounded-2xl border border-line px-4 py-3 font-semibold">
+          Annulations & remboursements
+          <span className="text-appo">→</span>
+        </a>
+      </div>
       <Button
         className="mt-8 w-full"
         variant="secondary"

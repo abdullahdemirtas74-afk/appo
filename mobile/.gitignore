@@ -1,0 +1,33 @@
+node_modules/
+.idea/
+.vscode/
+*.log
+.DS_Store
+
+# Local signing secrets — never commit
+*.keystore
+*.jks
+keystore.properties
+android/key.properties
+auth.key
+AuthKey_*.p8
+*.p12
+*.mobileprovision
+google-services.json
+GoogleService-Info.plist
+
+# Local env overrides
+.env
+.env.*
+!.env.example
+
+# Capacitor / native build outputs
+android/app/build/
+android/.gradle/
+android/build/
+android/local.properties
+android/captures/
+ios/App/Pods/
+ios/App/build/
+ios/DerivedData/
+dist/

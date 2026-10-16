@@ -212,11 +212,19 @@ function RegisterForm() {
             onChange={(e) => setPrivacyConsent(e.target.checked)}
           />
           <span>
-            J’accepte le traitement de mes données personnelles (coordonnées, adresses, missions) pour le
-            fonctionnement d’AppO.{" "}
-            <a className="font-semibold text-appo underline" href="/confidentialite" target="_blank" rel="noreferrer">
-              Politique de confidentialité
+            J’accepte les{" "}
+            <a className="font-semibold text-appo underline" href="/cgu" target="_blank" rel="noreferrer">
+              CGU
             </a>
+            , la{" "}
+            <a className="font-semibold text-appo underline" href="/confidentialite" target="_blank" rel="noreferrer">
+              politique de confidentialité
+            </a>{" "}
+            et la{" "}
+            <a className="font-semibold text-appo underline" href="/remboursement" target="_blank" rel="noreferrer">
+              politique d’annulation & remboursements
+            </a>
+            .
           </span>
         </label>
         {error ? (

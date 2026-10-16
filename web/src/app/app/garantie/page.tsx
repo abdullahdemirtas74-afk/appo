@@ -15,12 +15,23 @@ export default function GarantiePage() {
         Couverture optionnelle ({rate}% du prix) pendant {data?.settings?.guaranteeDays ?? 30} jours après l’intervention.
       </p>
       <div className="mt-4 rounded-3xl border border-line bg-card p-4 text-sm">
-        <p>Conditions démo :</p>
+        <p>Conditions :</p>
         <ul className="mt-2 list-disc space-y-1 pl-5 text-muted">
           <li>Souscription possible dès que la mission est confirmée</li>
           <li>Claim ouvert depuis la mission ou ici</li>
           <li>Validation admin → crédit Wallet</li>
         </ul>
+        <p className="mt-3 text-muted">
+          Voir aussi{" "}
+          <a href="/remboursement" className="font-semibold text-appo">
+            annulations & remboursements
+          </a>{" "}
+          et les{" "}
+          <a href="/cgu" className="font-semibold text-appo">
+            CGU
+          </a>
+          .
+        </p>
       </div>
       <h2 className="mt-6 font-bold">Mes garanties</h2>
       <div className="mt-2 space-y-2">

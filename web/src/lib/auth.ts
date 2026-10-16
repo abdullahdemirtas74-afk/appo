@@ -99,6 +99,7 @@ export async function setSession(userId: string, role: Role) {
   });
   const store = await cookies();
   const secure = process.env.NODE_ENV === "production";
+  // SameSite=Lax is correct for first-party Capacitor WebView loads of this origin.
   store.set(COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",

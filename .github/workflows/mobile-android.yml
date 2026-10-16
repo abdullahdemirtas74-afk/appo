@@ -1,0 +1,35 @@
+name: Mobile Android
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, "cursor/**"]
+    paths:
+      - "mobile/**"
+      - ".github/workflows/mobile-android.yml"
+
+jobs:
+  sync-check:
+    name: Capacitor Android sync
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Doctor
+        run: npx cap doctor || true
+      - name: Sync Android
+        run: npx cap sync android
+      - name: Verify Gradle files
+        run: |
+          test -f android/app/build.gradle
+          test -f android/gradlew
+          grep -q 'com.appo.app' android/app/build.gradle

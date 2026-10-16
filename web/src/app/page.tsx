@@ -1,4 +1,5 @@
 import { Logo } from "@/components/logo";
+import { SiteLegalFooter } from "@/components/site-legal-links";
 import { Button } from "@/components/ui";
 import { DEMO_ACCOUNTS } from "@/lib/demo";
 import { ArrowRight, BadgeCheck, Clock, MapPin, Shield } from "lucide-react";
@@ -17,7 +18,10 @@ export default function Landing() {
     <div className="min-h-dvh overflow-x-hidden bg-[#0d0f14] text-white">
       <header className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-4 sm:px-6 sm:py-5">
         <Logo light />
-        <div className="flex shrink-0 gap-2 sm:gap-3">
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          <a href="/legal" className="hidden text-sm font-semibold text-white/60 hover:text-white sm:inline">
+            Légal
+          </a>
           <Button href="/login" variant="secondary" className="px-3 py-2.5 text-sm sm:px-5 sm:py-3.5 sm:text-[15px]">
             Connexion
           </Button>
@@ -123,12 +127,12 @@ export default function Landing() {
             ))}
           </div>
         </div>
-        <p className="mx-auto mt-8 max-w-6xl pb-8 text-center text-xs text-white/40">
-          AppO V1 · paiements simulés ·{" "}
-          <a className="underline hover:text-white/70" href="/confidentialite">
-            confidentialité & RGPD
+        <div className="mx-auto mt-8 max-w-6xl space-y-3 pb-8 text-center">
+          <a href="/legal" className="text-sm font-semibold text-white/70 underline-offset-2 hover:text-white hover:underline">
+            Informations légales & protection
           </a>
-        </p>
+          <SiteLegalFooter tone="light" />
+        </div>
       </section>
     </div>
   );

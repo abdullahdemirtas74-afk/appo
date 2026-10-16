@@ -2,6 +2,7 @@
 
 import type { Invoice, InvoiceParty } from "@/lib/types";
 import { moneyExact } from "@/lib/format";
+import { LEGAL } from "@/lib/legal";
 
 function PartyBlock({ title, party }: { title: string; party?: InvoiceParty | null }) {
   if (!party) return null;
@@ -179,7 +180,9 @@ export function InvoiceDocument({
       ) : null}
 
       <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-line bg-background/50 px-6 py-3 text-[11px] text-muted sm:px-8">
-        <span>AppO SAS · plateforme de mise en relation · facture électronique</span>
+        <span>
+          {LEGAL.legalName} · plateforme de mise en relation · facture électronique
+        </span>
         <span className="font-mono">{invoice.id}</span>
       </footer>
     </article>

@@ -43,3 +43,15 @@ Mot de passe : `appo123`
 - Matching : métier, dispo, distance, rayon, vérifié, note
 
 Cette V1 couvre le MVP du cahier des charges (Client, Pro, Admin) en web local.
+
+## Apps stores (Capacitor)
+
+Shell natif iOS / Android dans [`mobile/`](mobile/) (`com.appo.app`), WebView → prod Railway.
+
+```bash
+cd mobile
+npm install
+npm run sync
+```
+
+Guide publication Google Play & App Store : [`mobile/STORE.md`](mobile/STORE.md).
