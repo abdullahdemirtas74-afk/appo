@@ -32,7 +32,9 @@ import {
   withClientPlusSettings,
 } from "./client-plus";
 import { etaMinutes, haversineKm } from "./geo";
-import { findCityByName } from "./cities";
+import { findCityByName, SERVICE_CITIES } from "./cities";
+import { isValidPhone, normalizePhone } from "./phone";
+import { isDemoUiEnabled } from "./launch";
 import {
   clampPayoutDelay,
   holdClientFunds,
@@ -40,7 +42,6 @@ import {
   scheduleProPayout,
   syncEscrowAmount,
 } from "./escrow";
-import { isDemoUiEnabled } from "./launch";
 import {
   commissionForPro,
   computeLoyaltyBadge,
@@ -91,26 +92,53 @@ export async function registerClient(input: {
   organizationSiret?: string;
   privacyConsent?: boolean;
   referralCode?: string;
-  address?: { line: string; city: string; zip: string; lat: number; lng: number };
+  address?: { line: string; city: string; zip: string; lat?: number; lng?: number; label?: string };
 }) {
   return mutate((db) => {
-    if (db.users.some((u) => u.email.toLowerCase() === input.email.toLowerCase() && !u.deletedAt)) {
+    const firstName = String(input.firstName || "").trim();
+    const lastName = String(input.lastName || "").trim();
+    const email = String(input.email || "").trim().toLowerCase();
+    const phone = normalizePhone(input.phone);
+    const password = String(input.password || "");
+
+    if (!firstName || !lastName) throw new Error("NAME_REQUIRED");
+    if (!email || !email.includes("@")) throw new Error("EMAIL_REQUIRED");
+    if (!isValidPhone(phone)) throw new Error("PHONE_REQUIRED");
+    if (password.length < 8) throw new Error("PASSWORD_TOO_SHORT");
+    if (!input.privacyConsent) throw new Error("PRIVACY_CONSENT_REQUIRED");
+    if (db.users.some((u) => u.email.toLowerCase() === email && !u.deletedAt)) {
       throw new Error("EMAIL_TAKEN");
     }
-    if (!input.privacyConsent) throw new Error("PRIVACY_CONSENT_REQUIRED");
+
     const kind = input.clientKind ?? "particulier";
     if ((kind === "entreprise" || kind === "syndicat") && !String(input.organizationName || "").trim()) {
       throw new Error("ORG_REQUIRED");
     }
+
+    const addrLine = String(input.address?.line || "").trim();
+    const addrCity = String(input.address?.city || "").trim();
+    const addrZip = String(input.address?.zip || "").trim();
+    if (!addrLine || !addrCity || !addrZip) throw new Error("ADDRESS_REQUIRED");
+
+    const cityMeta =
+      SERVICE_CITIES.find(
+        (c) => c.name.toLowerCase() === addrCity.toLowerCase() || c.slug === addrCity.toLowerCase(),
+      ) ?? null;
+    if (!cityMeta) throw new Error("CITY_UNSUPPORTED");
+
+    const lat = Number(input.address?.lat ?? cityMeta.lat);
+    const lng = Number(input.address?.lng ?? cityMeta.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) throw new Error("INVALID_LOCATION");
+
     const user = {
       id: nid("usr"),
       role: "client" as const,
-      email: input.email.toLowerCase(),
-      passwordHash: hashPassword(input.password),
-      firstName: input.firstName,
-      lastName: input.lastName,
-      phone: input.phone,
-      avatar: `${input.firstName[0] ?? "A"}${input.lastName[0] ?? ""}`.toUpperCase(),
+      email,
+      passwordHash: hashPassword(password),
+      firstName,
+      lastName,
+      phone,
+      avatar: `${firstName[0] ?? "A"}${lastName[0] ?? ""}`.toUpperCase(),
       createdAt: new Date().toISOString(),
       suspended: false,
       clientKind: kind,
@@ -148,15 +176,21 @@ export async function registerClient(input: {
         creditWallet(db, user.id, Math.round(settings.referralClientCredit / 2), "referral", `Bienvenue via ${referralCodeIn}`);
       }
     }
-    if (input.address) {
-      db.addresses.push({
-        id: nid("adr"),
-        userId: user.id,
-        label: kind === "syndicat" ? "Copropriété" : kind === "entreprise" ? "Siège" : "Domicile",
-        ...input.address,
-        isDefault: true,
-      });
-    }
+
+    const label =
+      String(input.address?.label || "").trim() ||
+      (kind === "syndicat" ? "Copropriété" : kind === "entreprise" ? "Siège" : "Domicile");
+    db.addresses.push({
+      id: nid("adr"),
+      userId: user.id,
+      label,
+      line: addrLine,
+      city: cityMeta.name,
+      zip: addrZip,
+      lat,
+      lng,
+      isDefault: true,
+    });
     return publicUser(user);
   });
 }
@@ -327,24 +361,48 @@ export async function registerPro(input: {
   startingPrice: number;
   description: string;
   city: string;
-  lat: number;
-  lng: number;
+  lat?: number;
+  lng?: number;
   privacyConsent?: boolean;
 }) {
   return mutate((db) => {
+    const firstName = String(input.firstName || "").trim();
+    const lastName = String(input.lastName || "").trim();
+    const email = String(input.email || "").trim().toLowerCase();
+    const phone = normalizePhone(input.phone);
+    const password = String(input.password || "");
+    const company = String(input.company || "").trim();
+    const siret = String(input.siret || "").trim();
+    const cityName = String(input.city || "").trim();
+
+    if (!firstName || !lastName) throw new Error("NAME_REQUIRED");
+    if (!email || !email.includes("@")) throw new Error("EMAIL_REQUIRED");
+    if (!isValidPhone(phone)) throw new Error("PHONE_REQUIRED");
+    if (password.length < 8) throw new Error("PASSWORD_TOO_SHORT");
+    if (!company) throw new Error("COMPANY_REQUIRED");
+    if (!siret || siret.replace(/\s/g, "").length < 9) throw new Error("SIRET_REQUIRED");
     if (!input.privacyConsent) throw new Error("PRIVACY_CONSENT_REQUIRED");
-    if (db.users.some((u) => u.email.toLowerCase() === input.email.toLowerCase() && !u.deletedAt)) {
+    if (db.users.some((u) => u.email.toLowerCase() === email && !u.deletedAt)) {
       throw new Error("EMAIL_TAKEN");
     }
+
+    const cityMeta =
+      SERVICE_CITIES.find(
+        (c) => c.name.toLowerCase() === cityName.toLowerCase() || c.slug === cityName.toLowerCase(),
+      ) ?? null;
+    if (!cityMeta) throw new Error("CITY_UNSUPPORTED");
+    const lat = Number(input.lat ?? cityMeta.lat);
+    const lng = Number(input.lng ?? cityMeta.lng);
+
     const user = {
       id: nid("usr"),
       role: "pro" as const,
-      email: input.email.toLowerCase(),
-      passwordHash: hashPassword(input.password),
-      firstName: input.firstName,
-      lastName: input.lastName,
-      phone: input.phone,
-      avatar: `${input.firstName[0] ?? "P"}${input.lastName[0] ?? ""}`.toUpperCase(),
+      email,
+      passwordHash: hashPassword(password),
+      firstName,
+      lastName,
+      phone,
+      avatar: `${firstName[0] ?? "P"}${lastName[0] ?? ""}`.toUpperCase(),
       createdAt: new Date().toISOString(),
       suspended: false,
       privacyConsentAt: new Date().toISOString(),
@@ -360,14 +418,14 @@ export async function registerPro(input: {
     db.pros.push({
       id: nid("pro"),
       userId: user.id,
-      company: input.company,
-      siret: input.siret,
-      description: input.description,
+      company,
+      siret,
+      description: String(input.description || "").trim(),
       experienceYears: 0,
       radiusKm: input.radiusKm,
-      lat: input.lat,
-      lng: input.lng,
-      city: input.city,
+      lat,
+      lng,
+      city: cityMeta.name,
       online: false,
       verified: false,
       status: "pending",
@@ -405,8 +463,8 @@ export async function registerPro(input: {
       team: [
         {
           id: nid("tm"),
-          name: `${input.firstName} ${input.lastName}`.trim(),
-          phone: input.phone,
+          name: `${firstName} ${lastName}`.trim(),
+          phone,
           role: "owner",
           active: true,
         },
@@ -2246,6 +2304,13 @@ export function errorStatus(e: unknown) {
     INVALID_STATE: 409,
     ORG_REQUIRED: 400,
     ADDRESS_REQUIRED: 400,
+    NAME_REQUIRED: 400,
+    EMAIL_REQUIRED: 400,
+    PHONE_REQUIRED: 400,
+    PASSWORD_TOO_SHORT: 400,
+    CITY_UNSUPPORTED: 400,
+    COMPANY_REQUIRED: 400,
+    SIRET_REQUIRED: 400,
     PHOTO_TOO_LARGE: 400,
     INVALID_LOCATION: 400,
     FILE_TOO_LARGE: 400,
