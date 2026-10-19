@@ -55,10 +55,13 @@ import {
   isPrimeActive,
   matchingScore,
   primeDaysLeft,
+  PRO_REQUIRED_DOCS,
   verificationChecklist,
   verifiedComplete,
   withTierSettings,
 } from "./premium";
+import { applySiretLookup, hoursUntilConfirm } from "./pro-verify";
+import { lookupSiret, normalizeSiret } from "./siret";
 import type {
   AbsenceReason,
   Mission,
@@ -574,14 +577,26 @@ export async function registerPro(input: {
   lng?: number;
   privacyConsent?: boolean;
 }) {
+  const siretLookup = await lookupSiret(input.siret);
+  if (!siretLookup.ok) {
+    throw new Error(
+      siretLookup.status === "inactive"
+        ? "SIRET_INACTIVE"
+        : siretLookup.status === "not_found"
+          ? "SIRET_NOT_FOUND"
+          : "SIRET_INVALID",
+    );
+  }
+
   return mutate((db) => {
     const firstName = String(input.firstName || "").trim();
     const lastName = String(input.lastName || "").trim();
     const email = String(input.email || "").trim().toLowerCase();
     const phone = normalizePhone(input.phone);
     const password = String(input.password || "");
-    const company = String(input.company || "").trim();
-    const siret = String(input.siret || "").trim();
+    const company =
+      String(input.company || "").trim() || siretLookup.legalName || "";
+    const siret = normalizeSiret(input.siret);
     const cityName = String(input.city || "").trim();
 
     if (!firstName || !lastName) throw new Error("NAME_REQUIRED");
@@ -589,7 +604,7 @@ export async function registerPro(input: {
     if (!isValidPhone(phone)) throw new Error("PHONE_REQUIRED");
     if (password.length < 8) throw new Error("PASSWORD_TOO_SHORT");
     if (!company) throw new Error("COMPANY_REQUIRED");
-    if (!siret || siret.replace(/\s/g, "").length < 9) throw new Error("SIRET_REQUIRED");
+    if (!siret) throw new Error("SIRET_REQUIRED");
     if (!input.privacyConsent) throw new Error("PRIVACY_CONSENT_REQUIRED");
     if (db.users.some((u) => u.email.toLowerCase() === email && !u.deletedAt)) {
       throw new Error("EMAIL_TAKEN");
@@ -624,7 +639,7 @@ export async function registerPro(input: {
     };
     user.referralCode = makeReferralCode(user);
     db.users.push(user);
-    db.pros.push({
+    const proProfile = {
       id: nid("pro"),
       userId: user.id,
       company,
@@ -637,16 +652,21 @@ export async function registerPro(input: {
       city: cityMeta.name,
       online: false,
       verified: false,
-      status: "pending",
+      status: "pending" as const,
       startingPrice: input.startingPrice,
       categoryIds: input.categoryIds,
       photos: [],
       certifications: [],
       documents: [
-        { id: nid("doc"), type: "identite", name: "piece_identite.pdf", status: "pending" },
-        { id: nid("doc"), type: "entreprise", name: "kbis.pdf", status: "pending" },
-        { id: nid("doc"), type: "assurance", name: "rc_pro.pdf", status: "pending" },
+        { id: nid("doc"), type: "identite" as const, name: "cni.jpg", status: "missing" as const },
+        { id: nid("doc"), type: "selfie" as const, name: "faceid.jpg", status: "missing" as const },
+        { id: nid("doc"), type: "entreprise" as const, name: "kbis.pdf", status: "missing" as const },
+        { id: nid("doc"), type: "assurance" as const, name: "rc_pro.pdf", status: "missing" as const },
       ],
+      faceIdVerifiedAt: null as string | null,
+      faceIdMethod: null as "camera" | "upload" | null,
+      verificationDueAt: null as string | null,
+      verifiedAt: null as string | null,
       schedule: [0, 1, 2, 3, 4, 5, 6].map((day) => ({
         day,
         start: "08:00",
@@ -660,13 +680,13 @@ export async function registerPro(input: {
       leadTimeHours: 2,
       maxMissionsPerDay: 1,
       premiumUntil: null,
-      premiumPlan: "none",
-      subscriptionTier: "pro",
+      premiumPlan: "none" as const,
+      subscriptionTier: "pro" as const,
       primeUntil: null,
-      primePlan: "none",
+      primePlan: "none" as const,
       boostUntil: null,
       loyaltyPoints: 0,
-      loyaltyBadge: "none",
+      loyaltyBadge: "none" as const,
       businessEnabled: false,
       payoutDelayDays: 7,
       team: [
@@ -674,7 +694,7 @@ export async function registerPro(input: {
           id: nid("tm"),
           name: `${firstName} ${lastName}`.trim(),
           phone,
-          role: "owner",
+          role: "owner" as const,
           active: true,
         },
       ],
@@ -682,10 +702,25 @@ export async function registerPro(input: {
       reviewCount: 0,
       missionCount: 0,
       acceptanceRate: 1,
+    };
+    applySiretLookup(proProfile, {
+      ok: siretLookup.ok,
+      status: siretLookup.status,
+      siret: siretLookup.siret,
+      legalName: siretLookup.legalName,
+      naf: siretLookup.naf,
+      address: siretLookup.address,
     });
+    db.pros.push(proProfile);
     const admin = db.users.find((u) => u.role === "admin");
     if (admin) {
-      notify(db, admin.id, "Nouveau professionnel à valider", `${input.company} — ${input.firstName} ${input.lastName}`, "/admin/pros");
+      notify(
+        db,
+        admin.id,
+        "Nouveau professionnel à valider",
+        `${proProfile.company} — ${firstName} ${lastName} · SIRET OK`,
+        "/admin/pros",
+      );
     }
     return publicUser(user);
   });
@@ -735,6 +770,9 @@ export async function getMe(userId: string) {
             verifiedComplete: verifiedComplete(pro),
             checklist: verificationChecklist(pro),
             docsReadyForReview: docsReadyForReview(pro),
+            faceIdVerified: Boolean(pro.faceIdVerifiedAt),
+            siretOk: pro.siretStatus === "valid",
+            hoursUntilConfirm: hoursUntilConfirm(pro),
             primeDaysLeft: primeDaysLeft(pro),
           }
         : null,
@@ -2148,13 +2186,13 @@ export async function adminAction(userId: string, action: string, payload: Recor
       if (decision === "verified") {
         const force = Boolean(payload.force);
         if (!force) {
-          const need = ["identite", "entreprise", "assurance"] as const;
-          const allApproved = need.every((t) =>
+          const allApproved = PRO_REQUIRED_DOCS.every((t) =>
             pro.documents.some((d) => d.type === t && d.status === "approved"),
           );
           if (!allApproved) throw new Error("DOCS_INCOMPLETE");
+          if (pro.siretStatus && pro.siretStatus !== "valid") throw new Error("SIRET_INVALID");
         } else {
-          for (const t of ["identite", "entreprise", "assurance"] as const) {
+          for (const t of PRO_REQUIRED_DOCS) {
             let doc = pro.documents.find((d) => d.type === t);
             if (!doc) {
               doc = {
@@ -2173,9 +2211,18 @@ export async function adminAction(userId: string, action: string, payload: Recor
               doc.reviewedAt = new Date().toISOString();
             }
           }
+          if (!pro.faceIdVerifiedAt) {
+            pro.faceIdVerifiedAt = new Date().toISOString();
+            pro.faceIdMethod = "upload";
+          }
+          if (pro.siretStatus !== "valid") {
+            pro.siretStatus = "valid";
+            pro.siretCheckedAt = new Date().toISOString();
+          }
         }
         pro.status = "verified";
         pro.verified = true;
+        pro.verifiedAt = new Date().toISOString();
         pro.verificationNote = payload.note ? String(payload.note) : pro.verificationNote ?? null;
         notify(db, pro.userId, "Compte Pro vérifié", "Votre badge Pro vérifié est activé. Vous pouvez recevoir des missions.", "/pro", { emailPro: true });
       } else if (decision === "rejected") {
@@ -2548,6 +2595,11 @@ export function errorStatus(e: unknown) {
     RESET_TOKEN_INVALID: 400,
     RESET_TOKEN_EXPIRED: 400,
     RESET_IDENTITY_INVALID: 400,
+    FACE_ID_INCOMPLETE: 400,
+    FACE_ID_REQUIRED: 400,
+    SIRET_INVALID: 400,
+    SIRET_INACTIVE: 400,
+    SIRET_NOT_FOUND: 400,
   };
   return { status: map[msg] ?? 400, error: msg };
 }

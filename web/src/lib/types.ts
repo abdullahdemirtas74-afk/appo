@@ -58,9 +58,11 @@ export type Category = {
   active: boolean;
 };
 
+export type ProDocumentType = "identite" | "selfie" | "entreprise" | "assurance" | "certification";
+
 export type ProDocument = {
   id: string;
-  type: "identite" | "entreprise" | "assurance" | "certification";
+  type: ProDocumentType;
   name: string;
   status: "missing" | "pending" | "approved" | "rejected";
   /** Stored file URL under /api/uploads/... */
@@ -69,6 +71,8 @@ export type ProDocument = {
   submittedAt?: string | null;
   reviewedAt?: string | null;
 };
+
+export type SiretStatus = "unchecked" | "valid" | "invalid" | "inactive" | "not_found" | "error";
 
 export type ScheduleDay = {
   day: number;
@@ -109,6 +113,12 @@ export type ProProfile = {
   userId: string;
   company: string;
   siret: string;
+  /** Auto-check via API Recherche d'entreprises */
+  siretStatus?: SiretStatus;
+  siretCheckedAt?: string | null;
+  siretLegalName?: string | null;
+  siretNaf?: string | null;
+  siretAddress?: string | null;
   description: string;
   experienceYears: number;
   radiusKm: number;
@@ -127,6 +137,13 @@ export type ProProfile = {
   verificationNote?: string | null;
   /** Dernière soumission du dossier à l’admin */
   verificationSubmittedAt?: string | null;
+  /** Confirmation auto prévue (soumission + 24h) */
+  verificationDueAt?: string | null;
+  /** Compte confirmé (manuel ou auto 24h) */
+  verifiedAt?: string | null;
+  /** Selfie Face ID + CNI validés */
+  faceIdVerifiedAt?: string | null;
+  faceIdMethod?: "camera" | "upload" | null;
   schedule: ScheduleDay[];
   absences: ProAbsence[];
   bufferMinutes: number;

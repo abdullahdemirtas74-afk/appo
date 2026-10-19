@@ -21,7 +21,10 @@ const ERROR_LABEL: Record<string, string> = {
   ADDRESS_REQUIRED: "Choisissez une adresse GPS (suggestion ou bouton GPS)",
   CITY_UNSUPPORTED: "Choisissez une ville desservie par AppO",
   COMPANY_REQUIRED: "Indiquez le nom de l’entreprise",
-  SIRET_REQUIRED: "Indiquez un SIRET valide",
+  SIRET_REQUIRED: "Indiquez un SIRET valide (14 chiffres)",
+  SIRET_INVALID: "SIRET invalide (contrôle Luhn)",
+  SIRET_INACTIVE: "Établissement radié ou inactif",
+  SIRET_NOT_FOUND: "SIRET introuvable dans le registre officiel",
 };
 
 function RegisterForm() {
@@ -332,9 +335,19 @@ function RegisterForm() {
                 onChange={(e) => set("company", e.target.value)}
               />
             </Field>
-            <Field label="SIRET">
-              <input className={inputClass} required value={form.siret} onChange={(e) => set("siret", e.target.value)} />
+            <Field label="SIRET (vérification automatique)">
+              <input
+                className={inputClass}
+                required
+                inputMode="numeric"
+                placeholder="14 chiffres"
+                value={form.siret}
+                onChange={(e) => set("siret", e.target.value)}
+              />
             </Field>
+            <p className="text-xs text-muted">
+              Le SIRET est contrôlé automatiquement (Luhn + API Recherche d’entreprises).
+            </p>
             <Field label="Ville d’intervention">
               <select
                 className={inputClass}
