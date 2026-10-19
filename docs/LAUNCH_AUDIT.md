@@ -16,7 +16,7 @@
 | Auth + sessions (`APPO_SECRET`) | OK |
 | Stripe **live** Checkout + webhook | OK |
 | Stripe Connect Express (versements pros) | OK code + deploy — questionnaire platform Stripe à finaliser si Express bloqué |
-| E-mails Gmail SMTP `contact@appo-ad.com` | OK (test iCloud reçu) |
+| E-mails transactionnels | **Bloqué sur Hobby** — SMTP Railway interdit ; ajouter `APPO_RESEND_API_KEY` (HTTPS) |
 | Pages légales | OK |
 | Mode démo / paiements simulés UI | **Retiré en prod** |
 | Shell Capacitor `com.appo.app` | OK code |
@@ -42,8 +42,8 @@ Réactiver uniquement avec `NEXT_PUBLIC_APPO_DEMO_UI=true` (dev / staging).
 2. **Stores** — build / AAB / TestFlight + review Google/Apple  
 3. **SMS / push** — non branchés (e-mail OK)  
 4. **Postgres runtime** — encore JSON sur volume (OK soft-launch, pas scale)  
-5. **Sentry** — optionnel  
-6. **Connect platform profile** Stripe — à valider dans le Dashboard si onboarding Express échoue  
+6. **Sentry** — optionnel  
+7. **Connect platform profile** Stripe — à valider dans le Dashboard si onboarding Express échoue  
 
 ---
 
