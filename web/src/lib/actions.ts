@@ -311,6 +311,7 @@ export async function registerClient(input: {
   organizationSiret?: string;
   privacyConsent?: boolean;
   referralCode?: string;
+  locale?: string;
   address?: { line: string; city: string; zip: string; lat?: number; lng?: number; label?: string };
 }) {
   return mutate((db) => {
@@ -371,7 +372,12 @@ export async function registerClient(input: {
       clientPlusPlan: "none" as const,
       privacyConsentAt: new Date().toISOString(),
       deletedAt: null as string | null,
-      locale: getMarket().defaultLocale || "fr",
+      locale:
+        (input.locale && isValidLanguageCode(String(input.locale))
+          ? String(input.locale).trim().toLowerCase().slice(0, 12)
+          : null) ||
+        getMarket().defaultLocale ||
+        "fr",
       referralCode: "",
       walletBalance: 0,
       referredByUserId: null as string | null,
@@ -595,6 +601,7 @@ export async function registerPro(input: {
   lat?: number;
   lng?: number;
   privacyConsent?: boolean;
+  locale?: string;
 }) {
   const market = getMarket();
   const bizLookup = await lookupBusinessId(input.siret);
@@ -660,7 +667,12 @@ export async function registerPro(input: {
       suspended: false,
       privacyConsentAt: new Date().toISOString(),
       deletedAt: null as string | null,
-      locale: market.defaultLocale || "fr",
+      locale:
+        (input.locale && isValidLanguageCode(String(input.locale))
+          ? String(input.locale).trim().toLowerCase().slice(0, 12)
+          : null) ||
+        market.defaultLocale ||
+        "fr",
       referralCode: "",
       walletBalance: 0,
       referredByUserId: null as string | null,
