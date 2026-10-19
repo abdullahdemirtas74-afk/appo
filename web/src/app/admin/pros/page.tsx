@@ -4,7 +4,8 @@ import { api, usePoll } from "@/lib/hooks";
 import { Badge, Button } from "@/components/ui";
 
 const DOC_LABEL: Record<string, string> = {
-  identite: "Identité",
+  identite: "CNI",
+  selfie: "Face ID",
   entreprise: "Kbis",
   assurance: "RC Pro",
   certification: "Certification",
@@ -26,18 +27,29 @@ export default function AdminPros() {
                   {p.user.firstName} {p.user.lastName} — {p.company}
                 </div>
                 <div className="text-sm text-muted">
-                  SIRET {p.siret} · {p.city} · {p.user.email}
+                  SIRET {p.siret}
+                  {p.siretStatus ? ` (${p.siretStatus})` : ""} · {p.city} · {p.user.email}
                 </div>
+                {p.siretLegalName ? (
+                  <div className="text-xs text-muted">Raison sociale : {p.siretLegalName}</div>
+                ) : null}
                 <div className="mt-2 flex flex-wrap gap-2">
                   <Badge tone={p.status === "verified" ? "green" : p.status === "pending" ? "orange" : "red"}>
                     {p.status}
                   </Badge>
+                  {p.siretStatus === "valid" ? <Badge tone="green">SIRET OK</Badge> : <Badge tone="orange">SIRET</Badge>}
+                  {p.faceIdVerifiedAt ? <Badge tone="green">Face ID</Badge> : <Badge tone="orange">Face ID</Badge>}
                   {p.verifiedComplete ? <Badge tone="green">Dossier OK</Badge> : <Badge tone="orange">Docs incomplets</Badge>}
                   {p.online ? <Badge tone="green">En ligne</Badge> : <Badge>Hors ligne</Badge>}
                   {p.tier === "elite" ? <Badge tone="premium">Elite</Badge> : null}
                   {p.premiumActive || p.tier === "prime" ? <Badge tone="premium">Prime</Badge> : null}
                   {p.boostActive ? <Badge tone="orange">Boost</Badge> : null}
                 </div>
+                {p.verificationDueAt && p.status === "pending" ? (
+                  <p className="mt-2 text-xs text-muted">
+                    Auto-confirmation : {new Date(p.verificationDueAt).toLocaleString("fr-FR")}
+                  </p>
+                ) : null}
                 {p.primeUntil || p.premiumUntil ? (
                   <p className="mt-2 text-xs text-muted">
                     Prime jusqu’au {new Date(p.primeUntil || p.premiumUntil).toLocaleDateString("fr-FR")}

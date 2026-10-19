@@ -6,8 +6,18 @@ import {
   proByUser,
   requireUser,
 } from "./db";
+import {
+  docsReadyForReview,
+  faceIdReady,
+  hoursUntilConfirm,
+  markVerificationSubmitted,
+  completeFaceIdCheck,
+  applySiretLookup,
+  PRO_REQUIRED_DOCS,
+} from "./pro-verify";
 import { verifiedComplete, verificationChecklist } from "./premium";
-import type { Dispute, SupportTicket } from "./types";
+import { lookupSiret } from "./siret";
+import type { Dispute, ProDocumentType, SupportTicket } from "./types";
 
 function nowIso() {
   return new Date().toISOString();
@@ -249,14 +259,16 @@ export async function openMissionDispute(
 
 export async function submitProDocument(
   userId: string,
-  input: { type: "identite" | "entreprise" | "assurance" | "certification"; name?: string; url?: string },
+  input: { type: ProDocumentType; name?: string; url?: string },
 ) {
   return mutate((db) => {
     requireUser(db, userId, "pro");
     const pro = proByUser(db, userId);
     if (!pro) throw new Error("NOT_FOUND");
     const type = input.type;
-    const name = String(input.name || `${type}.pdf`).trim() || `${type}.pdf`;
+    const allowed: ProDocumentType[] = ["identite", "selfie", "entreprise", "assurance", "certification"];
+    if (!allowed.includes(type)) throw new Error("INVALID_STATE");
+    const name = String(input.name || `${type}.jpg`).trim() || `${type}.jpg`;
     const url = input.url ? String(input.url) : null;
     const ts = nowIso();
     let doc = pro.documents.find((d) => d.type === type);
@@ -280,12 +292,79 @@ export async function submitProDocument(
       doc.submittedAt = ts;
       doc.reviewedAt = null;
     }
+    // Re-do Face ID if identity docs change
+    if (type === "identite" || type === "selfie") {
+      pro.faceIdVerifiedAt = null;
+      pro.faceIdMethod = null;
+    }
     if (pro.status === "rejected") pro.status = "pending";
     pro.verified = false;
     return {
       pro,
       checklist: verificationChecklist(pro),
       verifiedComplete: verifiedComplete(pro),
+      faceIdReady: faceIdReady(pro),
+      docsReadyForReview: docsReadyForReview(pro),
+    };
+  });
+}
+
+/** Face ID : selfie + CNI présents → validation biométrique AppO. */
+export async function completeProFaceId(userId: string, method: "camera" | "upload" = "camera") {
+  return mutate((db) => {
+    requireUser(db, userId, "pro");
+    const pro = proByUser(db, userId);
+    if (!pro) throw new Error("NOT_FOUND");
+    completeFaceIdCheck(pro, method);
+    notify(
+      db,
+      userId,
+      "Face ID validé",
+      "Votre pièce d’identité et votre selfie ont été vérifiés.",
+      "/pro/verification",
+    );
+    return {
+      pro,
+      checklist: verificationChecklist(pro),
+      verifiedComplete: verifiedComplete(pro),
+      faceIdReady: true,
+      faceIdVerifiedAt: pro.faceIdVerifiedAt,
+    };
+  });
+}
+
+/** Re-vérifie le SIRET via l’API officielle et met à jour le dossier. */
+export async function recheckProSiret(userId: string, siretRaw?: string) {
+  const current = await mutate((db) => {
+    requireUser(db, userId, "pro");
+    const pro = proByUser(db, userId);
+    if (!pro) throw new Error("NOT_FOUND");
+    return { siret: siretRaw || pro.siret };
+  }, false);
+
+  const lookup = await lookupSiret(current.siret);
+  return mutate((db) => {
+    const pro = proByUser(db, userId);
+    if (!pro) throw new Error("NOT_FOUND");
+    applySiretLookup(pro, {
+      ok: lookup.ok,
+      status: lookup.status,
+      siret: lookup.siret,
+      legalName: lookup.legalName,
+      naf: lookup.naf,
+      address: lookup.address,
+    });
+    if (!lookup.ok) throw new Error(lookup.error || "SIRET_INVALID");
+    return {
+      pro,
+      siret: {
+        status: pro.siretStatus,
+        legalName: pro.siretLegalName,
+        naf: pro.siretNaf,
+        address: pro.siretAddress,
+        checkedAt: pro.siretCheckedAt,
+      },
+      checklist: verificationChecklist(pro),
     };
   });
 }
@@ -295,28 +374,35 @@ export async function submitProVerification(userId: string) {
     requireUser(db, userId, "pro");
     const pro = proByUser(db, userId);
     if (!pro) throw new Error("NOT_FOUND");
-    const need = ["identite", "entreprise", "assurance"] as const;
-    const ready = need.every((t) =>
-      pro.documents.some((d) => d.type === t && (d.status === "pending" || d.status === "approved")),
-    );
-    if (!ready) throw new Error("DOCS_INCOMPLETE");
-    const ts = nowIso();
-    pro.verificationSubmittedAt = ts;
-    if (pro.status === "rejected" || pro.status === "suspended") {
-      /* stay until admin acts */
-    } else {
-      pro.status = "pending";
-    }
-    pro.verified = false;
+    if (!docsReadyForReview(pro)) throw new Error("DOCS_INCOMPLETE");
+    if (!pro.faceIdVerifiedAt) throw new Error("FACE_ID_REQUIRED");
+    if (pro.siretStatus !== "valid") throw new Error("SIRET_REQUIRED");
+
+    markVerificationSubmitted(pro);
     const admin = db.users.find((u) => u.role === "admin");
     if (admin) {
-      notify(db, admin.id, "Dossier Pro à vérifier", `${pro.company} a soumis ses documents`, "/admin/pros");
+      notify(
+        db,
+        admin.id,
+        "Dossier Pro à vérifier",
+        `${pro.company} — confirmation auto dans 24h si OK`,
+        "/admin/pros",
+      );
     }
-    notify(db, userId, "Dossier envoyé", "AppO examine vos documents sous 24–48h.", "/pro/verification");
+    notify(
+      db,
+      userId,
+      "Dossier envoyé",
+      "Confirmation automatique de votre compte sous 24h (SIRET + Face ID validés).",
+      "/pro/verification",
+    );
     return {
       pro,
       checklist: verificationChecklist(pro),
       verifiedComplete: verifiedComplete(pro),
+      hoursUntilConfirm: hoursUntilConfirm(pro),
+      verificationDueAt: pro.verificationDueAt,
+      requiredDocs: PRO_REQUIRED_DOCS,
     };
   });
 }

@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { AddressInput, type AddressValue } from "@/components/address-input";
 import { useMe } from "@/components/guard";
 import { LanguageSettings } from "@/components/language-settings";
 import { Button, Field, inputClass } from "@/components/ui";
+import { nearestCity } from "@/lib/cities";
 import { api, usePoll } from "@/lib/hooks";
 import { money } from "@/lib/format";
 import { useLocale } from "@/lib/i18n";
@@ -30,7 +32,7 @@ export default function ComptePage() {
   );
   const { locale } = useLocale();
   const [section, setSection] = useState<
-    "menu" | "profile" | "addresses" | "favorites" | "invoices" | "privacy" | "language"
+    "menu" | "profile" | "password" | "addresses" | "favorites" | "invoices" | "privacy" | "language"
   >("menu");
   const [firstName, setFirstName] = useState(user?.firstName ?? "");
   const [lastName, setLastName] = useState(user?.lastName ?? "");
@@ -38,7 +40,12 @@ export default function ComptePage() {
   const [msg, setMsg] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [privacyBusy, setPrivacyBusy] = useState(false);
-  const [newAddr, setNewAddr] = useState({ label: "Autre", line: "", city: "Rumilly", zip: "74150" });
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [pwdBusy, setPwdBusy] = useState(false);
+  const [newAddrLabel, setNewAddrLabel] = useState("Autre");
+  const [newAddrPicked, setNewAddrPicked] = useState<AddressValue | null>(null);
 
   async function saveProfile() {
     setMsg("");
@@ -79,6 +86,92 @@ export default function ComptePage() {
     );
   }
 
+  if (section === "password") {
+    return (
+      <div className="px-5 py-6">
+        <button className="text-sm font-semibold text-appo" onClick={() => setSection("menu")}>
+          ← Retour
+        </button>
+        <h1 className="mt-2 text-2xl font-extrabold">Mot de passe</h1>
+        <p className="mt-1 text-sm text-muted">Modifiez votre mot de passe directement sur AppO.</p>
+        <div className="mt-4 space-y-3">
+          <Field label="Mot de passe actuel">
+            <input
+              className={inputClass}
+              type="password"
+              autoComplete="current-password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+            />
+          </Field>
+          <Field label="Nouveau mot de passe">
+            <input
+              className={inputClass}
+              type="password"
+              minLength={8}
+              autoComplete="new-password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+            />
+          </Field>
+          <Field label="Confirmer">
+            <input
+              className={inputClass}
+              type="password"
+              minLength={8}
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+            />
+          </Field>
+          <Button
+            className="w-full"
+            variant="now"
+            disabled={pwdBusy}
+            onClick={async () => {
+              setMsg("");
+              if (newPassword.length < 8) {
+                setMsg("Mot de passe : 8 caractères minimum");
+                return;
+              }
+              if (newPassword !== confirmPassword) {
+                setMsg("Les mots de passe ne correspondent pas");
+                return;
+              }
+              setPwdBusy(true);
+              try {
+                await api("/api/me", {
+                  action: "changePassword",
+                  currentPassword,
+                  newPassword,
+                });
+                setCurrentPassword("");
+                setNewPassword("");
+                setConfirmPassword("");
+                setMsg("Mot de passe mis à jour");
+                setSection("menu");
+              } catch (err) {
+                const code = err instanceof Error ? err.message : "";
+                setMsg(
+                  code === "INVALID_CREDENTIALS"
+                    ? "Mot de passe actuel incorrect"
+                    : code === "PASSWORD_TOO_SHORT"
+                      ? "Mot de passe : 8 caractères minimum"
+                      : "Impossible de changer le mot de passe",
+                );
+              } finally {
+                setPwdBusy(false);
+              }
+            }}
+          >
+            {pwdBusy ? "Enregistrement…" : "Enregistrer"}
+          </Button>
+          {msg ? <p className="text-center text-sm text-muted">{msg}</p> : null}
+        </div>
+      </div>
+    );
+  }
+
   if (section === "addresses") {
     return (
       <div className="px-5 py-6">
@@ -110,39 +203,37 @@ export default function ComptePage() {
         </div>
         <div className="mt-6 space-y-2 rounded-2xl border border-line p-4">
           <div className="font-bold">Ajouter une adresse</div>
+          <p className="text-xs text-muted">Recherche réelle (OpenStreetMap) ou GPS.</p>
           <input
             className={inputClass}
-            placeholder="Libellé"
-            value={newAddr.label}
-            onChange={(e) => setNewAddr({ ...newAddr, label: e.target.value })}
+            placeholder="Libellé (Domicile, Bureau…)"
+            value={newAddrLabel}
+            onChange={(e) => setNewAddrLabel(e.target.value)}
           />
-          <input
-            className={inputClass}
-            placeholder="Rue"
-            value={newAddr.line}
-            onChange={(e) => setNewAddr({ ...newAddr, line: e.target.value })}
+          <AddressInput
+            required
+            value={newAddrPicked}
+            onChange={setNewAddrPicked}
+            placeholder="Rechercher une adresse…"
           />
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              className={inputClass}
-              placeholder="Ville"
-              value={newAddr.city}
-              onChange={(e) => setNewAddr({ ...newAddr, city: e.target.value })}
-            />
-            <input
-              className={inputClass}
-              placeholder="CP"
-              value={newAddr.zip}
-              onChange={(e) => setNewAddr({ ...newAddr, zip: e.target.value })}
-            />
-          </div>
           <Button
             className="w-full"
             variant="secondary"
-            disabled={!newAddr.line.trim()}
+            disabled={!newAddrPicked?.line || !Number.isFinite(newAddrPicked.lat)}
             onClick={async () => {
-              await api("/api/me", { action: "addAddress", ...newAddr });
-              setNewAddr({ label: "Autre", line: "", city: "Rumilly", zip: "74150" });
+              if (!newAddrPicked) return;
+              const service = nearestCity(newAddrPicked.lat, newAddrPicked.lng);
+              await api("/api/me", {
+                action: "addAddress",
+                label: newAddrLabel.trim() || "Autre",
+                line: newAddrPicked.line,
+                city: newAddrPicked.city || service.name,
+                zip: newAddrPicked.zip || service.zipHint || "",
+                lat: newAddrPicked.lat,
+                lng: newAddrPicked.lng,
+              });
+              setNewAddrLabel("Autre");
+              setNewAddrPicked(null);
               await reload();
             }}
           >
@@ -327,6 +418,7 @@ export default function ComptePage() {
       <div className="mt-4 space-y-2 text-sm">
         {[
           { k: "Mes informations", v: user ? `${user.firstName} ${user.lastName}` : "", onClick: () => setSection("profile") },
+          { k: "Mot de passe", v: "Modifier", onClick: () => setSection("password") },
           { k: "Type de compte", v: KIND_LABEL[kind] },
           { k: "AppO+", v: me?.clientPlusActive ? `Actif · ${me.clientPlusDaysLeft} j` : "Voir l’offre", href: "/app/plus" },
           { k: "Wallet", v: `${me?.walletBalance ?? 0} € crédits`, href: "/app/wallet" },

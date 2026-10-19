@@ -25,12 +25,13 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Deep link: https://appo-production-10fb.up.railway.app/... -->
+            <!-- Deep links: custom domain + Railway fallback -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https" android:host="appo-production-10fb.up.railway.app" />
+                <data android:scheme="https" android:host="appo-ad.com" />
+                <data android:scheme="https" android:host="www.appo-ad.com" />
             </intent-filter>
 
         </activity>

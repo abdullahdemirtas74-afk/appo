@@ -1,13 +1,19 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { AddressInput, type AddressValue } from "@/components/address-input";
+import { useMe } from "@/components/guard";
 import { Button, Field, inputClass } from "@/components/ui";
+import { nearestCity } from "@/lib/cities";
 import { api, usePoll } from "@/lib/hooks";
 import { formatDate, money } from "@/lib/format";
-import { useState } from "react";
 
 export default function RecurringPage() {
+  const { data: me } = useMe();
   const { data: cats } = usePoll<{ categories: any[] }>("/api/categories", 0);
   const { data, reload } = usePoll<any>("/api/growth", 4000);
+  const defaultAddr = (me?.addresses ?? []).find((a) => a.isDefault) ?? me?.addresses?.[0];
+  const [addr, setAddr] = useState<AddressValue | null>(null);
   const [form, setForm] = useState({
     categoryId: "cat_menage",
     frequency: "weekly",
@@ -15,9 +21,19 @@ export default function RecurringPage() {
     preferredHour: "10:00",
     description: "Ménage hebdomadaire",
     price: 45,
-    address: "12 rue de la République",
-    city: "Rumilly",
   });
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!defaultAddr?.line || addr) return;
+    setAddr({
+      line: defaultAddr.line,
+      city: defaultAddr.city,
+      zip: defaultAddr.zip,
+      lat: defaultAddr.lat,
+      lng: defaultAddr.lng,
+    });
+  }, [defaultAddr?.line, defaultAddr?.city, defaultAddr?.zip, defaultAddr?.lat, defaultAddr?.lng, addr]);
 
   return (
     <div className="px-5 py-6 pb-10">
@@ -26,7 +42,11 @@ export default function RecurringPage() {
 
       <div className="mt-4 space-y-3 rounded-3xl border border-line p-4">
         <Field label="Service">
-          <select className={inputClass} value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}>
+          <select
+            className={inputClass}
+            value={form.categoryId}
+            onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
+          >
             {(cats?.categories ?? []).map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -35,27 +55,52 @@ export default function RecurringPage() {
           </select>
         </Field>
         <Field label="Fréquence">
-          <select className={inputClass} value={form.frequency} onChange={(e) => setForm({ ...form, frequency: e.target.value })}>
+          <select
+            className={inputClass}
+            value={form.frequency}
+            onChange={(e) => setForm({ ...form, frequency: e.target.value })}
+          >
             <option value="weekly">Chaque semaine</option>
             <option value="biweekly">Toutes les 2 semaines</option>
             <option value="monthly">Chaque mois</option>
           </select>
         </Field>
         <Field label="Description">
-          <input className={inputClass} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+          <input
+            className={inputClass}
+            value={form.description}
+            onChange={(e) => setForm({ ...form, description: e.target.value })}
+          />
         </Field>
         <Field label="Prix indicatif (€)">
-          <input className={inputClass} type="number" value={form.price} onChange={(e) => setForm({ ...form, price: Number(e.target.value) })} />
+          <input
+            className={inputClass}
+            type="number"
+            value={form.price}
+            onChange={(e) => setForm({ ...form, price: Number(e.target.value) })}
+          />
         </Field>
+        <Field label="Adresse">
+          <AddressInput required value={addr} onChange={setAddr} placeholder="Adresse GPS de la prestation…" />
+        </Field>
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
         <Button
           className="w-full"
           onClick={async () => {
+            if (!addr?.line || !Number.isFinite(addr.lat)) {
+              setError("Choisissez une adresse GPS");
+              return;
+            }
+            setError("");
+            const service = nearestCity(addr.lat, addr.lng);
             await api("/api/growth", {
               action: "createRecurring",
               ...form,
               preferredDay: Number(form.preferredDay),
-              lat: 45.8782,
-              lng: 6.0581,
+              address: addr.line,
+              city: addr.city || service.name,
+              lat: addr.lat,
+              lng: addr.lng,
             });
             reload();
           }}
@@ -72,8 +117,20 @@ export default function RecurringPage() {
             <div className="text-muted">
               {p.frequency} · {money(p.price)} · prochain {formatDate(p.nextAt)} · {p.active ? "actif" : "pause"}
             </div>
+            {p.address ? (
+              <div className="mt-1 text-xs text-muted">
+                {p.address}
+                {p.city ? `, ${p.city}` : ""}
+              </div>
+            ) : null}
             <div className="mt-2 flex gap-2">
-              <Button variant="secondary" onClick={async () => { await api("/api/growth", { action: "toggleRecurring", id: p.id, active: !p.active }); reload(); }}>
+              <Button
+                variant="secondary"
+                onClick={async () => {
+                  await api("/api/growth", { action: "toggleRecurring", id: p.id, active: !p.active });
+                  reload();
+                }}
+              >
                 {p.active ? "Mettre en pause" : "Réactiver"}
               </Button>
               <Button

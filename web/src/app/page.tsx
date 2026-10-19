@@ -1,7 +1,8 @@
 import { Logo } from "@/components/logo";
 import { SiteLegalFooter } from "@/components/site-legal-links";
 import { Button } from "@/components/ui";
-import { DEMO_ACCOUNTS } from "@/lib/demo";
+import { publicDemoAccounts } from "@/lib/demo";
+import { getMarket } from "@/lib/market";
 import { ArrowRight, BadgeCheck, Clock, MapPin, Shield } from "lucide-react";
 
 const cats = [
@@ -14,6 +15,10 @@ const cats = [
 ];
 
 export default function Landing() {
+  const market = getMarket();
+  const areaPin = market.international
+    ? market.regionLabel
+    : market.cities[0]?.name || market.regionLabel;
   return (
     <div className="min-h-dvh overflow-x-hidden bg-[#0d0f14] text-white">
       <header className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-4 sm:px-6 sm:py-5">
@@ -34,7 +39,7 @@ export default function Landing() {
       <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-10 sm:gap-12 sm:px-6 sm:py-14 lg:grid-cols-2 lg:py-16">
         <div className="min-w-0">
           <p className="mb-4 text-xs font-semibold uppercase tracking-[0.2em] text-appo sm:text-sm">
-            Le bon pro, sans attendre
+            {market.tagline}
           </p>
           <h1 className="text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl md:text-6xl">
             Votre besoin.
@@ -71,7 +76,7 @@ export default function Landing() {
             <div className="mb-4 flex items-center justify-between gap-2">
               <Logo size="sm" />
               <span className="flex items-center gap-1 text-sm text-muted">
-                <MapPin size={14} /> Rumilly
+                <MapPin size={14} /> {areaPin}
               </span>
             </div>
             <div className="rounded-2xl bg-background px-4 py-3 text-sm text-muted">
@@ -112,21 +117,27 @@ export default function Landing() {
       </section>
 
       <section className="border-t border-white/10 px-4 py-10 sm:px-6 sm:py-12">
-        <div className="mx-auto max-w-6xl rounded-3xl bg-white/5 p-4 sm:p-6">
-          <h2 className="font-bold">Comptes de démo — V1 locale</h2>
-          <p className="mt-1 text-sm text-white/60">
-            Mot de passe : appo123 — ouvrez deux onglets pour tester AppO Now.
-          </p>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {DEMO_ACCOUNTS.map((a) => (
-              <div key={a.email} className="rounded-2xl bg-black/30 p-4 text-sm">
-                <div className="text-xs font-bold text-appo">{a.role}</div>
-                <div className="font-semibold">{a.name}</div>
-                <div className="break-all text-white/60">{a.email}</div>
+        {(() => {
+          const demos = publicDemoAccounts();
+          if (demos.length === 0) return null;
+          return (
+            <div className="mx-auto max-w-6xl rounded-3xl bg-white/5 p-4 sm:p-6">
+              <h2 className="font-bold">Comptes de démo</h2>
+              <p className="mt-1 text-sm text-white/60">
+                Mot de passe : appo123 — ouvrez deux onglets pour tester AppO Now.
+              </p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {demos.map((a) => (
+                  <div key={a.email} className="rounded-2xl bg-black/30 p-4 text-sm">
+                    <div className="text-xs font-bold text-appo">{a.role}</div>
+                    <div className="font-semibold">{a.name}</div>
+                    <div className="break-all text-white/60">{a.email}</div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </div>
+            </div>
+          );
+        })()}
         <div className="mx-auto mt-8 max-w-6xl space-y-3 pb-8 text-center">
           <a href="/legal" className="text-sm font-semibold text-white/70 underline-offset-2 hover:text-white hover:underline">
             Informations légales & protection

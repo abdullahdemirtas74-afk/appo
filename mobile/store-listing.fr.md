@@ -34,13 +34,13 @@ Lifestyle / Business
 
 ## URL confidentialité
 
-https://appo-production-10fb.up.railway.app/confidentialite
+https://appo-ad.com/confidentialite
 
 ## Autres URL légales (stores)
 
-- CGU : https://appo-production-10fb.up.railway.app/cgu
-- Remboursements : https://appo-production-10fb.up.railway.app/remboursement
-- Mentions légales : https://appo-production-10fb.up.railway.app/mentions-legales
+- CGU : https://appo-ad.com/cgu
+- Remboursements : https://appo-ad.com/remboursement
+- Mentions légales : https://appo-ad.com/mentions-legales
 
 ## Support
 
@@ -51,4 +51,4 @@ support@appo.fr (à remplacer par ton e-mail éditeur)
 AppO est une marketplace de services à domicile (prestations physiques).  
 Les paiements concernent des interventions réalisées par des professionnels, pas du contenu digital in-app.  
 Compte démo : sarah@appo.fr / appo123  
-Prod : https://appo-production-10fb.up.railway.app
+Prod : https://appo-ad.com

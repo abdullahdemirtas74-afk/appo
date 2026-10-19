@@ -143,18 +143,21 @@ export function tierLabel(tier: EffectiveTier) {
   return tier === "elite" ? "AppO Elite" : tier === "prime" ? "AppO Prime" : "AppO Pro";
 }
 
+/** Docs required for Pro badge (Face ID selfie + CNI + entreprise + RC). */
+export const PRO_REQUIRED_DOCS = ["identite", "selfie", "entreprise", "assurance"] as const;
+
 export function verifiedComplete(pro: ProProfile) {
-  const need = ["identite", "entreprise", "assurance"] as const;
   return (
     pro.verified &&
     pro.status === "verified" &&
-    need.every((t) => pro.documents.some((d) => d.type === t && d.status === "approved"))
+    PRO_REQUIRED_DOCS.every((t) => pro.documents.some((d) => d.type === t && d.status === "approved"))
   );
 }
 
 export function verificationChecklist(pro: ProProfile) {
   const required = [
-    { type: "identite" as const, label: "Pièce d’identité", required: true },
+    { type: "identite" as const, label: "Carte d’identité (CNI / passeport)", required: true },
+    { type: "selfie" as const, label: "Face ID — selfie vivant", required: true },
     { type: "entreprise" as const, label: "Kbis / extrait entreprise", required: true },
     { type: "assurance" as const, label: "Attestation RC Pro", required: true },
     { type: "certification" as const, label: "Certification métier (optionnel)", required: false },
@@ -170,8 +173,33 @@ export function verificationChecklist(pro: ProProfile) {
 }
 
 export function docsReadyForReview(pro: ProProfile) {
-  const need = ["identite", "entreprise", "assurance"] as const;
-  return need.every((t) =>
+  return PRO_REQUIRED_DOCS.every((t) =>
     pro.documents.some((d) => d.type === t && (d.status === "pending" || d.status === "approved")),
+  );
+}
+
+export function faceIdReady(pro: ProProfile) {
+  const hasId = pro.documents.some(
+    (d) => d.type === "identite" && (d.status === "pending" || d.status === "approved") && d.url,
+  );
+  const hasSelfie = pro.documents.some(
+    (d) => d.type === "selfie" && (d.status === "pending" || d.status === "approved") && d.url,
+  );
+  return hasId && hasSelfie;
+}
+
+export function siretReady(pro: ProProfile) {
+  return pro.siretStatus === "valid";
+}
+
+/** Ready for the 24h auto-confirmation clock. */
+export function readyForAutoVerify(pro: ProProfile) {
+  return (
+    docsReadyForReview(pro) &&
+    Boolean(pro.faceIdVerifiedAt) &&
+    siretReady(pro) &&
+    pro.status !== "rejected" &&
+    pro.status !== "suspended" &&
+    pro.status !== "verified"
   );
 }

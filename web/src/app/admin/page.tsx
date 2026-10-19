@@ -4,6 +4,7 @@ import Link from "next/link";
 import { api, usePoll } from "@/lib/hooks";
 import { STATUS_LABELS, formatDate, money, moneyExact } from "@/lib/format";
 import { Badge, Button } from "@/components/ui";
+import { isDemoUiEnabled } from "@/lib/launch";
 
 type Activity = {
   id: string;
@@ -34,6 +35,23 @@ const toneClass: Record<string, string> = {
 };
 
 export default function AdminHome() {
+  const { data: stripe } = usePoll<{
+    enabled?: boolean;
+    mode?: string;
+    webhookConfigured?: boolean;
+    account?: { displayName?: string | null; chargesEnabled?: boolean; payoutsEnabled?: boolean; id?: string };
+    error?: string;
+  }>("/api/payments/status", 15000);
+  const { data: marketRes } = usePoll<{
+    market?: {
+      id?: string;
+      label?: string;
+      currency?: string;
+      international?: boolean;
+      areaBlurb?: string;
+      regionLabel?: string;
+    };
+  }>("/api/market", 0);
   const { data, reload } = usePoll<{
     userCount?: number;
     clientCount?: number;
@@ -122,19 +140,49 @@ export default function AdminHome() {
           >
             Export backup
           </Button>
-          <Button
-            variant="secondary"
-            onClick={async () => {
-              const typed = prompt("Tapez RESET pour confirmer la réinitialisation (exportez avant) :");
-              if (typed !== "RESET") return;
-              await api("/api/admin", { action: "reset", confirm: "RESET" });
-              reload();
-            }}
-          >
-            Reset démo
-          </Button>
+          {isDemoUiEnabled() ? (
+            <Button
+              variant="secondary"
+              onClick={async () => {
+                const typed = prompt("Tapez RESET pour confirmer la réinitialisation (exportez avant) :");
+                if (typed !== "RESET") return;
+                await api("/api/admin", { action: "reset", confirm: "RESET" });
+                reload();
+              }}
+            >
+              Reset démo
+            </Button>
+          ) : null}
         </div>
       </div>
+
+      <div
+        className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${
+          stripe?.enabled && stripe?.account?.chargesEnabled
+            ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+            : "border-amber-200 bg-amber-50 text-amber-950"
+        }`}
+      >
+        <span className="font-bold">Stripe :</span>{" "}
+        {stripe?.enabled
+          ? `${stripe.mode || "live"} · ${stripe.account?.displayName || stripe.account?.id || "compte"} · charges ${
+              stripe.account?.chargesEnabled ? "ON" : "OFF"
+            } · payouts ${stripe.account?.payoutsEnabled ? "ON" : "OFF"} · webhook ${
+              stripe.webhookConfigured ? "OK" : "à configurer"
+            }`
+          : stripe?.error || "non configuré"}
+      </div>
+
+      {marketRes?.market ? (
+        <div className="mt-3 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950">
+          <span className="font-bold">Marché :</span>{" "}
+          {marketRes.market.label} ({marketRes.market.id}) · {marketRes.market.currency}
+          {marketRes.market.international ? " · international" : ` · ${marketRes.market.areaBlurb || marketRes.market.regionLabel}`}
+          <span className="mt-1 block text-xs text-sky-800/80">
+            Variable Railway : <code>APPO_MARKET</code> = fr-haute-savoie | fr | ch | intl | world
+          </span>
+        </div>
+      ) : null}
 
       <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {cards.map(([k, v]) => (

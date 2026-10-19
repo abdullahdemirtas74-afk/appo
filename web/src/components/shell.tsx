@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { SiteLegalFooter, SiteLegalLinks } from "@/components/site-legal-links";
+import { useMarket } from "@/lib/use-market";
 
 export type NavItem = {
   href: string;
@@ -137,6 +138,7 @@ export function AppShell({
 }
 
 export function AuthShell({ children }: { children: React.ReactNode }) {
+  const { areaBlurb, tagline } = useMarket();
   return (
     <div className="auth-safe min-h-dvh overflow-x-hidden bg-background">
       <div className="mx-auto grid min-h-dvh w-full max-w-6xl lg:grid-cols-[1.05fr_0.95fr]">
@@ -149,10 +151,10 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
               <span className="text-appo">Le bon pro.</span>
             </h1>
             <p className="mt-4 max-w-sm text-white/65">
-              Des pros vérifiés près de chez vous — AppO Now, devis et paiement sécurisé.
+              {tagline} — AppO Now, devis et paiement sécurisé.
             </p>
           </div>
-          <p className="text-sm text-white/40">AppO · Rumilly & alentours</p>
+          <p className="text-sm text-white/40">AppO · {areaBlurb}</p>
           <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-appo/30 blur-3xl" />
           <div className="pointer-events-none absolute -bottom-20 left-10 h-56 w-56 rounded-full bg-white/10 blur-3xl" />
         </div>

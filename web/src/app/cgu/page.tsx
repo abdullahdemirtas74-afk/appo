@@ -70,8 +70,8 @@ export default function CguPage() {
           .
         </p>
         <p>
-          Tant que Stripe n’est pas activé en production, certains paiements peuvent être simulés à des fins de
-          démonstration.
+          Les paiements de mission sont traités par Stripe. Les fonds peuvent être séquestrés par AppO puis
+          versés au professionnel selon le délai de payout choisi (Stripe Connect).
         </p>
       </LegalSection>
 
