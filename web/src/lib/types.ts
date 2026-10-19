@@ -150,6 +150,12 @@ export type ProProfile = {
   team: TeamMember[];
   /** Days after the intervention before Appo pays the pro (0–30). */
   payoutDelayDays: number;
+  /** Stripe Connect Express account id (acct_…) */
+  stripeAccountId?: string | null;
+  stripeDetailsSubmitted?: boolean;
+  stripeChargesEnabled?: boolean;
+  stripePayoutsEnabled?: boolean;
+  stripeOnboardingComplete?: boolean;
 };
 
 export type MissionStatus =
@@ -322,6 +328,9 @@ export type Payment = {
   stripeSessionId?: string | null;
   stripePaymentIntentId?: string | null;
   stripeCheckoutUrl?: string | null;
+  /** Stripe Connect Transfer to the pro */
+  stripeTransferId?: string | null;
+  stripeTransferError?: string | null;
 };
 
 export type AppNotification = {
@@ -534,7 +543,7 @@ export type OutboundEmailStatus =
 
 export type OutboundEmail = {
   id: string;
-  audience: "pro" | "client";
+  audience: "pro" | "client" | "admin" | "auth";
   userId: string;
   to: string;
   subject: string;

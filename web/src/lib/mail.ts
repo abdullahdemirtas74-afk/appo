@@ -1,12 +1,15 @@
+import nodemailer from "nodemailer";
 import type { DB, OutboundEmail, Settings } from "./types";
 
 export const PRO_EMAIL_DAILY_LIMIT_DEFAULT = 100;
+
+export type MailProviderKind = "gmail" | "smtp" | "resend" | "none";
 
 export type MailProviderStatus = {
   enabled: boolean;
   configured: boolean;
   from: string | null;
-  provider: "resend" | "none";
+  provider: MailProviderKind;
   dailyLimit: number;
 };
 
@@ -21,16 +24,42 @@ export function withMailSettings(settings: Settings): Settings {
   };
 }
 
+function mailFrom() {
+  return (
+    process.env.APPO_MAIL_FROM?.trim() ||
+    "AppO <contact@appo-ad.com>"
+  );
+}
+
+function smtpConfigured() {
+  const user = process.env.APPO_SMTP_USER?.trim() || "";
+  const pass = process.env.APPO_SMTP_PASS?.trim() || "";
+  return Boolean(user && pass);
+}
+
+function resendConfigured() {
+  return Boolean(process.env.APPO_RESEND_API_KEY?.trim());
+}
+
+function detectProvider(): MailProviderKind {
+  if (smtpConfigured()) {
+    const host = (process.env.APPO_SMTP_HOST?.trim() || "smtp.gmail.com").toLowerCase();
+    return host.includes("gmail") || host.includes("google") ? "gmail" : "smtp";
+  }
+  if (resendConfigured()) return "resend";
+  return "none";
+}
+
 export function getMailProviderStatus(settings?: Settings): MailProviderStatus {
-  const from = process.env.APPO_MAIL_FROM?.trim() || null;
-  const resendKey = process.env.APPO_RESEND_API_KEY?.trim() || "";
+  const from = mailFrom();
+  const provider = detectProvider();
   const enabledFlag = process.env.APPO_MAIL_ENABLED === "1" || process.env.APPO_MAIL_ENABLED === "true";
-  const configured = Boolean(from && resendKey);
+  const configured = provider !== "none";
   return {
     enabled: enabledFlag && configured,
     configured,
     from,
-    provider: resendKey ? "resend" : "none",
+    provider,
     dailyLimit: settings?.proEmailDailyLimit ?? PRO_EMAIL_DAILY_LIMIT_DEFAULT,
   };
 }
@@ -70,11 +99,17 @@ function appBaseUrl() {
   ).replace(/\/$/, "");
 }
 
-async function sendViaResend(to: string, subject: string, text: string, href?: string) {
-  const key = process.env.APPO_RESEND_API_KEY!.trim();
-  const from = process.env.APPO_MAIL_FROM!.trim();
+function buildBodies(text: string, href?: string) {
   const link = href ? `${appBaseUrl()}${href.startsWith("/") ? href : `/${href}`}` : appBaseUrl();
   const html = `<p>${text.replace(/\n/g, "<br/>")}</p>${href ? `<p><a href="${link}">Ouvrir dans AppO</a></p>` : ""}`;
+  const plain = `${text}${href ? `\n\n${link}` : ""}`;
+  return { html, plain, link };
+}
+
+async function sendViaResend(to: string, subject: string, text: string, href?: string) {
+  const key = process.env.APPO_RESEND_API_KEY!.trim();
+  const from = mailFrom();
+  const { html, plain } = buildBodies(text, href);
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -85,7 +120,7 @@ async function sendViaResend(to: string, subject: string, text: string, href?: s
       from,
       to: [to],
       subject: `[AppO] ${subject}`,
-      text: `${text}${href ? `\n\n${link}` : ""}`,
+      text: plain,
       html,
     }),
   });
@@ -95,9 +130,92 @@ async function sendViaResend(to: string, subject: string, text: string, href?: s
   }
 }
 
+/** Gmail / Google Workspace (smtp.gmail.com) or any SMTP via APPO_SMTP_*. */
+async function sendViaSmtp(to: string, subject: string, text: string, href?: string) {
+  const user = process.env.APPO_SMTP_USER!.trim();
+  const pass = process.env.APPO_SMTP_PASS!.trim();
+  const host = process.env.APPO_SMTP_HOST?.trim() || "smtp.gmail.com";
+  const port = Number(process.env.APPO_SMTP_PORT || "465");
+  const secure = process.env.APPO_SMTP_SECURE === "false" ? false : port === 465;
+  const from = mailFrom();
+  const { html, plain } = buildBodies(text, href);
+
+  const transport = nodemailer.createTransport({
+    host,
+    port,
+    secure,
+    auth: { user, pass },
+  });
+
+  await transport.sendMail({
+    from,
+    to,
+    subject: `[AppO] ${subject}`,
+    text: plain,
+    html,
+    replyTo: process.env.APPO_MAIL_REPLY_TO?.trim() || "contact@appo-ad.com",
+  });
+}
+
+async function sendOutbound(to: string, subject: string, text: string, href?: string) {
+  const kind = detectProvider();
+  if (kind === "gmail" || kind === "smtp") return sendViaSmtp(to, subject, text, href);
+  if (kind === "resend") return sendViaResend(to, subject, text, href);
+  throw new Error("MAIL_NOT_CONFIGURED");
+}
+
+/**
+ * Immediate transactional mail (login alert, etc.) — does not use the pro daily quota.
+ * Returns without throwing when mail is disabled; throws only on provider send failure
+ * when the caller wants to log it.
+ */
+export async function sendTransactionalEmail(input: {
+  to: string;
+  subject: string;
+  text: string;
+  href?: string;
+}) {
+  const provider = getMailProviderStatus();
+  if (!provider.enabled) return { sent: false as const, reason: "mail_off" as const };
+  const to = String(input.to || "").trim();
+  if (!to || to.includes("@anon.appo.local")) {
+    return { sent: false as const, reason: "no_email" as const };
+  }
+  await sendOutbound(to, input.subject, input.text, input.href);
+  return { sent: true as const };
+}
+
+/** Security notice sent after every successful web login. */
+export async function sendLoginConfirmationEmail(user: {
+  id: string;
+  email: string;
+  firstName: string;
+  role: string;
+}) {
+  const when = new Date().toLocaleString("fr-FR", {
+    timeZone: "Europe/Paris",
+    dateStyle: "long",
+    timeStyle: "short",
+  });
+  const href = user.role === "pro" ? "/pro" : user.role === "admin" ? "/admin" : "/app";
+  const subject = "Connexion à votre compte AppO";
+  const text = [
+    `Bonjour ${user.firstName || ""},`.trim() + ",",
+    "",
+    `Une connexion à votre compte AppO vient d’être effectuée le ${when} (heure de Paris).`,
+    "",
+    "Si c’était vous, vous pouvez ignorer ce message.",
+    "Si ce n’était pas vous, changez immédiatement votre mot de passe et contactez-nous à contact@appo-ad.com.",
+    "",
+    "— L’équipe AppO",
+  ].join("\n");
+
+  return sendTransactionalEmail({ to: user.email, subject, text, href });
+}
+
 /**
  * File d'attente e-mails pros — plafond 100/jour.
- * Tant que le compte mail n'est pas ouvert (APPO_MAIL_ENABLED + Resend),
+ * Tant que le compte mail n'est pas ouvert (APPO_MAIL_ENABLED + SMTP/Resend),
  * les envois restent en statut pending_account.
  */
 export function enqueueProEmail(
@@ -121,7 +239,7 @@ export function enqueueProEmail(
 
   let status: OutboundEmail["status"] = "pending_account";
   if (!provider.enabled) {
-    status = provider.configured ? "pending_account" : "pending_account";
+    status = "pending_account";
   } else if (used >= limit) {
     status = "skipped_quota";
   } else {
@@ -160,8 +278,6 @@ export async function flushProEmailQueue(db: DB): Promise<{ sent: number; failed
 
   for (const entry of db.outboundEmails) {
     if (entry.audience !== "pro" || entry.status !== "queued") continue;
-    const used = countProEmailsToday(db, day);
-    // queued counts toward used — adjust by treating this one as about to send
     const othersQueuedOrSent = (db.outboundEmails ?? []).filter(
       (e) =>
         e.audience === "pro" &&
@@ -175,7 +291,7 @@ export async function flushProEmailQueue(db: DB): Promise<{ sent: number; failed
       continue;
     }
     try {
-      await sendViaResend(entry.to, entry.subject, entry.body, entry.href);
+      await sendOutbound(entry.to, entry.subject, entry.body, entry.href);
       entry.status = "sent";
       entry.sentAt = new Date().toISOString();
       entry.error = null;

@@ -14,29 +14,58 @@ export function OnboardingWizard({ role }: { role: "client" | "pro" }) {
   const home = role === "pro" ? "/pro" : "/app";
   const [index, setIndex] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
   const step = steps[index];
   const last = index >= steps.length - 1;
   const progress = ((index + 1) / steps.length) * 100;
 
-  async function finish() {
-    setBusy(true);
+  async function markComplete() {
+    await api("/api/me", { action: "completeOnboarding" });
     try {
-      await api("/api/me", { action: "completeOnboarding" });
-      router.replace(home);
+      sessionStorage.setItem("appo_onboarding_done", "1");
     } catch {
-      router.replace(home);
-    } finally {
+      /* ignore */
+    }
+  }
+
+  /** Hard navigation so Guard / useMe cannot reuse stale onboardingCompletedAt=null. */
+  function goHomeFresh() {
+    window.location.assign(home);
+  }
+
+  async function finish() {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      await markComplete();
+      goHomeFresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Impossible de terminer");
       setBusy(false);
     }
   }
 
-  async function skip() {
-    await finish();
-  }
-
   function next() {
     if (last) void finish();
-    else setIndex((i) => i + 1);
+    else setIndex((i) => Math.min(i + 1, steps.length - 1));
+  }
+
+  async function openStepCta() {
+    if (busy) return;
+    const href = step.href;
+    const goesHome = href === home || href === `${home}/`;
+    setBusy(true);
+    setError("");
+    try {
+      // Leaving the wizard via a CTA: mark complete so Guard does not bounce back.
+      await markComplete();
+      if (goesHome) goHomeFresh();
+      else window.location.assign(href);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur");
+      setBusy(false);
+    }
   }
 
   return (
@@ -46,8 +75,8 @@ export function OnboardingWizard({ role }: { role: "client" | "pro" }) {
           <Logo size="sm" />
           <button
             type="button"
-            className="text-sm font-semibold text-muted hover:text-ink"
-            onClick={() => void skip()}
+            className="text-sm font-semibold text-muted hover:text-ink disabled:opacity-50"
+            onClick={() => void finish()}
             disabled={busy}
           >
             Passer
@@ -84,14 +113,13 @@ export function OnboardingWizard({ role }: { role: "client" | "pro" }) {
               <Button
                 variant="secondary"
                 className="w-full sm:flex-1"
-                href={step.href}
-                onClick={() => {
-                  /* keep onboarding incomplete so they can return; mark step locally */
-                }}
+                disabled={busy}
+                onClick={() => void openStepCta()}
               >
                 {step.ctaLabel}
               </Button>
             </div>
+            {error ? <p className="mt-3 text-sm text-red-600">{error}</p> : null}
           </div>
 
           <div className="mt-6 flex justify-center gap-2">
@@ -103,7 +131,7 @@ export function OnboardingWizard({ role }: { role: "client" | "pro" }) {
                 className={`h-2.5 rounded-full transition-all ${
                   i === index ? "w-8 bg-appo" : i < index ? "w-2.5 bg-appo/40" : "w-2.5 bg-ink/15"
                 }`}
-                onClick={() => setIndex(i)}
+                onClick={() => !busy && setIndex(i)}
               />
             ))}
           </div>

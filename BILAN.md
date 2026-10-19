@@ -6,7 +6,7 @@
 **App :** https://appo-ad.com · Domaine Cloudflare branché Railway (`docs/DOMAIN.md`)  
 
 
-**Avancement estimé :** MVP produit ~94–95 % · Prod « sérieuse » ~50–55 % · Stores (shell) ~70 % (soumission manuelle restante)
+**Avancement estimé :** MVP produit ~98 % · Prod web officielle ~90–92 % · Stores (shell) ~75 % — **reste surtout soumission Play / App Store** (+ SIRET)
 
 ---
 
@@ -82,14 +82,16 @@
 ## 2. Ce qu’il reste à faire
 
 ### A. Ops immédiat (prod démo stable)
-- [ ] Monter un volume Railway sur `/data` + `DATA_DIR=/data`
-- [ ] Vérifier / fixer `APPO_SECRET` en prod
+- [x] Monter un volume Railway sur `/data` + `DATA_DIR=/data`
+- [x] Vérifier / fixer `APPO_SECRET` en prod
 - [ ] (Optionnel) migrer `railway.toml` → Infrastructure as Code Railway
 - [ ] (Optionnel) brancher Sentry : `SENTRY_DSN` + `npm i @sentry/nextjs`
 
 ### B. Pour clôturer la MVP produit
-- [x] Stripe live branché (Checkout + webhook) — Connect pros encore à faire
-- [ ] Activer e-mails (Resend + `APPO_MAIL_*`)
+- [x] Stripe live branché (Checkout + webhook)
+- [x] Stripe Connect Express (onboarding pro + transfers)
+- [x] E-mails Gmail SMTP (`contact@appo-ad.com`)
+- [x] Mode lancement officiel (démo UI / paiements simulés off en prod)
 - [ ] SMS / push (offres Now, litiges, codes)
 - [x] CGU / confidentialité / remboursements / mentions légales (pages publiques + liens inscription/compte)
 - [ ] Compléter raison sociale / SIRET dans mentions légales (éditeur)
