@@ -7,6 +7,7 @@ import { Logo } from "@/components/logo";
 import { AuthShell } from "@/components/shell";
 import { Button, Field, inputClass } from "@/components/ui";
 import { api, usePoll } from "@/lib/hooks";
+import { useLocale } from "@/lib/i18n";
 import { useMarket } from "@/lib/use-market";
 import type { ClientKind } from "@/lib/types";
 
@@ -33,6 +34,7 @@ function RegisterForm() {
   const router = useRouter();
   const params = useSearchParams();
   const { cities, international, nearestFromMarket, businessId, areaBlurb, market } = useMarket();
+  const { t, locale, countryCode } = useLocale();
   const [role, setRole] = useState<"client" | "pro">(params.get("role") === "pro" ? "pro" : "client");
   const [clientKind, setClientKind] = useState<ClientKind>(
     params.get("kind") === "entreprise" || params.get("kind") === "syndicat"
@@ -158,6 +160,7 @@ function RegisterForm() {
                 lat,
                 lng,
                 privacyConsent: true,
+                locale,
               };
             })()
           : (() => {
@@ -174,6 +177,7 @@ function RegisterForm() {
                 organizationName: form.organizationName.trim(),
                 organizationSiret: form.organizationSiret.trim(),
                 privacyConsent: true,
+                locale,
                 address: {
                   line: addr.line.trim(),
                   city: addr.city || service.name,
@@ -210,13 +214,15 @@ function RegisterForm() {
       <div className="lg:hidden">
         <Logo />
       </div>
-      <h1 className="mt-8 text-3xl font-extrabold lg:mt-0">Créer un compte</h1>
+      <h1 className="mt-8 text-3xl font-extrabold lg:mt-0">{t("registerTitle")}</h1>
       <p className="mt-2 text-sm text-muted">
-        Renseignez vos informations complètes pour être opérationnel immédiatement.
+        {t("registerHint")}
         {market ? (
           <span className="mt-1 block text-xs">
-            Marché : {market.label}
-            {international ? " · adresses GPS mondiales" : ` · ${areaBlurb}`}
+            {t("marketLabel")} : {market.label}
+            {international ? " · GPS" : ` · ${areaBlurb}`}
+            {countryCode ? ` · ${t("detectedCountry")} ${countryCode}` : ""}
+            {` · ${locale.toUpperCase()}`}
           </span>
         ) : null}
       </p>
@@ -226,14 +232,14 @@ function RegisterForm() {
           className={`rounded-xl py-2 text-sm font-semibold ${role === "client" ? "bg-white shadow" : "text-muted"}`}
           onClick={() => setRole("client")}
         >
-          Client
+          {t("client")}
         </button>
         <button
           type="button"
           className={`rounded-xl py-2 text-sm font-semibold ${role === "pro" ? "bg-white shadow" : "text-muted"}`}
           onClick={() => setRole("pro")}
         >
-          AppO Pro
+          {t("pro")}
         </button>
       </div>
       {role === "client" ? (
@@ -260,7 +266,7 @@ function RegisterForm() {
       ) : null}
       <form onSubmit={submit} className="mt-6 space-y-3 pb-4">
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Prénom">
+          <Field label={t("firstName")}>
             <input
               className={inputClass}
               required
@@ -269,7 +275,7 @@ function RegisterForm() {
               onChange={(e) => set("firstName", e.target.value)}
             />
           </Field>
-          <Field label="Nom">
+          <Field label={t("lastName")}>
             <input
               className={inputClass}
               required
@@ -279,7 +285,7 @@ function RegisterForm() {
             />
           </Field>
         </div>
-        <Field label="E-mail">
+        <Field label={t("email")}>
           <input
             className={inputClass}
             type="email"
@@ -289,7 +295,7 @@ function RegisterForm() {
             onChange={(e) => set("email", e.target.value)}
           />
         </Field>
-        <Field label="Téléphone">
+        <Field label={t("phone")}>
           <input
             className={inputClass}
             type="tel"
@@ -301,7 +307,7 @@ function RegisterForm() {
             onChange={(e) => set("phone", e.target.value)}
           />
         </Field>
-        <Field label="Mot de passe (8 caractères min.)">
+        <Field label={t("password")}>
           <input
             className={inputClass}
             type="password"
@@ -335,11 +341,9 @@ function RegisterForm() {
 
         {role === "client" ? (
           <div className="space-y-3 rounded-2xl border border-line bg-background/50 p-3">
-            <div className="text-sm font-semibold">Adresse d’intervention</div>
+            <div className="text-sm font-semibold">{t("addressIntervention")}</div>
             <p className="text-xs text-muted">
-              {international
-                ? "OpenStreetMap / GPS — adresses mondiales."
-                : "Recherche OpenStreetMap ou position GPS — coordonnées exactes."}
+              {international ? t("addressWorldwide") : t("addressGpsHint")}
             </p>
             <AddressInput
               required
@@ -363,7 +367,7 @@ function RegisterForm() {
 
         {role === "pro" ? (
           <>
-            <Field label="Entreprise">
+            <Field label={t("company")}>
               <input
                 className={inputClass}
                 required
@@ -486,37 +490,29 @@ function RegisterForm() {
             onChange={(e) => setPrivacyConsent(e.target.checked)}
           />
           <span>
-            J’accepte les{" "}
+            {t("acceptTerms")}{" "}
             <a className="font-semibold text-appo underline" href="/cgu" target="_blank" rel="noreferrer">
-              CGU
+              {t("cgu")}
             </a>
-            , la{" "}
+            , {t("andThe")}{" "}
             <a className="font-semibold text-appo underline" href="/confidentialite" target="_blank" rel="noreferrer">
-              politique de confidentialité
+              {t("privacy")}
             </a>{" "}
-            et la{" "}
+            {t("andThe")}{" "}
             <a className="font-semibold text-appo underline" href="/remboursement" target="_blank" rel="noreferrer">
-              politique d’annulation & remboursements
+              {t("refunds")}
             </a>
             .
           </span>
         </label>
         {error ? <p className="text-sm text-red-600">{ERROR_LABEL[error] || error}</p> : null}
         <Button type="submit" variant="now" className="w-full" disabled={loading}>
-          {loading
-            ? "Création…"
-            : role === "pro"
-              ? "Créer mon compte Pro"
-              : clientKind === "entreprise"
-                ? "Créer mon compte Entreprise"
-                : clientKind === "syndicat"
-                  ? "Créer mon compte Syndicat"
-                  : "Créer mon compte"}
+          {loading ? "…" : role === "pro" ? t("createPro") : t("createClient")}
         </Button>
         <p className="text-center text-sm text-muted">
-          Déjà inscrit ?{" "}
+          {t("alreadyRegistered")}{" "}
           <a className="font-semibold text-appo" href="/login">
-            Se connecter
+            {t("signIn")}
           </a>
         </p>
       </form>

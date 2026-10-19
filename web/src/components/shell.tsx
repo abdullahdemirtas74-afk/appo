@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import type { LucideIcon } from "lucide-react";
 import { Logo } from "@/components/logo";
 import { SiteLegalFooter, SiteLegalLinks } from "@/components/site-legal-links";
+import { translateNavLabel, useLocale } from "@/lib/i18n";
 import { useMarket } from "@/lib/use-market";
 
 export type NavItem = {
@@ -20,6 +21,7 @@ function isActive(path: string, href: string, root: string) {
 
 function SideLink({ item, root }: { item: NavItem; root: string }) {
   const path = usePathname();
+  const { t } = useLocale();
   const on = isActive(path, item.href, root);
   const Icon = item.icon;
   return (
@@ -30,7 +32,7 @@ function SideLink({ item, root }: { item: NavItem; root: string }) {
       }`}
     >
       <Icon size={18} />
-      {item.label}
+      {translateNavLabel(item.label, t)}
     </Link>
   );
 }
@@ -45,8 +47,10 @@ function CompactLink({
   mode: "bottom" | "top";
 }) {
   const path = usePathname();
+  const { t } = useLocale();
   const on = isActive(path, item.href, root);
   const Icon = item.icon;
+  const label = translateNavLabel(item.label, t);
   if (mode === "top") {
     return (
       <Link
@@ -56,7 +60,7 @@ function CompactLink({
         }`}
       >
         <Icon size={16} />
-        {item.label}
+        {label}
       </Link>
     );
   }
@@ -68,7 +72,7 @@ function CompactLink({
       }`}
     >
       <Icon size={22} className="shrink-0" />
-      <span className="truncate">{item.label}</span>
+      <span className="truncate">{label}</span>
     </Link>
   );
 }
@@ -90,18 +94,21 @@ export function AppShell({
   overlay?: React.ReactNode;
 }) {
   const bottomItems = mobileItems ?? items;
+  const { t } = useLocale();
+  const spaceTitle =
+    title === "Espace client" ? t("clientSpace") : title === "Espace Pro" ? t("proSpace") : title;
   return (
     <div className="app-shell relative min-h-dvh overflow-x-hidden bg-background">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-line bg-card p-5 lg:flex xl:w-64">
         <Logo size="sm" />
-        <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-muted">{title}</p>
+        <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-muted">{spaceTitle}</p>
         <nav className="mt-8 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
           {items.map((item) => (
             <SideLink key={item.href} item={item} root={root} />
           ))}
         </nav>
         <div className="mt-4 space-y-2 border-t border-line pt-4">
-          <p className="text-xs text-muted">Le bon pro, sans attendre</p>
+          <p className="text-xs text-muted">{t("tagline")}</p>
           <SiteLegalLinks tone="muted" className="!justify-start" />
         </div>
       </aside>
@@ -111,7 +118,7 @@ export function AppShell({
           <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
             <div className="min-w-0">
               <Logo size="sm" />
-              <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted">{title}</p>
+              <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted">{spaceTitle}</p>
             </div>
           </div>
           <nav className="mx-auto mt-3 flex max-w-5xl gap-2 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -138,7 +145,8 @@ export function AppShell({
 }
 
 export function AuthShell({ children }: { children: React.ReactNode }) {
-  const { areaBlurb, tagline } = useMarket();
+  const { areaBlurb } = useMarket();
+  const { t } = useLocale();
   return (
     <div className="auth-safe min-h-dvh overflow-x-hidden bg-background">
       <div className="mx-auto grid min-h-dvh w-full max-w-6xl lg:grid-cols-[1.05fr_0.95fr]">
@@ -146,12 +154,12 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
           <Logo light />
           <div>
             <h1 className="max-w-md text-3xl font-extrabold leading-tight tracking-tight xl:text-4xl">
-              Votre besoin.
+              {t("heroTitle1")}
               <br />
-              <span className="text-appo">Le bon pro.</span>
+              <span className="text-appo">{t("heroTitle2")}</span>
             </h1>
             <p className="mt-4 max-w-sm text-white/65">
-              {tagline} — AppO Now, devis et paiement sécurisé.
+              {t("tagline")} — AppO Now.
             </p>
           </div>
           <p className="text-sm text-white/40">AppO · {areaBlurb}</p>

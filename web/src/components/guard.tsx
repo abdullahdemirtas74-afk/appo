@@ -34,7 +34,7 @@ export function Guard({
   const router = useRouter();
   const pathname = usePathname();
   const { data, loading } = useMe();
-  const { setLocale } = useLocale();
+  const { setLocale, t } = useLocale();
 
   useEffect(() => {
     if (loading) return;
@@ -66,13 +66,21 @@ export function Guard({
 
   useEffect(() => {
     const loc = data?.user?.locale;
-    if (loc) setLocale(loc);
+    if (!loc) return;
+    // Only apply saved profile locale when the user chose a language manually
+    try {
+      if (localStorage.getItem("appo_locale_manual") === "1") {
+        setLocale(loc, { manual: true });
+      }
+    } catch {
+      /* ignore */
+    }
   }, [data?.user?.locale, setLocale]);
 
   if (loading || !data?.user || data.user.role !== role) {
     return (
       <div className="grid min-h-dvh place-items-center bg-background text-sm text-muted">
-        Chargement…
+        {t("loading")}
       </div>
     );
   }

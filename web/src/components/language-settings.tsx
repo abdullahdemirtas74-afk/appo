@@ -7,7 +7,7 @@ import { api } from "@/lib/hooks";
 import { languageLabel } from "@/lib/languages";
 
 export function LanguageSettings({ onSaved }: { onSaved?: () => void }) {
-  const { locale, setLocale, t, languages } = useLocale();
+  const { locale, setLocale, enableAutoLocale, autoMode, countryCode, t, languages } = useLocale();
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState(locale);
   const [msg, setMsg] = useState("");
@@ -35,8 +35,26 @@ export function LanguageSettings({ onSaved }: { onSaved?: () => void }) {
     setMsg("");
     try {
       await api("/api/me", { action: "setLocale", locale: selected });
-      setLocale(selected);
+      setLocale(selected, { manual: true });
       setMsg(t("saved"));
+      onSaved?.();
+    } catch {
+      setMsg("Error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function useAuto() {
+    setBusy(true);
+    setMsg("");
+    try {
+      enableAutoLocale();
+      // brief wait for detection then persist
+      await new Promise((r) => setTimeout(r, 400));
+      const next = localStorage.getItem("appo_locale") || locale;
+      await api("/api/me", { action: "setLocale", locale: next });
+      setMsg(t("autoLanguageOn"));
       onSaved?.();
     } catch {
       setMsg("Error");
@@ -53,8 +71,13 @@ export function LanguageSettings({ onSaved }: { onSaved?: () => void }) {
         <p className="mt-2 text-sm">
           {t("currentLanguage")} : <b>{current.nativeName}</b>
           {current.nativeName !== current.name ? ` (${current.name})` : ""} · {selected}
+          {autoMode ? ` · ${t("languageAuto")}` : ""}
+          {countryCode ? ` · ${t("detectedCountry")} ${countryCode}` : ""}
         </p>
       </div>
+      <Button className="w-full" variant="secondary" disabled={busy} onClick={useAuto}>
+        {t("languageAuto")}
+      </Button>
       <Field label={t("searchLanguage")}>
         <input
           className={inputClass}

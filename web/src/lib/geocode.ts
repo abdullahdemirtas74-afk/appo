@@ -1,6 +1,7 @@
 import { haversineKm, nearestCity } from "./geo";
 import { getMarket } from "./market";
 import { serviceAreaKm } from "./cities";
+import { countryFromName, normalizeCountryCode } from "./locale-country";
 
 export type GeocodedAddress = {
   line: string;
@@ -9,6 +10,8 @@ export type GeocodedAddress = {
   lat: number;
   lng: number;
   label: string;
+  /** ISO country when known (GPS / reverse) */
+  countryCode: string | null;
   /** Nearest AppO service city */
   serviceCityId: string;
   serviceCityName: string;
@@ -69,6 +72,10 @@ export function parsePhotonFeature(feature: PhotonFeature): GeocodedAddress | nu
   const labelParts = [line, [zip, city].filter(Boolean).join(" "), p.state, p.country].filter(Boolean);
   const maxKm = serviceAreaKm();
   const intl = getMarket().international;
+  const countryCode =
+    countryFromName(p.country) ||
+    normalizeCountryCode(getMarket().countryCode) ||
+    null;
   return {
     line: line || city || nearest.name,
     city: city || nearest.name,
@@ -76,6 +83,7 @@ export function parsePhotonFeature(feature: PhotonFeature): GeocodedAddress | nu
     lat,
     lng,
     label: labelParts.join(", "),
+    countryCode,
     serviceCityId: nearest.id,
     serviceCityName: nearest.name,
     distanceKm: Math.round(distanceKm * 10) / 10,
@@ -97,6 +105,8 @@ type NominatimAddress = {
   municipality?: string;
   city_district?: string;
   postcode?: string;
+  country?: string;
+  country_code?: string;
 };
 
 export type NominatimResult = {
@@ -121,6 +131,11 @@ export function parseNominatimResult(hit: NominatimResult): GeocodedAddress {
   const distanceKm = haversineKm(lat, lng, nearest.lat, nearest.lng);
   const maxKm = serviceAreaKm();
   const intl = getMarket().international;
+  const countryCode =
+    normalizeCountryCode(a?.country_code) ||
+    countryFromName(a?.country) ||
+    normalizeCountryCode(getMarket().countryCode) ||
+    null;
   return {
     line: line || nearest.name,
     city: city || nearest.name,
@@ -128,6 +143,7 @@ export function parseNominatimResult(hit: NominatimResult): GeocodedAddress {
     lat,
     lng,
     label: hit.display_name,
+    countryCode,
     serviceCityId: nearest.id,
     serviceCityName: nearest.name,
     distanceKm: Math.round(distanceKm * 10) / 10,

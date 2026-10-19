@@ -12,6 +12,8 @@
  *   NEXT_PUBLIC_APPO_MARKET=… (client hint, optional)
  */
 
+import { localeFromCountry } from "./locale-country";
+
 export type ServiceCity = {
   id: string;
   name: string;
@@ -268,6 +270,11 @@ export function getMarket(): MarketConfig {
     base.countryCode = country;
     base.geocodeCountryCodes = country.toLowerCase();
     base.international = !country;
+  }
+  // Keep defaultLocale aligned with country when not explicitly overridden
+  if (!process.env.APPO_DEFAULT_LOCALE?.trim() && base.countryCode) {
+    const fromCountry = localeFromCountry(base.countryCode);
+    if (fromCountry) base.defaultLocale = fromCountry;
   }
   const km = Number(process.env.APPO_MAX_SERVICE_KM);
   if (Number.isFinite(km) && km > 0) base.maxServiceKm = km;
