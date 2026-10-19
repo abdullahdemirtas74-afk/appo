@@ -40,8 +40,9 @@ Réactiver uniquement avec `NEXT_PUBLIC_APPO_DEMO_UI=true` (dev / staging).
 
 1. **SIRET / capital** encore « en cours » dans `legal.ts` — à mettre à jour dès immatriculation  
 2. **Stores** — build / AAB / TestFlight + review Google/Apple  
-3. **SMS / push** — non branchés (e-mail OK)  
-4. **Postgres runtime** — encore JSON sur volume (OK soft-launch, pas scale)  
+3. **E-mails** — Railway Hobby bloque SMTP ; brancher Resend/Brevo HTTPS (`APPO_RESEND_API_KEY`)  
+4. **SMS / push** — non branchés  
+5. **Postgres runtime** — encore JSON sur volume (OK soft-launch, pas scale)  
 6. **Sentry** — optionnel  
 7. **Connect platform profile** Stripe — à valider dans le Dashboard si onboarding Express échoue  
 
