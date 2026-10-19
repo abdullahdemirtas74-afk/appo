@@ -543,7 +543,7 @@ export type OutboundEmailStatus =
 
 export type OutboundEmail = {
   id: string;
-  audience: "pro" | "client";
+  audience: "pro" | "client" | "admin" | "auth";
   userId: string;
   to: string;
   subject: string;

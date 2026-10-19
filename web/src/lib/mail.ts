@@ -165,6 +165,55 @@ async function sendOutbound(to: string, subject: string, text: string, href?: st
 }
 
 /**
+ * Immediate transactional mail (login alert, etc.) — does not use the pro daily quota.
+ * Returns without throwing when mail is disabled; throws only on provider send failure
+ * when the caller wants to log it.
+ */
+export async function sendTransactionalEmail(input: {
+  to: string;
+  subject: string;
+  text: string;
+  href?: string;
+}) {
+  const provider = getMailProviderStatus();
+  if (!provider.enabled) return { sent: false as const, reason: "mail_off" as const };
+  const to = String(input.to || "").trim();
+  if (!to || to.includes("@anon.appo.local")) {
+    return { sent: false as const, reason: "no_email" as const };
+  }
+  await sendOutbound(to, input.subject, input.text, input.href);
+  return { sent: true as const };
+}
+
+/** Security notice sent after every successful web login. */
+export async function sendLoginConfirmationEmail(user: {
+  id: string;
+  email: string;
+  firstName: string;
+  role: string;
+}) {
+  const when = new Date().toLocaleString("fr-FR", {
+    timeZone: "Europe/Paris",
+    dateStyle: "long",
+    timeStyle: "short",
+  });
+  const href = user.role === "pro" ? "/pro" : user.role === "admin" ? "/admin" : "/app";
+  const subject = "Connexion à votre compte AppO";
+  const text = [
+    `Bonjour ${user.firstName || ""},`.trim() + ",",
+    "",
+    `Une connexion à votre compte AppO vient d’être effectuée le ${when} (heure de Paris).`,
+    "",
+    "Si c’était vous, vous pouvez ignorer ce message.",
+    "Si ce n’était pas vous, changez immédiatement votre mot de passe et contactez-nous à contact@appo-ad.com.",
+    "",
+    "— L’équipe AppO",
+  ].join("\n");
+
+  return sendTransactionalEmail({ to: user.email, subject, text, href });
+}
+
+/**
  * File d'attente e-mails pros — plafond 100/jour.
  * Tant que le compte mail n'est pas ouvert (APPO_MAIL_ENABLED + SMTP/Resend),
  * les envois restent en statut pending_account.
