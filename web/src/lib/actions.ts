@@ -34,7 +34,20 @@ import {
   withClientPlusSettings,
 } from "./client-plus";
 import { etaMinutes, haversineKm } from "./geo";
-import { findCityByName, nearestCity, SERVICE_CITIES } from "./cities";
+import {
+  findCityByName,
+  getSelectableCities,
+  getServiceCities,
+  isInternationalMarket,
+  nearestCity,
+  serviceAreaKm,
+} from "./cities";
+import {
+  businessIdErrorCode,
+  businessIdRequiredError,
+  lookupBusinessId,
+} from "./business-id";
+import { getMarket } from "./market";
 import { isValidPhone, normalizePhone } from "./phone";
 import { isDemoUiEnabled } from "./launch";
 import {
@@ -61,7 +74,6 @@ import {
   withTierSettings,
 } from "./premium";
 import { applySiretLookup, hoursUntilConfirm } from "./pro-verify";
-import { lookupSiret, normalizeSiret } from "./siret";
 import type {
   AbsenceReason,
   Mission,
@@ -333,10 +345,13 @@ export async function registerClient(input: {
 
     // Accept any geocoded place near a service city (not only exact city name match)
     const cityMeta = nearestCity(lat, lng);
-    const distanceKm = haversineKm(lat, lng, cityMeta.lat, cityMeta.lng);
-    if (distanceKm > 45) throw new Error("CITY_UNSUPPORTED");
+    const intl = isInternationalMarket();
+    if (!intl) {
+      const distanceKm = haversineKm(lat, lng, cityMeta.lat, cityMeta.lng);
+      if (distanceKm > serviceAreaKm()) throw new Error("CITY_UNSUPPORTED");
+    }
     const resolvedZip = addrZip || cityMeta.zipHint || "";
-    if (!resolvedZip) throw new Error("ADDRESS_REQUIRED");
+    if (!intl && !resolvedZip) throw new Error("ADDRESS_REQUIRED");
 
     const user = {
       id: nid("usr"),
@@ -356,7 +371,7 @@ export async function registerClient(input: {
       clientPlusPlan: "none" as const,
       privacyConsentAt: new Date().toISOString(),
       deletedAt: null as string | null,
-      locale: "fr",
+      locale: getMarket().defaultLocale || "fr",
       referralCode: "",
       walletBalance: 0,
       referredByUserId: null as string | null,
@@ -542,7 +557,11 @@ export async function addClientAddress(
     const lng = Number(input.lng);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) throw new Error("INVALID_LOCATION");
     const cityMeta = nearestCity(lat, lng);
-    if (haversineKm(lat, lng, cityMeta.lat, cityMeta.lng) > 45) throw new Error("CITY_UNSUPPORTED");
+    if (!isInternationalMarket()) {
+      if (haversineKm(lat, lng, cityMeta.lat, cityMeta.lng) > serviceAreaKm()) {
+        throw new Error("CITY_UNSUPPORTED");
+      }
+    }
     const addr = {
       id: nid("adr"),
       userId,
@@ -577,15 +596,10 @@ export async function registerPro(input: {
   lng?: number;
   privacyConsent?: boolean;
 }) {
-  const siretLookup = await lookupSiret(input.siret);
-  if (!siretLookup.ok) {
-    throw new Error(
-      siretLookup.status === "inactive"
-        ? "SIRET_INACTIVE"
-        : siretLookup.status === "not_found"
-          ? "SIRET_NOT_FOUND"
-          : "SIRET_INVALID",
-    );
+  const market = getMarket();
+  const bizLookup = await lookupBusinessId(input.siret);
+  if (market.businessId.required && !bizLookup.ok) {
+    throw new Error(businessIdErrorCode(bizLookup));
   }
 
   return mutate((db) => {
@@ -595,8 +609,8 @@ export async function registerPro(input: {
     const phone = normalizePhone(input.phone);
     const password = String(input.password || "");
     const company =
-      String(input.company || "").trim() || siretLookup.legalName || "";
-    const siret = normalizeSiret(input.siret);
+      String(input.company || "").trim() || bizLookup.legalName || "";
+    const siret = bizLookup.siret || String(input.siret || "").trim();
     const cityName = String(input.city || "").trim();
 
     if (!firstName || !lastName) throw new Error("NAME_REQUIRED");
@@ -604,17 +618,32 @@ export async function registerPro(input: {
     if (!isValidPhone(phone)) throw new Error("PHONE_REQUIRED");
     if (password.length < 8) throw new Error("PASSWORD_TOO_SHORT");
     if (!company) throw new Error("COMPANY_REQUIRED");
-    if (!siret) throw new Error("SIRET_REQUIRED");
+    if (market.businessId.required && !siret) throw new Error(businessIdRequiredError());
     if (!input.privacyConsent) throw new Error("PRIVACY_CONSENT_REQUIRED");
     if (db.users.some((u) => u.email.toLowerCase() === email && !u.deletedAt)) {
       throw new Error("EMAIL_TAKEN");
     }
 
-    const cityMeta =
-      SERVICE_CITIES.find(
+    const selectable = getSelectableCities();
+    const intl = isInternationalMarket() || selectable.length === 0;
+    let cityMeta =
+      getServiceCities().find(
         (c) => c.name.toLowerCase() === cityName.toLowerCase() || c.slug === cityName.toLowerCase(),
       ) ?? null;
+    if (!cityMeta && intl && Number.isFinite(Number(input.lat)) && Number.isFinite(Number(input.lng))) {
+      cityMeta = nearestCity(Number(input.lat), Number(input.lng));
+      if (cityName) cityMeta = { ...cityMeta, name: cityName };
+    }
+    if (!cityMeta && cityName) {
+      cityMeta = findCityByName(cityName);
+    }
     if (!cityMeta) throw new Error("CITY_UNSUPPORTED");
+    if (!intl && selectable.length > 0) {
+      const inList = selectable.some(
+        (c) => c.id === cityMeta!.id || c.name.toLowerCase() === cityName.toLowerCase(),
+      );
+      if (!inList) throw new Error("CITY_UNSUPPORTED");
+    }
     const lat = Number(input.lat ?? cityMeta.lat);
     const lng = Number(input.lng ?? cityMeta.lng);
 
@@ -631,7 +660,7 @@ export async function registerPro(input: {
       suspended: false,
       privacyConsentAt: new Date().toISOString(),
       deletedAt: null as string | null,
-      locale: "fr",
+      locale: market.defaultLocale || "fr",
       referralCode: "",
       walletBalance: 0,
       referredByUserId: null as string | null,
@@ -649,7 +678,7 @@ export async function registerPro(input: {
       radiusKm: input.radiusKm,
       lat,
       lng,
-      city: cityMeta.name,
+      city: cityName || cityMeta.name,
       online: false,
       verified: false,
       status: "pending" as const,
@@ -704,12 +733,12 @@ export async function registerPro(input: {
       acceptanceRate: 1,
     };
     applySiretLookup(proProfile, {
-      ok: siretLookup.ok,
-      status: siretLookup.status,
-      siret: siretLookup.siret,
-      legalName: siretLookup.legalName,
-      naf: siretLookup.naf,
-      address: siretLookup.address,
+      ok: bizLookup.ok,
+      status: bizLookup.status,
+      siret: bizLookup.siret,
+      legalName: bizLookup.legalName,
+      naf: bizLookup.naf,
+      address: bizLookup.address,
     });
     db.pros.push(proProfile);
     const admin = db.users.find((u) => u.role === "admin");
@@ -2575,6 +2604,8 @@ export function errorStatus(e: unknown) {
     CITY_UNSUPPORTED: 400,
     COMPANY_REQUIRED: 400,
     SIRET_REQUIRED: 400,
+    BUSINESS_ID_REQUIRED: 400,
+    BUSINESS_ID_INVALID: 400,
     PHOTO_TOO_LARGE: 400,
     INVALID_LOCATION: 400,
     FILE_TOO_LARGE: 400,

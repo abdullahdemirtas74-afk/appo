@@ -126,7 +126,7 @@ export function AddressBanner({ address, onSaved, city, onCityChange }: Props) {
           required
           value={picked}
           onChange={setPicked}
-          placeholder="Ex. 12 rue de la République, Rumilly"
+          placeholder="Rechercher une adresse ou utiliser le GPS…"
         />
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
         {ok ? <p className="text-sm font-semibold text-green">Adresse enregistrée</p> : null}

@@ -42,6 +42,16 @@ export default function AdminHome() {
     account?: { displayName?: string | null; chargesEnabled?: boolean; payoutsEnabled?: boolean; id?: string };
     error?: string;
   }>("/api/payments/status", 15000);
+  const { data: marketRes } = usePoll<{
+    market?: {
+      id?: string;
+      label?: string;
+      currency?: string;
+      international?: boolean;
+      areaBlurb?: string;
+      regionLabel?: string;
+    };
+  }>("/api/market", 0);
   const { data, reload } = usePoll<{
     userCount?: number;
     clientCount?: number;
@@ -162,6 +172,17 @@ export default function AdminHome() {
             }`
           : stripe?.error || "non configuré"}
       </div>
+
+      {marketRes?.market ? (
+        <div className="mt-3 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950">
+          <span className="font-bold">Marché :</span>{" "}
+          {marketRes.market.label} ({marketRes.market.id}) · {marketRes.market.currency}
+          {marketRes.market.international ? " · international" : ` · ${marketRes.market.areaBlurb || marketRes.market.regionLabel}`}
+          <span className="mt-1 block text-xs text-sky-800/80">
+            Variable Railway : <code>APPO_MARKET</code> = fr-haute-savoie | fr | ch | intl | world
+          </span>
+        </div>
+      ) : null}
 
       <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {cards.map(([k, v]) => (

@@ -5,15 +5,17 @@ import {
   type NominatimResult,
   type PhotonFeature,
 } from "@/lib/geocode";
+import { getMarket } from "@/lib/market";
 import { pruneRateLimits, rateLimit } from "@/lib/rate-limit";
 
 const UA = "AppO/1.0 (https://appo-ad.com; contact@appo-ad.com)";
-/** Bias search around Annecy / Haute-Savoie */
-const BIAS_LAT = 45.9;
-const BIAS_LNG = 6.13;
 
 async function photonSearch(q: string) {
-  const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&lang=fr&limit=8&lat=${BIAS_LAT}&lon=${BIAS_LNG}`;
+  const m = getMarket();
+  const { lat, lng } = m.geocodeBias;
+  const lang = m.geocodeLang || "en";
+  let url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&lang=${encodeURIComponent(lang)}&limit=8&lat=${lat}&lon=${lng}`;
+  // Photon supports osm_tag filters but not countrycodes; bias is enough for intl
   const res = await fetch(url, {
     headers: { Accept: "application/json", "User-Agent": UA },
     next: { revalidate: 0 },
@@ -27,7 +29,9 @@ async function photonSearch(q: string) {
 }
 
 async function nominatimReverse(lat: number, lng: number) {
-  const url = `https://nominatim.openstreetmap.org/reverse?lat=${encodeURIComponent(String(lat))}&lon=${encodeURIComponent(String(lng))}&format=json&addressdetails=1&accept-language=fr`;
+  const m = getMarket();
+  const lang = m.geocodeLang || "en";
+  const url = `https://nominatim.openstreetmap.org/reverse?lat=${encodeURIComponent(String(lat))}&lon=${encodeURIComponent(String(lng))}&format=json&addressdetails=1&accept-language=${encodeURIComponent(lang)}`;
   const res = await fetch(url, {
     headers: { Accept: "application/json", "User-Agent": UA },
     next: { revalidate: 0 },
@@ -40,7 +44,9 @@ async function nominatimReverse(lat: number, lng: number) {
 }
 
 async function photonReverse(lat: number, lng: number) {
-  const url = `https://photon.komoot.io/reverse?lat=${encodeURIComponent(String(lat))}&lon=${encodeURIComponent(String(lng))}&lang=fr`;
+  const m = getMarket();
+  const lang = m.geocodeLang || "en";
+  const url = `https://photon.komoot.io/reverse?lat=${encodeURIComponent(String(lat))}&lon=${encodeURIComponent(String(lng))}&lang=${encodeURIComponent(lang)}`;
   const res = await fetch(url, {
     headers: { Accept: "application/json", "User-Agent": UA },
     next: { revalidate: 0 },
@@ -72,7 +78,6 @@ export async function GET(req: Request) {
         return NextResponse.json({ error: "INVALID_LOCATION" }, { status: 400 });
       }
 
-      // Prefer Nominatim reverse (better house numbers); fallback Photon
       try {
         const raw = await nominatimReverse(lat, lng);
         if (raw && !raw.error && raw.lat) {
@@ -93,9 +98,30 @@ export async function GET(req: Request) {
     }
 
     const features = await photonSearch(q);
-    const results = features
+    const m = getMarket();
+    const countryHints: Record<string, string[]> = {
+      fr: ["france", "français"],
+      ch: ["switzerland", "suisse", "schweiz", "svizzera"],
+      be: ["belgium", "belgique", "belgië"],
+      de: ["germany", "deutschland"],
+      gb: ["united kingdom", "england", "scotland", "wales"],
+      us: ["united states", "usa"],
+    };
+    let results = features
       .map(parsePhotonFeature)
-      .filter((r): r is NonNullable<typeof r> => Boolean(r))
+      .filter((r): r is NonNullable<typeof r> => Boolean(r));
+
+    if (m.geocodeCountryCodes) {
+      const code = m.geocodeCountryCodes.toLowerCase();
+      const hints = countryHints[code] ?? [code];
+      const filtered = results.filter((r) => {
+        const label = r.label.toLowerCase();
+        return hints.some((h) => label.includes(h));
+      });
+      if (filtered.length) results = filtered;
+    }
+
+    results = results
       .sort((a, b) => Number(b.inServiceArea) - Number(a.inServiceArea) || a.distanceKm - b.distanceKm)
       .slice(0, 6);
 

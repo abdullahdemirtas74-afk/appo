@@ -1,24 +1,34 @@
+import { getMarket } from "./market";
+
 export function money(n: number) {
-  return new Intl.NumberFormat("fr-FR", {
+  const m = getMarket();
+  return new Intl.NumberFormat(m.currencyLocale, {
     style: "currency",
-    currency: "EUR",
+    currency: m.currency,
     maximumFractionDigits: 0,
   }).format(n);
 }
 
 export function moneyExact(n: number) {
-  return new Intl.NumberFormat("fr-FR", {
+  const m = getMarket();
+  return new Intl.NumberFormat(m.currencyLocale, {
     style: "currency",
-    currency: "EUR",
+    currency: m.currency,
   }).format(n);
 }
 
 export function km(n: number) {
-  return `${n.toFixed(1).replace(".", ",")} km`;
+  const m = getMarket();
+  const formatted = n.toFixed(1);
+  return m.defaultLocale.startsWith("fr")
+    ? `${formatted.replace(".", ",")} km`
+    : `${formatted} km`;
 }
 
 export function stars(n: number) {
-  return n.toFixed(1).replace(".", ",");
+  const m = getMarket();
+  const formatted = n.toFixed(1);
+  return m.defaultLocale.startsWith("fr") ? formatted.replace(".", ",") : formatted;
 }
 
 export function displayName(first: string, last: string) {
@@ -26,7 +36,9 @@ export function displayName(first: string, last: string) {
 }
 
 export function formatDate(iso: string) {
-  return new Date(iso).toLocaleString("fr-FR", {
+  const m = getMarket();
+  return new Date(iso).toLocaleString(m.currencyLocale, {
+    timeZone: m.timeZone === "UTC" ? undefined : m.timeZone,
     weekday: "short",
     day: "numeric",
     month: "short",
@@ -36,7 +48,9 @@ export function formatDate(iso: string) {
 }
 
 export function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString("fr-FR", {
+  const m = getMarket();
+  return new Date(iso).toLocaleTimeString(m.currencyLocale, {
+    timeZone: m.timeZone === "UTC" ? undefined : m.timeZone,
     hour: "2-digit",
     minute: "2-digit",
   });

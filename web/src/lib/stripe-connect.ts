@@ -1,5 +1,12 @@
 import type { DB, Payment, ProProfile, User } from "./types";
-import { eurosToCents, getStripe, isStripeEnabled, publicBaseUrl } from "./stripe";
+import {
+  eurosToCents,
+  getStripe,
+  isStripeEnabled,
+  publicBaseUrl,
+  stripeConnectCountry,
+  stripeCurrency,
+} from "./stripe";
 import { log } from "./logger";
 
 export function proConnectReady(pro: ProProfile | null | undefined) {
@@ -27,7 +34,7 @@ export async function createProConnectAccount(pro: ProProfile, user: User) {
   }
   const account = await stripe.accounts.create({
     type: "express",
-    country: "FR",
+    country: stripeConnectCountry(),
     email: user.email,
     business_type: "individual",
     capabilities: {
@@ -89,7 +96,7 @@ export async function transferToPro(
     const transfer = await stripe.transfers.create(
       {
         amount: eurosToCents(pay.proAmount),
-        currency: "eur",
+        currency: stripeCurrency(),
         destination: pro.stripeAccountId!,
         transfer_group: pay.missionId,
         metadata: {

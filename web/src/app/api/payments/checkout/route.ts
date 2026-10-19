@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { errorStatus, getMission } from "@/lib/actions";
 import { mutate, readDb } from "@/lib/db";
-import { eurosToCents, getStripe, isStripeEnabled, publicBaseUrl } from "@/lib/stripe";
+import { eurosToCents, getStripe, isStripeEnabled, publicBaseUrl, stripeCurrency } from "@/lib/stripe";
 
 /**
  * Creates a Stripe Checkout Session for a mission payment (client).
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
         {
           quantity: 1,
           price_data: {
-            currency: "eur",
+            currency: stripeCurrency(),
             unit_amount: eurosToCents(amount),
             product_data: {
               name: `AppO · Mission ${missionId}`,

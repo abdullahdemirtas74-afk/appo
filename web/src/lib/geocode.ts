@@ -1,4 +1,6 @@
 import { haversineKm, nearestCity } from "./geo";
+import { getMarket } from "./market";
+import { serviceAreaKm } from "./cities";
 
 export type GeocodedAddress = {
   line: string;
@@ -14,8 +16,6 @@ export type GeocodedAddress = {
   distanceKm: number;
   inServiceArea: boolean;
 };
-
-const MAX_SERVICE_KM = 45;
 
 type PhotonProps = {
   name?: string;
@@ -67,6 +67,8 @@ export function parsePhotonFeature(feature: PhotonFeature): GeocodedAddress | nu
   const nearest = nearestCity(lat, lng);
   const distanceKm = haversineKm(lat, lng, nearest.lat, nearest.lng);
   const labelParts = [line, [zip, city].filter(Boolean).join(" "), p.state, p.country].filter(Boolean);
+  const maxKm = serviceAreaKm();
+  const intl = getMarket().international;
   return {
     line: line || city || nearest.name,
     city: city || nearest.name,
@@ -77,7 +79,8 @@ export function parsePhotonFeature(feature: PhotonFeature): GeocodedAddress | nu
     serviceCityId: nearest.id,
     serviceCityName: nearest.name,
     distanceKm: Math.round(distanceKm * 10) / 10,
-    inServiceArea: distanceKm <= MAX_SERVICE_KM,
+    // International: any geocoded place is OK; regional markets use radius
+    inServiceArea: intl ? true : distanceKm <= maxKm,
   };
 }
 
@@ -116,6 +119,8 @@ export function parseNominatimResult(hit: NominatimResult): GeocodedAddress {
   const zip = a?.postcode || "";
   const nearest = nearestCity(lat, lng);
   const distanceKm = haversineKm(lat, lng, nearest.lat, nearest.lng);
+  const maxKm = serviceAreaKm();
+  const intl = getMarket().international;
   return {
     line: line || nearest.name,
     city: city || nearest.name,
@@ -126,6 +131,6 @@ export function parseNominatimResult(hit: NominatimResult): GeocodedAddress {
     serviceCityId: nearest.id,
     serviceCityName: nearest.name,
     distanceKm: Math.round(distanceKm * 10) / 10,
-    inServiceArea: distanceKm <= MAX_SERVICE_KM,
+    inServiceArea: intl ? true : distanceKm <= maxKm,
   };
 }

@@ -1,6 +1,8 @@
-/** Publisher / legal constants — single source for site + stores. */
+/** Publisher / legal constants — single source for site + stores. Market overlays region copy. */
 
-export const LEGAL = {
+import { getMarket } from "./market";
+
+const LEGAL_BASE = {
   brand: "AppO",
   tagline: "Le bon pro, sans attendre",
   legalName: "AppO SAS",
@@ -22,6 +24,30 @@ export const LEGAL = {
   appId: "com.appo.app",
   updated: "16 octobre 2026",
 } as const;
+
+export function getLegal() {
+  const m = getMarket();
+  return {
+    ...LEGAL_BASE,
+    tagline: m.tagline || LEGAL_BASE.tagline,
+    region: m.regionLabel || LEGAL_BASE.region,
+    country:
+      m.countryCode === "CH"
+        ? "Suisse"
+        : m.countryCode === "FR"
+          ? "France"
+          : m.international
+            ? "International"
+            : LEGAL_BASE.country,
+    governingLaw: m.governingLaw,
+    areaBlurb: m.areaBlurb,
+    currency: m.currency,
+    marketId: m.id,
+  };
+}
+
+/** @deprecated Prefer getLegal() for market-aware values */
+export const LEGAL = LEGAL_BASE;
 
 export const LEGAL_LINKS = [
   { href: "/confidentialite", label: "Confidentialité" },

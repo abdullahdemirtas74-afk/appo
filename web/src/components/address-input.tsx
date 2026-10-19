@@ -61,7 +61,9 @@ export function AddressInput({
 
   function pick(hit: GeocodedAddress) {
     if (!hit.inServiceArea) {
-      setError(`Hors zone AppO (proche de ${hit.serviceCityName}, ${hit.distanceKm} km). Choisissez une adresse en Haute-Savoie.`);
+      setError(
+        `Hors zone AppO (proche de ${hit.serviceCityName}, ${hit.distanceKm} km). Choisissez une adresse dans la zone desservie.`,
+      );
       return;
     }
     const next: AddressValue = {

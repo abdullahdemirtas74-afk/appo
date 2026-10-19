@@ -2,6 +2,7 @@ import { Logo } from "@/components/logo";
 import { SiteLegalFooter } from "@/components/site-legal-links";
 import { Button } from "@/components/ui";
 import { publicDemoAccounts } from "@/lib/demo";
+import { getMarket } from "@/lib/market";
 import { ArrowRight, BadgeCheck, Clock, MapPin, Shield } from "lucide-react";
 
 const cats = [
@@ -14,6 +15,10 @@ const cats = [
 ];
 
 export default function Landing() {
+  const market = getMarket();
+  const areaPin = market.international
+    ? market.regionLabel
+    : market.cities[0]?.name || market.regionLabel;
   return (
     <div className="min-h-dvh overflow-x-hidden bg-[#0d0f14] text-white">
       <header className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-4 sm:px-6 sm:py-5">
@@ -34,7 +39,7 @@ export default function Landing() {
       <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-10 sm:gap-12 sm:px-6 sm:py-14 lg:grid-cols-2 lg:py-16">
         <div className="min-w-0">
           <p className="mb-4 text-xs font-semibold uppercase tracking-[0.2em] text-appo sm:text-sm">
-            Le bon pro, sans attendre
+            {market.tagline}
           </p>
           <h1 className="text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-5xl md:text-6xl">
             Votre besoin.
@@ -71,7 +76,7 @@ export default function Landing() {
             <div className="mb-4 flex items-center justify-between gap-2">
               <Logo size="sm" />
               <span className="flex items-center gap-1 text-sm text-muted">
-                <MapPin size={14} /> Rumilly
+                <MapPin size={14} /> {areaPin}
               </span>
             </div>
             <div className="rounded-2xl bg-background px-4 py-3 text-sm text-muted">

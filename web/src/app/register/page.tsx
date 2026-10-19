@@ -7,7 +7,7 @@ import { Logo } from "@/components/logo";
 import { AuthShell } from "@/components/shell";
 import { Button, Field, inputClass } from "@/components/ui";
 import { api, usePoll } from "@/lib/hooks";
-import { nearestCity, SERVICE_CITIES } from "@/lib/cities";
+import { useMarket } from "@/lib/use-market";
 import type { ClientKind } from "@/lib/types";
 
 const ERROR_LABEL: Record<string, string> = {
@@ -16,7 +16,7 @@ const ERROR_LABEL: Record<string, string> = {
   PRIVACY_CONSENT_REQUIRED: "Acceptez la politique de confidentialité pour continuer",
   NAME_REQUIRED: "Indiquez votre prénom et votre nom",
   EMAIL_REQUIRED: "Indiquez un e-mail valide",
-  PHONE_REQUIRED: "Indiquez un numéro de téléphone valide (ex. 06 12 34 56 78)",
+  PHONE_REQUIRED: "Indiquez un numéro de téléphone valide",
   PASSWORD_TOO_SHORT: "Mot de passe : 8 caractères minimum",
   ADDRESS_REQUIRED: "Choisissez une adresse GPS (suggestion ou bouton GPS)",
   CITY_UNSUPPORTED: "Choisissez une ville desservie par AppO",
@@ -25,11 +25,14 @@ const ERROR_LABEL: Record<string, string> = {
   SIRET_INVALID: "SIRET invalide (contrôle Luhn)",
   SIRET_INACTIVE: "Établissement radié ou inactif",
   SIRET_NOT_FOUND: "SIRET introuvable dans le registre officiel",
+  BUSINESS_ID_REQUIRED: "Indiquez votre numéro d’entreprise",
+  BUSINESS_ID_INVALID: "Numéro d’entreprise invalide",
 };
 
 function RegisterForm() {
   const router = useRouter();
   const params = useSearchParams();
+  const { cities, international, nearestFromMarket, businessId, areaBlurb, market } = useMarket();
   const [role, setRole] = useState<"client" | "pro">(params.get("role") === "pro" ? "pro" : "client");
   const [clientKind, setClientKind] = useState<ClientKind>(
     params.get("kind") === "entreprise" || params.get("kind") === "syndicat"
@@ -41,6 +44,7 @@ function RegisterForm() {
   const [loading, setLoading] = useState(false);
   const { data } = usePoll<{ categories: { id: string; name: string }[] }>("/api/categories", 0);
   const categories = data?.categories ?? [];
+  const [proAddress, setProAddress] = useState<AddressValue | null>(null);
 
   const [form, setForm] = useState({
     firstName: "",
@@ -75,8 +79,8 @@ function RegisterForm() {
   }, [categories, form.categoryId]);
 
   const selectedCity = useMemo(
-    () => SERVICE_CITIES.find((c) => c.id === form.cityId) ?? null,
-    [form.cityId],
+    () => cities.find((c) => c.id === form.cityId) ?? null,
+    [cities, form.cityId],
   );
 
   function set<K extends keyof typeof form>(k: K, v: (typeof form)[K]) {
@@ -84,11 +88,13 @@ function RegisterForm() {
   }
 
   function onCityChange(cityId: string) {
-    const city = SERVICE_CITIES.find((c) => c.id === cityId);
+    const city = cities.find((c) => c.id === cityId);
     setForm((f) => ({
       ...f,
       cityId,
       zip: city?.zipHint && (!f.zip || f.zip === selectedCity?.zipHint) ? city.zipHint : f.zip || city?.zipHint || "",
+      lat: city?.lat ?? f.lat,
+      lng: city?.lng ?? f.lng,
     }));
   }
 
@@ -98,9 +104,16 @@ function RegisterForm() {
       setError("PRIVACY_CONSENT_REQUIRED");
       return;
     }
-    if (role === "pro" && (!form.cityId || !selectedCity)) {
-      setError("CITY_UNSUPPORTED");
-      return;
+    if (role === "pro") {
+      if (international || cities.length === 0) {
+        if (!proAddress?.line || !Number.isFinite(proAddress.lat) || !Number.isFinite(proAddress.lng)) {
+          setError("ADDRESS_REQUIRED");
+          return;
+        }
+      } else if (!form.cityId || !selectedCity) {
+        setError("CITY_UNSUPPORTED");
+        return;
+      }
     }
     if (
       role === "client" &&
@@ -120,7 +133,14 @@ function RegisterForm() {
       const body =
         role === "pro"
           ? (() => {
-              if (!selectedCity) throw new Error("CITY_UNSUPPORTED");
+              const cityName =
+                international || cities.length === 0
+                  ? proAddress!.city || nearestFromMarket(proAddress!.lat, proAddress!.lng).name
+                  : selectedCity!.name;
+              const lat =
+                international || cities.length === 0 ? proAddress!.lat : selectedCity!.lat;
+              const lng =
+                international || cities.length === 0 ? proAddress!.lng : selectedCity!.lng;
               return {
                 role: "pro" as const,
                 firstName: form.firstName.trim(),
@@ -134,15 +154,15 @@ function RegisterForm() {
                 radiusKm: form.radiusKm,
                 startingPrice: form.startingPrice,
                 description: form.description.trim(),
-                city: selectedCity.name,
-                lat: selectedCity.lat,
-                lng: selectedCity.lng,
+                city: cityName,
+                lat,
+                lng,
                 privacyConsent: true,
               };
             })()
           : (() => {
               const addr = clientAddress!;
-              const service = nearestCity(addr.lat, addr.lng);
+              const service = nearestFromMarket(addr.lat, addr.lng);
               return {
                 role: "client" as const,
                 firstName: form.firstName.trim(),
@@ -179,6 +199,12 @@ function RegisterForm() {
     }
   }
 
+  const addrPlaceholder = international
+    ? "Street, city, country…"
+    : `Ex. 12 rue de la République, ${areaBlurb.split(/[,&]/)[0]?.trim() || "Rumilly"}`;
+  const bizLabel = businessId.label || "SIRET";
+  const currencySymbol = market?.currency === "CHF" ? "CHF" : market?.currency === "USD" ? "$" : "€";
+
   return (
     <AuthShell>
       <div className="lg:hidden">
@@ -187,6 +213,12 @@ function RegisterForm() {
       <h1 className="mt-8 text-3xl font-extrabold lg:mt-0">Créer un compte</h1>
       <p className="mt-2 text-sm text-muted">
         Renseignez vos informations complètes pour être opérationnel immédiatement.
+        {market ? (
+          <span className="mt-1 block text-xs">
+            Marché : {market.label}
+            {international ? " · adresses GPS mondiales" : ` · ${areaBlurb}`}
+          </span>
+        ) : null}
       </p>
       <div className="mt-4 grid grid-cols-2 gap-2 rounded-2xl bg-background p-1">
         <button
@@ -264,7 +296,7 @@ function RegisterForm() {
             required
             autoComplete="tel"
             inputMode="tel"
-            placeholder="06 12 34 56 78"
+            placeholder={international ? "+1 555 000 0000" : "06 12 34 56 78"}
             value={form.phone}
             onChange={(e) => set("phone", e.target.value)}
           />
@@ -291,7 +323,7 @@ function RegisterForm() {
                 onChange={(e) => set("organizationName", e.target.value)}
               />
             </Field>
-            <Field label="SIRET (optionnel)">
+            <Field label={`${bizLabel} (optionnel)`}>
               <input
                 className={inputClass}
                 value={form.organizationSiret}
@@ -304,13 +336,17 @@ function RegisterForm() {
         {role === "client" ? (
           <div className="space-y-3 rounded-2xl border border-line bg-background/50 p-3">
             <div className="text-sm font-semibold">Adresse d’intervention</div>
-            <p className="text-xs text-muted">Recherche OpenStreetMap ou position GPS — coordonnées exactes.</p>
+            <p className="text-xs text-muted">
+              {international
+                ? "OpenStreetMap / GPS — adresses mondiales."
+                : "Recherche OpenStreetMap ou position GPS — coordonnées exactes."}
+            </p>
             <AddressInput
               required
               value={clientAddress}
               onChange={(addr) => {
                 setClientAddress(addr);
-                const service = nearestCity(addr.lat, addr.lng);
+                const service = nearestFromMarket(addr.lat, addr.lng);
                 setForm((f) => ({
                   ...f,
                   addressLine: addr.line,
@@ -320,7 +356,7 @@ function RegisterForm() {
                   lng: addr.lng,
                 }));
               }}
-              placeholder="Ex. 12 rue de la République, Rumilly"
+              placeholder={addrPlaceholder}
             />
           </div>
         ) : null}
@@ -335,34 +371,61 @@ function RegisterForm() {
                 onChange={(e) => set("company", e.target.value)}
               />
             </Field>
-            <Field label="SIRET (vérification automatique)">
+            <Field
+              label={
+                businessId.kind === "siret"
+                  ? `${bizLabel} (vérification automatique)`
+                  : bizLabel
+              }
+            >
               <input
                 className={inputClass}
-                required
-                inputMode="numeric"
-                placeholder="14 chiffres"
+                required={businessId.required}
+                inputMode={businessId.kind === "siret" ? "numeric" : "text"}
+                placeholder={businessId.kind === "siret" ? "14 chiffres" : businessId.hint}
                 value={form.siret}
                 onChange={(e) => set("siret", e.target.value)}
               />
             </Field>
-            <p className="text-xs text-muted">
-              Le SIRET est contrôlé automatiquement (Luhn + API Recherche d’entreprises).
-            </p>
-            <Field label="Ville d’intervention">
-              <select
-                className={inputClass}
-                required
-                value={form.cityId}
-                onChange={(e) => onCityChange(e.target.value)}
-              >
-                <option value="">Choisir une ville…</option>
-                {SERVICE_CITIES.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
+            <p className="text-xs text-muted">{businessId.hint}</p>
+            {international || cities.length === 0 ? (
+              <div className="space-y-3 rounded-2xl border border-line bg-background/50 p-3">
+                <div className="text-sm font-semibold">Zone d’intervention</div>
+                <AddressInput
+                  required
+                  value={proAddress}
+                  onChange={(addr) => {
+                    setProAddress(addr);
+                    const service = nearestFromMarket(addr.lat, addr.lng);
+                    setForm((f) => ({
+                      ...f,
+                      addressLine: addr.line,
+                      cityId: service.id,
+                      zip: addr.zip || "",
+                      lat: addr.lat,
+                      lng: addr.lng,
+                    }));
+                  }}
+                  placeholder={addrPlaceholder}
+                />
+              </div>
+            ) : (
+              <Field label="Ville d’intervention">
+                <select
+                  className={inputClass}
+                  required
+                  value={form.cityId}
+                  onChange={(e) => onCityChange(e.target.value)}
+                >
+                  <option value="">Choisir une ville…</option>
+                  {cities.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
             <Field label="Métier">
               <select
                 className={inputClass}
@@ -384,13 +447,13 @@ function RegisterForm() {
                   className={inputClass}
                   type="number"
                   min={1}
-                  max={100}
+                  max={200}
                   required
                   value={form.radiusKm}
                   onChange={(e) => set("radiusKm", Number(e.target.value))}
                 />
               </Field>
-              <Field label="Prix de départ (€)">
+              <Field label={`Prix de départ (${currencySymbol})`}>
                 <input
                   className={inputClass}
                   type="number"
@@ -410,7 +473,7 @@ function RegisterForm() {
               />
             </Field>
             <p className="text-xs text-muted">
-              Après inscription, déposez vos documents (identité, Kbis, RC Pro) pour validation AppO.
+              Après inscription, déposez vos documents (identité, registre, assurance) pour validation AppO.
             </p>
           </>
         ) : null}
