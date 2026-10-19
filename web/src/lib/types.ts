@@ -58,9 +58,11 @@ export type Category = {
   active: boolean;
 };
 
+export type ProDocumentType = "identite" | "selfie" | "entreprise" | "assurance" | "certification";
+
 export type ProDocument = {
   id: string;
-  type: "identite" | "entreprise" | "assurance" | "certification";
+  type: ProDocumentType;
   name: string;
   status: "missing" | "pending" | "approved" | "rejected";
   /** Stored file URL under /api/uploads/... */
@@ -69,6 +71,8 @@ export type ProDocument = {
   submittedAt?: string | null;
   reviewedAt?: string | null;
 };
+
+export type SiretStatus = "unchecked" | "valid" | "invalid" | "inactive" | "not_found" | "error";
 
 export type ScheduleDay = {
   day: number;
@@ -109,6 +113,12 @@ export type ProProfile = {
   userId: string;
   company: string;
   siret: string;
+  /** Auto-check via API Recherche d'entreprises */
+  siretStatus?: SiretStatus;
+  siretCheckedAt?: string | null;
+  siretLegalName?: string | null;
+  siretNaf?: string | null;
+  siretAddress?: string | null;
   description: string;
   experienceYears: number;
   radiusKm: number;
@@ -127,6 +137,13 @@ export type ProProfile = {
   verificationNote?: string | null;
   /** Dernière soumission du dossier à l’admin */
   verificationSubmittedAt?: string | null;
+  /** Confirmation auto prévue (soumission + 24h) */
+  verificationDueAt?: string | null;
+  /** Compte confirmé (manuel ou auto 24h) */
+  verifiedAt?: string | null;
+  /** Selfie Face ID + CNI validés */
+  faceIdVerifiedAt?: string | null;
+  faceIdMethod?: "camera" | "upload" | null;
   schedule: ScheduleDay[];
   absences: ProAbsence[];
   bufferMinutes: number;
@@ -150,6 +167,12 @@ export type ProProfile = {
   team: TeamMember[];
   /** Days after the intervention before Appo pays the pro (0–30). */
   payoutDelayDays: number;
+  /** Stripe Connect Express account id (acct_…) */
+  stripeAccountId?: string | null;
+  stripeDetailsSubmitted?: boolean;
+  stripeChargesEnabled?: boolean;
+  stripePayoutsEnabled?: boolean;
+  stripeOnboardingComplete?: boolean;
 };
 
 export type MissionStatus =
@@ -318,6 +341,13 @@ export type Payment = {
   paidAt: string | null;
   /** Date the pro should receive the payout. Null while Appo still holds the funds. */
   releaseAt?: string | null;
+  /** Stripe Checkout / PaymentIntent ids when real card capture is used */
+  stripeSessionId?: string | null;
+  stripePaymentIntentId?: string | null;
+  stripeCheckoutUrl?: string | null;
+  /** Stripe Connect Transfer to the pro */
+  stripeTransferId?: string | null;
+  stripeTransferError?: string | null;
 };
 
 export type AppNotification = {
@@ -530,7 +560,7 @@ export type OutboundEmailStatus =
 
 export type OutboundEmail = {
   id: string;
-  audience: "pro" | "client";
+  audience: "pro" | "client" | "admin" | "auth";
   userId: string;
   to: string;
   subject: string;
@@ -541,6 +571,17 @@ export type OutboundEmail = {
   createdAt: string;
   sentAt: string | null;
   error: string | null;
+};
+
+/** One-time password reset token (store hashed token only). */
+export type PasswordReset = {
+  id: string;
+  userId: string;
+  email: string;
+  tokenHash: string;
+  createdAt: string;
+  expiresAt: string;
+  usedAt: string | null;
 };
 
 export type ServiceRequestStatus = "open" | "awarded" | "cancelled" | "expired";
@@ -604,6 +645,7 @@ export type DB = {
   requests: ServiceRequest[];
   offers: ProOffer[];
   outboundEmails: OutboundEmail[];
+  passwordResets: PasswordReset[];
   settings: Settings;
   walletLedgers: WalletLedger[];
   referrals: Referral[];

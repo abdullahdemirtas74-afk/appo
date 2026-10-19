@@ -4,6 +4,7 @@ import Link from "next/link";
 import { api, usePoll } from "@/lib/hooks";
 import { STATUS_LABELS, formatDate, money, moneyExact } from "@/lib/format";
 import { Badge, Button } from "@/components/ui";
+import { isDemoUiEnabled } from "@/lib/launch";
 
 type Activity = {
   id: string;
@@ -34,6 +35,13 @@ const toneClass: Record<string, string> = {
 };
 
 export default function AdminHome() {
+  const { data: stripe } = usePoll<{
+    enabled?: boolean;
+    mode?: string;
+    webhookConfigured?: boolean;
+    account?: { displayName?: string | null; chargesEnabled?: boolean; payoutsEnabled?: boolean; id?: string };
+    error?: string;
+  }>("/api/payments/status", 15000);
   const { data, reload } = usePoll<{
     userCount?: number;
     clientCount?: number;
@@ -122,18 +130,37 @@ export default function AdminHome() {
           >
             Export backup
           </Button>
-          <Button
-            variant="secondary"
-            onClick={async () => {
-              const typed = prompt("Tapez RESET pour confirmer la réinitialisation (exportez avant) :");
-              if (typed !== "RESET") return;
-              await api("/api/admin", { action: "reset", confirm: "RESET" });
-              reload();
-            }}
-          >
-            Reset démo
-          </Button>
+          {isDemoUiEnabled() ? (
+            <Button
+              variant="secondary"
+              onClick={async () => {
+                const typed = prompt("Tapez RESET pour confirmer la réinitialisation (exportez avant) :");
+                if (typed !== "RESET") return;
+                await api("/api/admin", { action: "reset", confirm: "RESET" });
+                reload();
+              }}
+            >
+              Reset démo
+            </Button>
+          ) : null}
         </div>
+      </div>
+
+      <div
+        className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${
+          stripe?.enabled && stripe?.account?.chargesEnabled
+            ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+            : "border-amber-200 bg-amber-50 text-amber-950"
+        }`}
+      >
+        <span className="font-bold">Stripe :</span>{" "}
+        {stripe?.enabled
+          ? `${stripe.mode || "live"} · ${stripe.account?.displayName || stripe.account?.id || "compte"} · charges ${
+              stripe.account?.chargesEnabled ? "ON" : "OFF"
+            } · payouts ${stripe.account?.payoutsEnabled ? "ON" : "OFF"} · webhook ${
+              stripe.webhookConfigured ? "OK" : "à configurer"
+            }`
+          : stripe?.error || "non configuré"}
       </div>
 
       <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">

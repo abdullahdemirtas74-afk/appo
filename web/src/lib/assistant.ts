@@ -9,6 +9,14 @@ export type AssistantReply = {
   draftDescription: string;
 };
 
+export type NeedSuggestion = {
+  categoryId: string;
+  categoryName: string;
+  price: number;
+  urgency: boolean;
+  score: number;
+};
+
 const RULES: { keys: string[]; categoryId: string; categoryName: string; price: number; questions: string[] }[] = [
   {
     keys: ["évier", "evier", "fuite", "robinet", "wc", "chasse", "plomber", "canalisation", "chauffe"],
@@ -53,6 +61,26 @@ const RULES: { keys: string[]; categoryId: string; categoryName: string; price: 
     questions: ["Souhaitez-vous une intervention ponctuelle ou un abonnement ?", "Quelle taille de jardin ?"],
   },
 ];
+
+/** Match free-text need to service categories (home search + assistant). */
+export function suggestNeeds(text: string, limit = 4): NeedSuggestion[] {
+  const lower = String(text || "").trim().toLowerCase();
+  if (lower.length < 2) return [];
+  const urgency = /urgent|maintenant|immédiat|tout de suite|sos|fuite active/.test(lower);
+  const scored = RULES.map((r) => {
+    const hits = r.keys.filter((k) => lower.includes(k)).length;
+    return {
+      categoryId: r.categoryId,
+      categoryName: r.categoryName,
+      price: urgency ? Math.round(r.price * 1.25) : r.price,
+      urgency,
+      score: hits,
+    };
+  })
+    .filter((s) => s.score > 0)
+    .sort((a, b) => b.score - a.score || a.categoryName.localeCompare(b.categoryName));
+  return scored.slice(0, limit);
+}
 
 export function runAssistant(input: {
   text: string;

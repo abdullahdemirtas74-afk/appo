@@ -297,8 +297,31 @@ export function normalizePro(pro: ProProfile): ProProfile {
   const primePlan = pro.primePlan ?? (pro.premiumPlan === "none" ? "none" : pro.premiumPlan) ?? "none";
   const subscriptionTier =
     pro.subscriptionTier ?? (primeUntil && new Date(primeUntil) > new Date() ? "prime" : "pro");
+  const documents = [...(pro.documents ?? [])];
+  if (!documents.some((d) => d.type === "selfie")) {
+    documents.push({
+      id: `doc_${pro.id}_selfie`,
+      type: "selfie",
+      name: "faceid.jpg",
+      status: "missing",
+      url: null,
+      rejectReason: null,
+      submittedAt: null,
+      reviewedAt: null,
+    });
+  }
   return {
     ...pro,
+    documents,
+    siretStatus: pro.siretStatus ?? "unchecked",
+    siretCheckedAt: pro.siretCheckedAt ?? null,
+    siretLegalName: pro.siretLegalName ?? null,
+    siretNaf: pro.siretNaf ?? null,
+    siretAddress: pro.siretAddress ?? null,
+    faceIdVerifiedAt: pro.faceIdVerifiedAt ?? null,
+    faceIdMethod: pro.faceIdMethod ?? null,
+    verificationDueAt: pro.verificationDueAt ?? null,
+    verifiedAt: pro.verifiedAt ?? null,
     absences: pro.absences ?? [],
     bufferMinutes: pro.bufferMinutes ?? 30,
     leadTimeHours: pro.leadTimeHours ?? 2,

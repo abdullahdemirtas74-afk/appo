@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { errorStatus } from "@/lib/actions";
 import {
+  completeProFaceId,
   createSupportTicket,
   getSupportItem,
   listMySupport,
+  recheckProSiret,
   replySupport,
   submitProDocument,
   submitProVerification,
@@ -43,6 +45,17 @@ export async function POST(req: Request) {
     }
     if (body.action === "submitDocument") {
       const result = await submitProDocument(session.userId, body);
+      return NextResponse.json(result);
+    }
+    if (body.action === "completeFaceId") {
+      const result = await completeProFaceId(
+        session.userId,
+        body.method === "upload" ? "upload" : "camera",
+      );
+      return NextResponse.json(result);
+    }
+    if (body.action === "recheckSiret") {
+      const result = await recheckProSiret(session.userId, body.siret ? String(body.siret) : undefined);
       return NextResponse.json(result);
     }
     if (body.action === "submitVerification") {

@@ -14,6 +14,11 @@ export default function ProProfil() {
   const [description, setDescription] = useState(pro?.description ?? "");
   const [price, setPrice] = useState(pro?.startingPrice ?? 59);
   const [delay, setDelay] = useState(pro?.payoutDelayDays ?? 7);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [pwdMsg, setPwdMsg] = useState("");
+  const [pwdBusy, setPwdBusy] = useState(false);
   useEffect(() => {
     if (typeof pro?.payoutDelayDays === "number") setDelay(pro.payoutDelayDays);
   }, [pro?.payoutDelayDays]);
@@ -88,6 +93,81 @@ export default function ProProfil() {
         <Button className="w-full" variant="secondary" href="/pro/premium">
           AppO Premium
         </Button>
+      </div>
+      <div className="mt-8 rounded-3xl border border-line p-4">
+        <h2 className="font-bold">Mot de passe</h2>
+        <p className="mt-1 text-sm text-muted">Changez votre mot de passe sur AppO.</p>
+        <div className="mt-3 space-y-3">
+          <Field label="Mot de passe actuel">
+            <input
+              className={inputClass}
+              type="password"
+              autoComplete="current-password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+            />
+          </Field>
+          <Field label="Nouveau mot de passe">
+            <input
+              className={inputClass}
+              type="password"
+              minLength={8}
+              autoComplete="new-password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+            />
+          </Field>
+          <Field label="Confirmer">
+            <input
+              className={inputClass}
+              type="password"
+              minLength={8}
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+            />
+          </Field>
+          <Button
+            className="w-full"
+            variant="secondary"
+            disabled={pwdBusy}
+            onClick={async () => {
+              setPwdMsg("");
+              if (newPassword.length < 8) {
+                setPwdMsg("Mot de passe : 8 caractères minimum");
+                return;
+              }
+              if (newPassword !== confirmPassword) {
+                setPwdMsg("Les mots de passe ne correspondent pas");
+                return;
+              }
+              setPwdBusy(true);
+              try {
+                await api("/api/me", {
+                  action: "changePassword",
+                  currentPassword,
+                  newPassword,
+                });
+                setCurrentPassword("");
+                setNewPassword("");
+                setConfirmPassword("");
+                setPwdMsg("Mot de passe mis à jour");
+              } catch (err) {
+                const code = err instanceof Error ? err.message : "";
+                setPwdMsg(
+                  code === "INVALID_CREDENTIALS"
+                    ? "Mot de passe actuel incorrect"
+                    : "Impossible de changer le mot de passe",
+                );
+              } finally {
+                setPwdBusy(false);
+              }
+            }}
+          >
+            {pwdBusy ? "Enregistrement…" : "Mettre à jour le mot de passe"}
+          </Button>
+          {pwdMsg ? <p className="text-center text-sm text-muted">{pwdMsg}</p> : null}
+        </div>
       </div>
       <div className="mt-8 rounded-3xl border border-line p-4">
         <LanguageSettings onSaved={() => reload()} />

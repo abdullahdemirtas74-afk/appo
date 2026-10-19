@@ -172,7 +172,7 @@ export default function PremiumPage() {
           </div>
         ))}
       </div>
-      <p className="mt-4 text-xs text-muted">Paiements simulés V1 — aucun prélèvement réel.</p>
+      <p className="mt-4 text-xs text-muted">Abonnements Prime / Boost — activation dans l’app ; facturation carte à venir via Stripe.</p>
       {msg ? <p className="mt-2 text-sm font-semibold text-appo">{msg}</p> : null}
     </div>
   );

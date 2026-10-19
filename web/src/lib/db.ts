@@ -14,12 +14,15 @@ import {
   offerBonusSeconds,
   withTierSettings,
 } from "./premium";
+import { approveRequiredDocs, readyForAutoVerify } from "./pro-verify";
 import { isClientPlusActive } from "./client-plus";
 import { withRfqSettings } from "./rfq";
 import { createSeed } from "./seed";
 import { maskEmail, maskPhone, openPii, sealPii } from "./privacy";
 import { enqueueProEmail, flushProEmailQueue, withMailSettings } from "./mail";
 import { releaseDuePayouts } from "./escrow";
+import { processConnectPayouts } from "./stripe-connect";
+import { isStripeEnabled } from "./stripe";
 import { applyElectronicInvoiceFields } from "./invoice";
 import { defaultCatalogProducts, ensureUserGrowthFields, withGrowthSettings } from "./growth";
 import { backupDir, dbPath, ensureDataDirs } from "./paths";
@@ -50,6 +53,7 @@ function migrate(db: DB): DB {
   if (!db.requests) db.requests = [];
   if (!db.offers) db.offers = [];
   if (!db.outboundEmails) db.outboundEmails = [];
+  if (!db.passwordResets) db.passwordResets = [];
   if (!db.supportTickets) db.supportTickets = [];
   if (!db.walletLedgers) db.walletLedgers = [];
   if (!db.referrals) db.referrals = [];
@@ -276,6 +280,18 @@ export function mutate<T>(fn: (db: DB) => T | Promise<T>, persist = true) {
     const db = await readFile();
     processDispatch(db);
     broadcastRfqToFreePros(db);
+    if (persist && isStripeEnabled()) {
+      const connectReleased = await processConnectPayouts(db);
+      for (const released of connectReleased) {
+        notify(
+          db,
+          released.proUserId,
+          "Versement effectué",
+          `${released.proAmount} € versés sur votre compte Stripe`,
+          "/pro/revenus",
+        );
+      }
+    }
     const result = await fn(db);
     if (persist) {
       await flushProEmailQueue(db);
@@ -401,7 +417,34 @@ function broadcastRfqToFreePros(db: DB, now = Date.now()) {
   }
 }
 
+/** Auto-confirm Pro accounts 24h after complete dossier (SIRET + Face ID + docs). */
+export function processProAutoVerify(db: DB, now = Date.now()) {
+  let confirmed = 0;
+  for (const pro of db.pros) {
+    if (pro.status === "verified" || pro.status === "rejected" || pro.status === "suspended") continue;
+    if (!pro.verificationDueAt || new Date(pro.verificationDueAt).getTime() > now) continue;
+    if (!readyForAutoVerify(pro)) continue;
+    approveRequiredDocs(pro);
+    pro.status = "verified";
+    pro.verified = true;
+    pro.verifiedAt = new Date(now).toISOString();
+    pro.verificationNote =
+      "Compte confirmé automatiquement 24h après dépôt du dossier (SIRET + Face ID OK).";
+    notify(
+      db,
+      pro.userId,
+      "Compte Pro confirmé",
+      "Votre compte professionnel est ouvert. Vous pouvez recevoir des missions.",
+      "/pro",
+      { emailPro: true },
+    );
+    confirmed += 1;
+  }
+  return { confirmed };
+}
+
 export function processDispatch(db: DB, now = Date.now()) {
+  processProAutoVerify(db, now);
   const settings = withTierSettings(db.settings);
   for (const m of db.missions) {
     if (m.type !== "now" && m.type !== "urgence") continue;
