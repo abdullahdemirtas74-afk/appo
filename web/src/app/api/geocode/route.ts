@@ -58,15 +58,31 @@ export async function GET(req: Request) {
       return NextResponse.json({ results: [] });
     }
 
-    const raw = (await nominatim(
-      `/search?q=${encodeURIComponent(q)}&format=json&addressdetails=1&countrycodes=fr&limit=6&viewbox=${VIEWBOX}&bounded=0&accept-language=fr`,
-    )) as NominatimResult[];
+    // Bias toward Haute-Savoie; retry without viewbox if empty
+    const queries = [
+      q,
+      /haute-savoie|france/i.test(q) ? null : `${q}, Haute-Savoie, France`,
+    ].filter(Boolean) as string[];
 
-    const results = (Array.isArray(raw) ? raw : [])
-      .map(parseNominatimResult)
-      .filter((r) => Number.isFinite(r.lat) && Number.isFinite(r.lng));
+    let results: ReturnType<typeof parseNominatimResult>[] = [];
+    for (const query of queries) {
+      for (const withViewbox of [true, false]) {
+        const vb = withViewbox ? `&viewbox=${VIEWBOX}&bounded=0` : "";
+        const raw = (await nominatim(
+          `/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&countrycodes=fr&limit=8${vb}&accept-language=fr`,
+        )) as NominatimResult[];
+        results = (Array.isArray(raw) ? raw : [])
+          .map(parseNominatimResult)
+          .filter((r) => Number.isFinite(r.lat) && Number.isFinite(r.lng));
+        if (results.length) break;
+      }
+      if (results.length) break;
+    }
 
-    return NextResponse.json({ results });
+    // Prefer in-service-area hits first
+    results.sort((a, b) => Number(b.inServiceArea) - Number(a.inServiceArea) || a.distanceKm - b.distanceKm);
+
+    return NextResponse.json({ results: results.slice(0, 6) });
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : "GEOCODE_FAILED" },
