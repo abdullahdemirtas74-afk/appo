@@ -2,11 +2,12 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
+import { AddressInput, type AddressValue } from "@/components/address-input";
 import { Logo } from "@/components/logo";
 import { AuthShell } from "@/components/shell";
 import { Button, Field, inputClass } from "@/components/ui";
 import { api, usePoll } from "@/lib/hooks";
-import { SERVICE_CITIES } from "@/lib/cities";
+import { nearestCity, SERVICE_CITIES } from "@/lib/cities";
 import type { ClientKind } from "@/lib/types";
 
 const ERROR_LABEL: Record<string, string> = {
@@ -17,7 +18,7 @@ const ERROR_LABEL: Record<string, string> = {
   EMAIL_REQUIRED: "Indiquez un e-mail valide",
   PHONE_REQUIRED: "Indiquez un numéro de téléphone valide (ex. 06 12 34 56 78)",
   PASSWORD_TOO_SHORT: "Mot de passe : 8 caractères minimum",
-  ADDRESS_REQUIRED: "Indiquez votre adresse complète (rue, ville, code postal)",
+  ADDRESS_REQUIRED: "Choisissez une adresse GPS (suggestion ou bouton GPS)",
   CITY_UNSUPPORTED: "Choisissez une ville desservie par AppO",
   COMPANY_REQUIRED: "Indiquez le nom de l’entreprise",
   SIRET_REQUIRED: "Indiquez un SIRET valide",
@@ -55,7 +56,10 @@ function RegisterForm() {
     addressLine: "",
     cityId: "",
     zip: "",
+    lat: null as number | null,
+    lng: null as number | null,
   });
+  const [clientAddress, setClientAddress] = useState<AddressValue | null>(null);
 
   useEffect(() => {
     if (params.get("role") === "pro") setRole("pro");
@@ -91,11 +95,14 @@ function RegisterForm() {
       setError("PRIVACY_CONSENT_REQUIRED");
       return;
     }
-    if (!form.cityId || !selectedCity) {
+    if (role === "pro" && (!form.cityId || !selectedCity)) {
       setError("CITY_UNSUPPORTED");
       return;
     }
-    if (role === "client" && !form.addressLine.trim()) {
+    if (
+      role === "client" &&
+      (!clientAddress?.line || !Number.isFinite(clientAddress.lat) || !Number.isFinite(clientAddress.lng))
+    ) {
       setError("ADDRESS_REQUIRED");
       return;
     }
@@ -109,45 +116,56 @@ function RegisterForm() {
     try {
       const body =
         role === "pro"
-          ? {
-              role: "pro" as const,
-              firstName: form.firstName.trim(),
-              lastName: form.lastName.trim(),
-              email: form.email.trim(),
-              phone: form.phone.trim(),
-              password: form.password,
-              company: form.company.trim(),
-              siret: form.siret.trim(),
-              categoryIds: [form.categoryId],
-              radiusKm: form.radiusKm,
-              startingPrice: form.startingPrice,
-              description: form.description.trim(),
-              city: selectedCity.name,
-              lat: selectedCity.lat,
-              lng: selectedCity.lng,
-              privacyConsent: true,
-            }
-          : {
-              role: "client" as const,
-              firstName: form.firstName.trim(),
-              lastName: form.lastName.trim(),
-              email: form.email.trim(),
-              phone: form.phone.trim(),
-              password: form.password,
-              clientKind,
-              organizationName: form.organizationName.trim(),
-              organizationSiret: form.organizationSiret.trim(),
-              privacyConsent: true,
-              address: {
-                line: form.addressLine.trim(),
+          ? (() => {
+              if (!selectedCity) throw new Error("CITY_UNSUPPORTED");
+              return {
+                role: "pro" as const,
+                firstName: form.firstName.trim(),
+                lastName: form.lastName.trim(),
+                email: form.email.trim(),
+                phone: form.phone.trim(),
+                password: form.password,
+                company: form.company.trim(),
+                siret: form.siret.trim(),
+                categoryIds: [form.categoryId],
+                radiusKm: form.radiusKm,
+                startingPrice: form.startingPrice,
+                description: form.description.trim(),
                 city: selectedCity.name,
-                zip: form.zip.trim() || selectedCity.zipHint || "",
                 lat: selectedCity.lat,
                 lng: selectedCity.lng,
-                label:
-                  clientKind === "syndicat" ? "Copropriété" : clientKind === "entreprise" ? "Siège" : "Domicile",
-              },
-            };
+                privacyConsent: true,
+              };
+            })()
+          : (() => {
+              const addr = clientAddress!;
+              const service = nearestCity(addr.lat, addr.lng);
+              return {
+                role: "client" as const,
+                firstName: form.firstName.trim(),
+                lastName: form.lastName.trim(),
+                email: form.email.trim(),
+                phone: form.phone.trim(),
+                password: form.password,
+                clientKind,
+                organizationName: form.organizationName.trim(),
+                organizationSiret: form.organizationSiret.trim(),
+                privacyConsent: true,
+                address: {
+                  line: addr.line.trim(),
+                  city: addr.city || service.name,
+                  zip: addr.zip.trim() || service.zipHint || "",
+                  lat: addr.lat,
+                  lng: addr.lng,
+                  label:
+                    clientKind === "syndicat"
+                      ? "Copropriété"
+                      : clientKind === "entreprise"
+                        ? "Siège"
+                        : "Domicile",
+                },
+              };
+            })();
 
       const res = await api<{ user: { role: string } }>("/api/auth/register", body);
       router.replace(res.user.role === "pro" ? "/pro/onboarding" : "/app/onboarding");
@@ -283,43 +301,24 @@ function RegisterForm() {
         {role === "client" ? (
           <div className="space-y-3 rounded-2xl border border-line bg-background/50 p-3">
             <div className="text-sm font-semibold">Adresse d’intervention</div>
-            <Field label="Rue et numéro">
-              <input
-                className={inputClass}
-                required
-                autoComplete="street-address"
-                placeholder="Ex. 12 rue de la République"
-                value={form.addressLine}
-                onChange={(e) => set("addressLine", e.target.value)}
-              />
-            </Field>
-            <div className="grid gap-3 sm:grid-cols-[1.4fr_0.8fr]">
-              <Field label="Ville">
-                <select
-                  className={inputClass}
-                  required
-                  value={form.cityId}
-                  onChange={(e) => onCityChange(e.target.value)}
-                >
-                  <option value="">Choisir une ville…</option>
-                  {SERVICE_CITIES.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Code postal">
-                <input
-                  className={inputClass}
-                  required
-                  autoComplete="postal-code"
-                  inputMode="numeric"
-                  value={form.zip}
-                  onChange={(e) => set("zip", e.target.value)}
-                />
-              </Field>
-            </div>
+            <p className="text-xs text-muted">Recherche OpenStreetMap ou position GPS — coordonnées exactes.</p>
+            <AddressInput
+              required
+              value={clientAddress}
+              onChange={(addr) => {
+                setClientAddress(addr);
+                const service = nearestCity(addr.lat, addr.lng);
+                setForm((f) => ({
+                  ...f,
+                  addressLine: addr.line,
+                  cityId: service.id,
+                  zip: addr.zip || service.zipHint || "",
+                  lat: addr.lat,
+                  lng: addr.lng,
+                }));
+              }}
+              placeholder="Ex. 12 rue de la République, Rumilly"
+            />
           </div>
         ) : null}
 

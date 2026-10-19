@@ -34,7 +34,7 @@ import {
   withClientPlusSettings,
 } from "./client-plus";
 import { etaMinutes, haversineKm } from "./geo";
-import { findCityByName, SERVICE_CITIES } from "./cities";
+import { findCityByName, nearestCity, SERVICE_CITIES } from "./cities";
 import { isValidPhone, normalizePhone } from "./phone";
 import { isDemoUiEnabled } from "./launch";
 import {
@@ -322,17 +322,18 @@ export async function registerClient(input: {
     const addrLine = String(input.address?.line || "").trim();
     const addrCity = String(input.address?.city || "").trim();
     const addrZip = String(input.address?.zip || "").trim();
-    if (!addrLine || !addrCity || !addrZip) throw new Error("ADDRESS_REQUIRED");
+    if (!addrLine || !addrCity) throw new Error("ADDRESS_REQUIRED");
 
-    const cityMeta =
-      SERVICE_CITIES.find(
-        (c) => c.name.toLowerCase() === addrCity.toLowerCase() || c.slug === addrCity.toLowerCase(),
-      ) ?? null;
-    if (!cityMeta) throw new Error("CITY_UNSUPPORTED");
-
-    const lat = Number(input.address?.lat ?? cityMeta.lat);
-    const lng = Number(input.address?.lng ?? cityMeta.lng);
+    const lat = Number(input.address?.lat);
+    const lng = Number(input.address?.lng);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) throw new Error("INVALID_LOCATION");
+
+    // Accept any geocoded place near a service city (not only exact city name match)
+    const cityMeta = nearestCity(lat, lng);
+    const distanceKm = haversineKm(lat, lng, cityMeta.lat, cityMeta.lng);
+    if (distanceKm > 45) throw new Error("CITY_UNSUPPORTED");
+    const resolvedZip = addrZip || cityMeta.zipHint || "";
+    if (!resolvedZip) throw new Error("ADDRESS_REQUIRED");
 
     const user = {
       id: nid("usr"),
@@ -389,8 +390,8 @@ export async function registerClient(input: {
       userId: user.id,
       label,
       line: addrLine,
-      city: cityMeta.name,
-      zip: addrZip,
+      city: addrCity || cityMeta.name,
+      zip: resolvedZip,
       lat,
       lng,
       isDefault: true,
@@ -534,7 +535,11 @@ export async function addClientAddress(
     requireUser(db, userId, "client");
     const mine = db.addresses.filter((a) => a.userId === userId);
     for (const a of mine) a.isDefault = false;
-    const cityMeta = findCityByName(input.city);
+    const lat = Number(input.lat);
+    const lng = Number(input.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) throw new Error("INVALID_LOCATION");
+    const cityMeta = nearestCity(lat, lng);
+    if (haversineKm(lat, lng, cityMeta.lat, cityMeta.lng) > 45) throw new Error("CITY_UNSUPPORTED");
     const addr = {
       id: nid("adr"),
       userId,
@@ -542,8 +547,8 @@ export async function addClientAddress(
       line: String(input.line).trim(),
       city: String(input.city).trim() || cityMeta.name,
       zip: String(input.zip || cityMeta.zipHint || "").trim(),
-      lat: Number(input.lat ?? cityMeta.lat),
-      lng: Number(input.lng ?? cityMeta.lng),
+      lat,
+      lng,
       isDefault: true,
     };
     if (!addr.line) throw new Error("ADDRESS_REQUIRED");

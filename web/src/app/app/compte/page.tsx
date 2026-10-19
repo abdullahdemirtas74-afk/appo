@@ -3,9 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { AddressInput, type AddressValue } from "@/components/address-input";
 import { useMe } from "@/components/guard";
 import { LanguageSettings } from "@/components/language-settings";
 import { Button, Field, inputClass } from "@/components/ui";
+import { nearestCity } from "@/lib/cities";
 import { api, usePoll } from "@/lib/hooks";
 import { money } from "@/lib/format";
 import { useLocale } from "@/lib/i18n";
@@ -42,7 +44,8 @@ export default function ComptePage() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [pwdBusy, setPwdBusy] = useState(false);
-  const [newAddr, setNewAddr] = useState({ label: "Autre", line: "", city: "Rumilly", zip: "74150" });
+  const [newAddrLabel, setNewAddrLabel] = useState("Autre");
+  const [newAddrPicked, setNewAddrPicked] = useState<AddressValue | null>(null);
 
   async function saveProfile() {
     setMsg("");
@@ -200,39 +203,37 @@ export default function ComptePage() {
         </div>
         <div className="mt-6 space-y-2 rounded-2xl border border-line p-4">
           <div className="font-bold">Ajouter une adresse</div>
+          <p className="text-xs text-muted">Recherche réelle (OpenStreetMap) ou GPS.</p>
           <input
             className={inputClass}
-            placeholder="Libellé"
-            value={newAddr.label}
-            onChange={(e) => setNewAddr({ ...newAddr, label: e.target.value })}
+            placeholder="Libellé (Domicile, Bureau…)"
+            value={newAddrLabel}
+            onChange={(e) => setNewAddrLabel(e.target.value)}
           />
-          <input
-            className={inputClass}
-            placeholder="Rue"
-            value={newAddr.line}
-            onChange={(e) => setNewAddr({ ...newAddr, line: e.target.value })}
+          <AddressInput
+            required
+            value={newAddrPicked}
+            onChange={setNewAddrPicked}
+            placeholder="Rechercher une adresse…"
           />
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              className={inputClass}
-              placeholder="Ville"
-              value={newAddr.city}
-              onChange={(e) => setNewAddr({ ...newAddr, city: e.target.value })}
-            />
-            <input
-              className={inputClass}
-              placeholder="CP"
-              value={newAddr.zip}
-              onChange={(e) => setNewAddr({ ...newAddr, zip: e.target.value })}
-            />
-          </div>
           <Button
             className="w-full"
             variant="secondary"
-            disabled={!newAddr.line.trim()}
+            disabled={!newAddrPicked?.line || !Number.isFinite(newAddrPicked.lat)}
             onClick={async () => {
-              await api("/api/me", { action: "addAddress", ...newAddr });
-              setNewAddr({ label: "Autre", line: "", city: "Rumilly", zip: "74150" });
+              if (!newAddrPicked) return;
+              const service = nearestCity(newAddrPicked.lat, newAddrPicked.lng);
+              await api("/api/me", {
+                action: "addAddress",
+                label: newAddrLabel.trim() || "Autre",
+                line: newAddrPicked.line,
+                city: newAddrPicked.city || service.name,
+                zip: newAddrPicked.zip || service.zipHint || "",
+                lat: newAddrPicked.lat,
+                lng: newAddrPicked.lng,
+              });
+              setNewAddrLabel("Autre");
+              setNewAddrPicked(null);
               await reload();
             }}
           >

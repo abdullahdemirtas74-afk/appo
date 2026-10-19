@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { MapPin, Pencil } from "lucide-react";
-import { Button, inputClass } from "@/components/ui";
-import { findCityByName, SERVICE_CITIES, type ServiceCity } from "@/lib/cities";
+import { AddressInput, type AddressValue } from "@/components/address-input";
+import { Button } from "@/components/ui";
+import { findCityByName, nearestCity, type ServiceCity } from "@/lib/cities";
 import { api } from "@/lib/hooks";
 import type { Address } from "@/lib/types";
 import { readSavedCity, saveCity } from "@/components/city-picker";
@@ -21,47 +22,56 @@ export function AddressBanner({ address, onSaved, city, onCityChange }: Props) {
   const [error, setError] = useState("");
   const [ok, setOk] = useState(false);
   const defaultCity = city ?? readSavedCity();
-  const [line, setLine] = useState(address?.line ?? "");
-  const [cityId, setCityId] = useState(
-    () => findCityByName(address?.city ?? defaultCity.name).id,
+  const [picked, setPicked] = useState<AddressValue | null>(
+    address?.line
+      ? {
+          line: address.line,
+          city: address.city,
+          zip: address.zip,
+          lat: address.lat,
+          lng: address.lng,
+        }
+      : null,
   );
-  const [zip, setZip] = useState(address?.zip ?? defaultCity.zipHint ?? "");
 
   useEffect(() => {
     if (!address?.line) {
       setEditing(true);
+      setPicked(null);
       return;
     }
-    setLine(address.line);
-    const c = findCityByName(address.city);
-    setCityId(c.id);
-    setZip(address.zip || c.zipHint || "");
+    setPicked({
+      line: address.line,
+      city: address.city,
+      zip: address.zip,
+      lat: address.lat,
+      lng: address.lng,
+    });
     setEditing(false);
-  }, [address?.line, address?.city, address?.zip]);
-
-  const selected = SERVICE_CITIES.find((c) => c.id === cityId) ?? SERVICE_CITIES[0];
+  }, [address?.line, address?.city, address?.zip, address?.lat, address?.lng]);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    if (!line.trim()) {
-      setError("Saisissez votre rue / numéro");
+    if (!picked?.line || !Number.isFinite(picked.lat) || !Number.isFinite(picked.lng)) {
+      setError("Choisissez une adresse GPS (suggestion ou bouton GPS)");
       return;
     }
     setSaving(true);
     setError("");
     setOk(false);
     try {
+      const serviceCity = nearestCity(picked.lat, picked.lng);
       await api("/api/me", {
         action: "addAddress",
         label: "Domicile",
-        line: line.trim(),
-        city: selected.name,
-        zip: zip.trim() || selected.zipHint || "",
-        lat: selected.lat,
-        lng: selected.lng,
+        line: picked.line.trim(),
+        city: picked.city || serviceCity.name,
+        zip: picked.zip.trim() || serviceCity.zipHint || "",
+        lat: picked.lat,
+        lng: picked.lng,
       });
-      saveCity(selected);
-      onCityChange?.(selected);
+      saveCity(findCityByName(serviceCity.name));
+      onCityChange?.(serviceCity);
       setOk(true);
       setEditing(false);
       await onSaved?.();
@@ -104,53 +114,20 @@ export function AddressBanner({ address, onSaved, city, onCityChange }: Props) {
         <MapPin size={18} className="shrink-0 text-appo" />
         <div>
           <div className="text-xs font-bold uppercase tracking-wide text-appo">Votre adresse</div>
-          <p className="text-sm text-muted">Indiquez où vous êtes pour trouver les pros autour de vous.</p>
+          <p className="text-sm text-muted">
+            Recherchez une vraie adresse ou utilisez le GPS ({defaultCity.name} et alentours).
+          </p>
         </div>
       </div>
 
       <form onSubmit={save} className="mt-3 space-y-2">
-        <label className="block">
-          <span className="sr-only">Rue et numéro</span>
-          <input
-            className={inputClass}
-            placeholder="Rue et numéro — ex. 12 rue de la République"
-            value={line}
-            onChange={(e) => setLine(e.target.value)}
-            required
-            autoComplete="street-address"
-          />
-        </label>
-        <div className="grid grid-cols-[1.4fr_0.8fr] gap-2">
-          <label className="block">
-            <span className="sr-only">Ville</span>
-            <select
-              className={inputClass}
-              value={cityId}
-              onChange={(e) => {
-                const c = SERVICE_CITIES.find((x) => x.id === e.target.value) ?? SERVICE_CITIES[0];
-                setCityId(c.id);
-                setZip(c.zipHint ?? "");
-              }}
-            >
-              {SERVICE_CITIES.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className="sr-only">Code postal</span>
-            <input
-              className={inputClass}
-              placeholder="CP"
-              value={zip}
-              onChange={(e) => setZip(e.target.value)}
-              inputMode="numeric"
-              autoComplete="postal-code"
-            />
-          </label>
-        </div>
+        <AddressInput
+          compact
+          required
+          value={picked}
+          onChange={setPicked}
+          placeholder="Ex. 12 rue de la République, Rumilly"
+        />
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
         {ok ? <p className="text-sm font-semibold text-green">Adresse enregistrée</p> : null}
         <div className="flex gap-2">
