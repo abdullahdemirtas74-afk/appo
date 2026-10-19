@@ -958,6 +958,7 @@ export function createSeed(): DB {
       defaultSlotPromoPercent: 10,
     },
     outboundEmails: [],
+    passwordResets: [],
     walletLedgers: [
       {
         id: "wlt_sarah_1",

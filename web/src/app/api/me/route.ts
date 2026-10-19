@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { clearSession, getSession } from "@/lib/auth";
 import {
   addClientAddress,
+  changePassword,
   completeOnboarding,
   deleteMyAccount,
   errorStatus,
@@ -70,6 +71,14 @@ export async function POST(req: Request) {
     if (body.action === "deleteAccount") {
       const result = await deleteMyAccount(session.userId, String(body.confirm ?? ""));
       await clearSession();
+      return NextResponse.json(result);
+    }
+    if (body.action === "changePassword") {
+      const result = await changePassword(
+        session.userId,
+        String(body.currentPassword ?? ""),
+        String(body.newPassword ?? ""),
+      );
       return NextResponse.json(result);
     }
     const user = await updateClientProfile(session.userId, body);

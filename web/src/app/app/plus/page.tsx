@@ -79,7 +79,7 @@ export default function ClientPlusPage() {
           </li>
         ))}
       </ul>
-      <p className="mt-4 text-xs text-muted">Paiement simulé — aucune carte stockée chez AppO.</p>
+      <p className="mt-4 text-xs text-muted">Aucune carte n’est stockée chez AppO — paiements via Stripe.</p>
     </div>
   );
 }

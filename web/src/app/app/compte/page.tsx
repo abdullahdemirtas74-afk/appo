@@ -30,7 +30,7 @@ export default function ComptePage() {
   );
   const { locale } = useLocale();
   const [section, setSection] = useState<
-    "menu" | "profile" | "addresses" | "favorites" | "invoices" | "privacy" | "language"
+    "menu" | "profile" | "password" | "addresses" | "favorites" | "invoices" | "privacy" | "language"
   >("menu");
   const [firstName, setFirstName] = useState(user?.firstName ?? "");
   const [lastName, setLastName] = useState(user?.lastName ?? "");
@@ -38,6 +38,10 @@ export default function ComptePage() {
   const [msg, setMsg] = useState("");
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [privacyBusy, setPrivacyBusy] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [pwdBusy, setPwdBusy] = useState(false);
   const [newAddr, setNewAddr] = useState({ label: "Autre", line: "", city: "Rumilly", zip: "74150" });
 
   async function saveProfile() {
@@ -72,6 +76,92 @@ export default function ComptePage() {
           <p className="text-sm text-muted">{user?.email}</p>
           <Button className="w-full" variant="now" onClick={saveProfile}>
             Enregistrer
+          </Button>
+          {msg ? <p className="text-center text-sm text-muted">{msg}</p> : null}
+        </div>
+      </div>
+    );
+  }
+
+  if (section === "password") {
+    return (
+      <div className="px-5 py-6">
+        <button className="text-sm font-semibold text-appo" onClick={() => setSection("menu")}>
+          ← Retour
+        </button>
+        <h1 className="mt-2 text-2xl font-extrabold">Mot de passe</h1>
+        <p className="mt-1 text-sm text-muted">Modifiez votre mot de passe directement sur AppO.</p>
+        <div className="mt-4 space-y-3">
+          <Field label="Mot de passe actuel">
+            <input
+              className={inputClass}
+              type="password"
+              autoComplete="current-password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+            />
+          </Field>
+          <Field label="Nouveau mot de passe">
+            <input
+              className={inputClass}
+              type="password"
+              minLength={8}
+              autoComplete="new-password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+            />
+          </Field>
+          <Field label="Confirmer">
+            <input
+              className={inputClass}
+              type="password"
+              minLength={8}
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+            />
+          </Field>
+          <Button
+            className="w-full"
+            variant="now"
+            disabled={pwdBusy}
+            onClick={async () => {
+              setMsg("");
+              if (newPassword.length < 8) {
+                setMsg("Mot de passe : 8 caractères minimum");
+                return;
+              }
+              if (newPassword !== confirmPassword) {
+                setMsg("Les mots de passe ne correspondent pas");
+                return;
+              }
+              setPwdBusy(true);
+              try {
+                await api("/api/me", {
+                  action: "changePassword",
+                  currentPassword,
+                  newPassword,
+                });
+                setCurrentPassword("");
+                setNewPassword("");
+                setConfirmPassword("");
+                setMsg("Mot de passe mis à jour");
+                setSection("menu");
+              } catch (err) {
+                const code = err instanceof Error ? err.message : "";
+                setMsg(
+                  code === "INVALID_CREDENTIALS"
+                    ? "Mot de passe actuel incorrect"
+                    : code === "PASSWORD_TOO_SHORT"
+                      ? "Mot de passe : 8 caractères minimum"
+                      : "Impossible de changer le mot de passe",
+                );
+              } finally {
+                setPwdBusy(false);
+              }
+            }}
+          >
+            {pwdBusy ? "Enregistrement…" : "Enregistrer"}
           </Button>
           {msg ? <p className="text-center text-sm text-muted">{msg}</p> : null}
         </div>
@@ -327,6 +417,7 @@ export default function ComptePage() {
       <div className="mt-4 space-y-2 text-sm">
         {[
           { k: "Mes informations", v: user ? `${user.firstName} ${user.lastName}` : "", onClick: () => setSection("profile") },
+          { k: "Mot de passe", v: "Modifier", onClick: () => setSection("password") },
           { k: "Type de compte", v: KIND_LABEL[kind] },
           { k: "AppO+", v: me?.clientPlusActive ? `Actif · ${me.clientPlusDaysLeft} j` : "Voir l’offre", href: "/app/plus" },
           { k: "Wallet", v: `${me?.walletBalance ?? 0} € crédits`, href: "/app/wallet" },

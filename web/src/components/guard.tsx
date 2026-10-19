@@ -48,7 +48,14 @@ export function Guard({
       return;
     }
     if (role === "client" || role === "pro") {
-      const needsOnboarding = data.user.onboardingCompletedAt == null;
+      let justDone = false;
+      try {
+        justDone = sessionStorage.getItem("appo_onboarding_done") === "1";
+        if (justDone) sessionStorage.removeItem("appo_onboarding_done");
+      } catch {
+        /* ignore */
+      }
+      const needsOnboarding = data.user.onboardingCompletedAt == null && !justDone;
       const onOnboarding = pathname?.includes("/onboarding");
       const isHome = pathname === "/app" || pathname === "/pro";
       if (needsOnboarding && isHome && !onOnboarding) {

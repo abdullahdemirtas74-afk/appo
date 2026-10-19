@@ -9,6 +9,7 @@ import { useMe } from "@/components/guard";
 import { Badge, Button, Field, inputClass } from "@/components/ui";
 import { api, usePoll } from "@/lib/hooks";
 import { STATUS_LABELS, formatDate, formatTime, money } from "@/lib/format";
+import { isDemoUiEnabled } from "@/lib/launch";
 
 const STEPS = ["accepted", "en_route", "arrived", "in_progress", "completed"];
 const TIP_PRESETS = [0, 2, 5, 10];
@@ -33,6 +34,19 @@ export default function MissionClientPage() {
 
   const act = async (action: string, extra: Record<string, unknown> = {}) => {
     await api(`/api/missions/${m.id}`, { action, ...extra });
+    reload();
+  };
+
+  const payWithStripe = async (mode: "pay" | "hold" = "pay") => {
+    const res = await api<{ url: string }>("/api/payments/checkout", {
+      missionId: m.id,
+      tip,
+      mode,
+    });
+    if (res.url) {
+      window.location.href = res.url;
+      return;
+    }
     reload();
   };
 
@@ -382,6 +396,19 @@ export default function MissionClientPage() {
         </div>
       ) : null}
 
+      {m.paymentStatus === "pending" && m.status !== "completed" ? (
+        <div className="mt-6 rounded-3xl border border-appo/30 bg-appo/5 p-5">
+          <div className="font-bold text-ink">Paiement Stripe en attente</div>
+          <p className="mt-1 text-sm text-muted">
+            Finalisez le paiement sécurisé ({money(m.total)}) — AppO séquestre les fonds jusqu’à la fin de
+            l’intervention.
+          </p>
+          <Button className="mt-4 w-full" variant="now" onClick={() => payWithStripe("hold")}>
+            Payer via Stripe
+          </Button>
+        </div>
+      ) : null}
+
       {m.status === "completed" && (m.paymentStatus === "none" || m.paymentStatus === "pending") ? (
         <div className="mt-6 rounded-3xl bg-ink p-5 text-white">
           <div className="text-sm opacity-70">Intervention terminée</div>
@@ -407,9 +434,18 @@ export default function MissionClientPage() {
               </button>
             ))}
           </div>
-          <Button className="mt-4 w-full" variant="now" onClick={() => act("pay", { method: payMethod, tip })}>
-            Payer {money(m.total + tip)}
+          <Button className="mt-4 w-full" variant="now" onClick={() => payWithStripe("pay")}>
+            Payer {money(m.total + tip)} via Stripe
           </Button>
+          {isDemoUiEnabled() ? (
+            <button
+              type="button"
+              className="mt-2 w-full text-center text-xs text-white/50 underline"
+              onClick={() => act("pay", { method: payMethod, tip })}
+            >
+              Paiement simulé (secours)
+            </button>
+          ) : null}
         </div>
       ) : null}
 

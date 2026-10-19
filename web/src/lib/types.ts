@@ -150,6 +150,12 @@ export type ProProfile = {
   team: TeamMember[];
   /** Days after the intervention before Appo pays the pro (0–30). */
   payoutDelayDays: number;
+  /** Stripe Connect Express account id (acct_…) */
+  stripeAccountId?: string | null;
+  stripeDetailsSubmitted?: boolean;
+  stripeChargesEnabled?: boolean;
+  stripePayoutsEnabled?: boolean;
+  stripeOnboardingComplete?: boolean;
 };
 
 export type MissionStatus =
@@ -318,6 +324,13 @@ export type Payment = {
   paidAt: string | null;
   /** Date the pro should receive the payout. Null while Appo still holds the funds. */
   releaseAt?: string | null;
+  /** Stripe Checkout / PaymentIntent ids when real card capture is used */
+  stripeSessionId?: string | null;
+  stripePaymentIntentId?: string | null;
+  stripeCheckoutUrl?: string | null;
+  /** Stripe Connect Transfer to the pro */
+  stripeTransferId?: string | null;
+  stripeTransferError?: string | null;
 };
 
 export type AppNotification = {
@@ -530,7 +543,7 @@ export type OutboundEmailStatus =
 
 export type OutboundEmail = {
   id: string;
-  audience: "pro" | "client";
+  audience: "pro" | "client" | "admin" | "auth";
   userId: string;
   to: string;
   subject: string;
@@ -541,6 +554,17 @@ export type OutboundEmail = {
   createdAt: string;
   sentAt: string | null;
   error: string | null;
+};
+
+/** One-time password reset token (store hashed token only). */
+export type PasswordReset = {
+  id: string;
+  userId: string;
+  email: string;
+  tokenHash: string;
+  createdAt: string;
+  expiresAt: string;
+  usedAt: string | null;
 };
 
 export type ServiceRequestStatus = "open" | "awarded" | "cancelled" | "expired";
@@ -604,6 +628,7 @@ export type DB = {
   requests: ServiceRequest[];
   offers: ProOffer[];
   outboundEmails: OutboundEmail[];
+  passwordResets: PasswordReset[];
   settings: Settings;
   walletLedgers: WalletLedger[];
   referrals: Referral[];

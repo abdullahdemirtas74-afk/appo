@@ -6,13 +6,14 @@ import { Logo } from "@/components/logo";
 import { AuthShell } from "@/components/shell";
 import { Button, Field, inputClass } from "@/components/ui";
 import { api } from "@/lib/hooks";
-import { DEMO_ACCOUNTS } from "@/lib/demo";
+import { publicDemoAccounts } from "@/lib/demo";
 
 function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const [email, setEmail] = useState(params.get("email") ?? "sarah@appo.fr");
-  const [password, setPassword] = useState("appo123");
+  const demos = publicDemoAccounts();
+  const [email, setEmail] = useState(params.get("email") ?? "");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -44,6 +45,14 @@ function LoginForm() {
         <Field label="Mot de passe">
           <input className={inputClass} value={password} onChange={(e) => setPassword(e.target.value)} type="password" required />
         </Field>
+        <div className="text-right">
+          <a
+            className="text-sm font-semibold text-appo"
+            href={`/forgot-password${email ? `?email=${encodeURIComponent(email)}` : ""}`}
+          >
+            Mot de passe oublié ?
+          </a>
+        </div>
         {error ? <p className="text-sm text-red-600">{error === "INVALID_CREDENTIALS" ? "Identifiants incorrects" : error}</p> : null}
         <Button type="submit" variant="now" className="w-full" disabled={loading}>
           {loading ? "Connexion…" : "Se connecter"}
@@ -55,25 +64,28 @@ function LoginForm() {
           Créer un compte
         </a>
       </p>
-      <div className="mt-8 space-y-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-muted">Comptes démo</p>
-        {DEMO_ACCOUNTS.map((a) => (
-          <button
-            key={a.email}
-            className="flex w-full items-center justify-between rounded-2xl border border-line bg-card px-4 py-3 text-left text-sm"
-            onClick={() => {
-              setEmail(a.email);
-              setPassword(a.password);
-            }}
-          >
-            <span>
-              <span className="font-semibold">{a.name}</span>
-              <span className="block text-xs text-muted">{a.email}</span>
-            </span>
-            <span className="text-xs font-semibold text-appo">{a.role}</span>
-          </button>
-        ))}
-      </div>
+      {demos.length > 0 ? (
+        <div className="mt-8 space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Comptes démo</p>
+          {demos.map((a) => (
+            <button
+              key={a.email}
+              type="button"
+              className="flex w-full items-center justify-between rounded-2xl border border-line bg-card px-4 py-3 text-left text-sm"
+              onClick={() => {
+                setEmail(a.email);
+                setPassword(a.password);
+              }}
+            >
+              <span>
+                <span className="font-semibold">{a.name}</span>
+                <span className="block text-xs text-muted">{a.email}</span>
+              </span>
+              <span className="text-xs font-semibold text-appo">{a.role}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
     </AuthShell>
   );
 }

@@ -1,6 +1,8 @@
+import { createHash, randomBytes } from "crypto";
 import { hashPassword, verifyPassword } from "./auth";
 import { makeReferralCode, creditWallet, withGrowthSettings } from "./growth";
 import { isValidLanguageCode } from "./languages";
+import { publicBaseUrl } from "./stripe";
 import {
   enrichMission,
   ensureInvoice,
@@ -32,7 +34,9 @@ import {
   withClientPlusSettings,
 } from "./client-plus";
 import { etaMinutes, haversineKm } from "./geo";
-import { findCityByName } from "./cities";
+import { findCityByName, SERVICE_CITIES } from "./cities";
+import { isValidPhone, normalizePhone } from "./phone";
+import { isDemoUiEnabled } from "./launch";
 import {
   clampPayoutDelay,
   holdClientFunds,
@@ -64,8 +68,27 @@ import type {
   Role,
   ScheduleDay,
 } from "./types";
-import { mailQuotaSnapshot, promotePendingProEmails, withMailSettings } from "./mail";
+import { mailQuotaSnapshot, promotePendingProEmails, sendTransactionalEmail, withMailSettings } from "./mail";
 import { normalizePhotoUrls } from "./uploads";
+
+const RESET_TTL_MS = 60 * 60 * 1000; // 1 hour (e-mail link)
+const RESET_ONSITE_TTL_MS = 15 * 60 * 1000; // 15 min (vérif e-mail + téléphone)
+
+function hashResetToken(token: string) {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+/** Compare phones ignoring spaces / +33 vs 0. */
+function phoneDigitsMatch(a: string, b: string): boolean {
+  const norm = (raw: string) => {
+    let d = normalizePhone(raw).replace(/\D/g, "");
+    if (d.startsWith("33") && d.length >= 11) d = `0${d.slice(2)}`;
+    return d;
+  };
+  const left = norm(a);
+  const right = norm(b);
+  return Boolean(left && right && left === right);
+}
 
 export async function login(email: string, password: string) {
   return mutate((db) => {
@@ -79,6 +102,189 @@ export async function login(email: string, password: string) {
   }, false);
 }
 
+/**
+ * Réinitialisation sur le site : e-mail + téléphone du compte → token court.
+ * Pas d’énumération : erreur générique si l’identité ne correspond pas.
+ * Envoie aussi un e-mail avec lien (si le provider mail fonctionne).
+ */
+export async function requestPasswordReset(emailRaw: string, phoneRaw?: string) {
+  const email = String(emailRaw || "").trim().toLowerCase();
+  const phone = String(phoneRaw || "").trim();
+  if (!email || !email.includes("@")) throw new Error("EMAIL_REQUIRED");
+  if (!phone) throw new Error("PHONE_REQUIRED");
+
+  const token = randomBytes(32).toString("hex");
+  const tokenHash = hashResetToken(token);
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + RESET_ONSITE_TTL_MS).toISOString();
+
+  const prepared = await mutate((db) => {
+    if (!db.passwordResets) db.passwordResets = [];
+    const user = db.users.find(
+      (u) => u.email.toLowerCase() === email && !u.deletedAt && !u.suspended,
+    );
+    if (!user || !phoneDigitsMatch(user.phone, phone)) return null;
+
+    for (const row of db.passwordResets) {
+      if (row.userId === user.id && !row.usedAt) row.usedAt = now.toISOString();
+    }
+
+    db.passwordResets.unshift({
+      id: nid("pwr"),
+      userId: user.id,
+      email: user.email,
+      tokenHash,
+      createdAt: now.toISOString(),
+      expiresAt,
+      usedAt: null,
+    });
+    if (db.passwordResets.length > 200) db.passwordResets = db.passwordResets.slice(0, 200);
+
+    return {
+      userId: user.id,
+      email: user.email,
+      firstName: user.firstName,
+    };
+  });
+
+  if (!prepared) {
+    // Timing-ish pad + generic error (no leak)
+    await new Promise((r) => setTimeout(r, 350 + Math.floor(Math.random() * 200)));
+    throw new Error("RESET_IDENTITY_INVALID");
+  }
+
+  // Best-effort e-mail backup (Railway Hobby may block SMTP)
+  const link = `${publicBaseUrl()}/reset-password?token=${token}`;
+  const subject = "Réinitialisation de votre mot de passe AppO";
+  const text = [
+    `Bonjour ${prepared.firstName || ""},`.trim() + ",",
+    "",
+    "Vous avez demandé à réinitialiser votre mot de passe AppO.",
+    "Sur le site, poursuivez la saisie du nouveau mot de passe,",
+    "ou utilisez ce lien (valable 15 minutes) :",
+    "",
+    link,
+    "",
+    "Si vous n’êtes pas à l’origine de cette demande, ignorez cet e-mail.",
+    "",
+    "— L’équipe AppO",
+  ].join("\n");
+
+  try {
+    const mail = await sendTransactionalEmail({
+      to: prepared.email,
+      subject,
+      text,
+      href: `/reset-password?token=${token}`,
+    });
+    await mutate((db) => {
+      if (!db.outboundEmails) db.outboundEmails = [];
+      db.outboundEmails.unshift({
+        id: nid("mail"),
+        audience: "auth",
+        userId: prepared.userId,
+        to: prepared.email,
+        subject,
+        body: "Lien de réinitialisation du mot de passe",
+        href: "/reset-password",
+        status: mail.sent ? "sent" : "pending_account",
+        day: now.toISOString().slice(0, 10),
+        createdAt: now.toISOString(),
+        sentAt: mail.sent ? now.toISOString() : null,
+        error: mail.sent ? null : mail.reason || null,
+      });
+      if (db.outboundEmails.length > 500) db.outboundEmails = db.outboundEmails.slice(0, 500);
+    });
+  } catch (e) {
+    console.error(
+      JSON.stringify({
+        ts: new Date().toISOString(),
+        level: "error",
+        event: "password_reset_mail_failed",
+        error: e instanceof Error ? e.message : String(e),
+      }),
+    );
+  }
+
+  return {
+    ok: true,
+    mode: "onsite" as const,
+    resetToken: token,
+    message: "Identité vérifiée. Choisissez votre nouveau mot de passe.",
+  };
+}
+
+/** Change password while logged in (compte / profil). */
+export async function changePassword(
+  userId: string,
+  currentPasswordRaw: string,
+  newPasswordRaw: string,
+) {
+  const currentPassword = String(currentPasswordRaw || "");
+  const newPassword = String(newPasswordRaw || "");
+  if (newPassword.length < 8) throw new Error("PASSWORD_TOO_SHORT");
+
+  return mutate((db) => {
+    const user = db.users.find((u) => u.id === userId && !u.deletedAt);
+    if (!user || user.suspended) throw new Error("UNAUTHORIZED");
+    if (!verifyPassword(currentPassword, user.passwordHash)) {
+      throw new Error("INVALID_CREDENTIALS");
+    }
+    user.passwordHash = hashPassword(newPassword);
+    if (db.passwordResets) {
+      const now = new Date().toISOString();
+      for (const row of db.passwordResets) {
+        if (row.userId === user.id && !row.usedAt) row.usedAt = now;
+      }
+    }
+    notify(
+      db,
+      user.id,
+      "Mot de passe modifié",
+      "Votre mot de passe AppO a été changé depuis votre compte.",
+      user.role === "pro" ? "/pro/profil" : "/app/compte",
+    );
+    return { ok: true };
+  });
+}
+
+export async function resetPasswordWithToken(tokenRaw: string, passwordRaw: string) {
+  const token = String(tokenRaw || "").trim();
+  const password = String(passwordRaw || "");
+  if (!token) throw new Error("RESET_TOKEN_INVALID");
+  if (password.length < 8) throw new Error("PASSWORD_TOO_SHORT");
+
+  const tokenHash = hashResetToken(token);
+  const now = new Date().toISOString();
+
+  return mutate((db) => {
+    if (!db.passwordResets) db.passwordResets = [];
+    const row = db.passwordResets.find((r) => r.tokenHash === tokenHash);
+    if (!row || row.usedAt) throw new Error("RESET_TOKEN_INVALID");
+    if (new Date(row.expiresAt).getTime() < Date.now()) throw new Error("RESET_TOKEN_EXPIRED");
+
+    const user = db.users.find((u) => u.id === row.userId && !u.deletedAt);
+    if (!user || user.suspended) throw new Error("RESET_TOKEN_INVALID");
+
+    user.passwordHash = hashPassword(password);
+    row.usedAt = now;
+    // Invalidate any other outstanding tokens
+    for (const other of db.passwordResets) {
+      if (other.userId === user.id && !other.usedAt) other.usedAt = now;
+    }
+
+    notify(
+      db,
+      user.id,
+      "Mot de passe modifié",
+      "Votre mot de passe AppO a été réinitialisé avec succès.",
+      "/login",
+    );
+
+    return { ok: true, email: user.email };
+  });
+}
+
 export async function registerClient(input: {
   firstName: string;
   lastName: string;
@@ -90,26 +296,53 @@ export async function registerClient(input: {
   organizationSiret?: string;
   privacyConsent?: boolean;
   referralCode?: string;
-  address?: { line: string; city: string; zip: string; lat: number; lng: number };
+  address?: { line: string; city: string; zip: string; lat?: number; lng?: number; label?: string };
 }) {
   return mutate((db) => {
-    if (db.users.some((u) => u.email.toLowerCase() === input.email.toLowerCase() && !u.deletedAt)) {
+    const firstName = String(input.firstName || "").trim();
+    const lastName = String(input.lastName || "").trim();
+    const email = String(input.email || "").trim().toLowerCase();
+    const phone = normalizePhone(input.phone);
+    const password = String(input.password || "");
+
+    if (!firstName || !lastName) throw new Error("NAME_REQUIRED");
+    if (!email || !email.includes("@")) throw new Error("EMAIL_REQUIRED");
+    if (!isValidPhone(phone)) throw new Error("PHONE_REQUIRED");
+    if (password.length < 8) throw new Error("PASSWORD_TOO_SHORT");
+    if (!input.privacyConsent) throw new Error("PRIVACY_CONSENT_REQUIRED");
+    if (db.users.some((u) => u.email.toLowerCase() === email && !u.deletedAt)) {
       throw new Error("EMAIL_TAKEN");
     }
-    if (!input.privacyConsent) throw new Error("PRIVACY_CONSENT_REQUIRED");
+
     const kind = input.clientKind ?? "particulier";
     if ((kind === "entreprise" || kind === "syndicat") && !String(input.organizationName || "").trim()) {
       throw new Error("ORG_REQUIRED");
     }
+
+    const addrLine = String(input.address?.line || "").trim();
+    const addrCity = String(input.address?.city || "").trim();
+    const addrZip = String(input.address?.zip || "").trim();
+    if (!addrLine || !addrCity || !addrZip) throw new Error("ADDRESS_REQUIRED");
+
+    const cityMeta =
+      SERVICE_CITIES.find(
+        (c) => c.name.toLowerCase() === addrCity.toLowerCase() || c.slug === addrCity.toLowerCase(),
+      ) ?? null;
+    if (!cityMeta) throw new Error("CITY_UNSUPPORTED");
+
+    const lat = Number(input.address?.lat ?? cityMeta.lat);
+    const lng = Number(input.address?.lng ?? cityMeta.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) throw new Error("INVALID_LOCATION");
+
     const user = {
       id: nid("usr"),
       role: "client" as const,
-      email: input.email.toLowerCase(),
-      passwordHash: hashPassword(input.password),
-      firstName: input.firstName,
-      lastName: input.lastName,
-      phone: input.phone,
-      avatar: `${input.firstName[0] ?? "A"}${input.lastName[0] ?? ""}`.toUpperCase(),
+      email,
+      passwordHash: hashPassword(password),
+      firstName,
+      lastName,
+      phone,
+      avatar: `${firstName[0] ?? "A"}${lastName[0] ?? ""}`.toUpperCase(),
       createdAt: new Date().toISOString(),
       suspended: false,
       clientKind: kind,
@@ -147,15 +380,21 @@ export async function registerClient(input: {
         creditWallet(db, user.id, Math.round(settings.referralClientCredit / 2), "referral", `Bienvenue via ${referralCodeIn}`);
       }
     }
-    if (input.address) {
-      db.addresses.push({
-        id: nid("adr"),
-        userId: user.id,
-        label: kind === "syndicat" ? "Copropriété" : kind === "entreprise" ? "Siège" : "Domicile",
-        ...input.address,
-        isDefault: true,
-      });
-    }
+
+    const label =
+      String(input.address?.label || "").trim() ||
+      (kind === "syndicat" ? "Copropriété" : kind === "entreprise" ? "Siège" : "Domicile");
+    db.addresses.push({
+      id: nid("adr"),
+      userId: user.id,
+      label,
+      line: addrLine,
+      city: cityMeta.name,
+      zip: addrZip,
+      lat,
+      lng,
+      isDefault: true,
+    });
     return publicUser(user);
   });
 }
@@ -326,24 +565,48 @@ export async function registerPro(input: {
   startingPrice: number;
   description: string;
   city: string;
-  lat: number;
-  lng: number;
+  lat?: number;
+  lng?: number;
   privacyConsent?: boolean;
 }) {
   return mutate((db) => {
+    const firstName = String(input.firstName || "").trim();
+    const lastName = String(input.lastName || "").trim();
+    const email = String(input.email || "").trim().toLowerCase();
+    const phone = normalizePhone(input.phone);
+    const password = String(input.password || "");
+    const company = String(input.company || "").trim();
+    const siret = String(input.siret || "").trim();
+    const cityName = String(input.city || "").trim();
+
+    if (!firstName || !lastName) throw new Error("NAME_REQUIRED");
+    if (!email || !email.includes("@")) throw new Error("EMAIL_REQUIRED");
+    if (!isValidPhone(phone)) throw new Error("PHONE_REQUIRED");
+    if (password.length < 8) throw new Error("PASSWORD_TOO_SHORT");
+    if (!company) throw new Error("COMPANY_REQUIRED");
+    if (!siret || siret.replace(/\s/g, "").length < 9) throw new Error("SIRET_REQUIRED");
     if (!input.privacyConsent) throw new Error("PRIVACY_CONSENT_REQUIRED");
-    if (db.users.some((u) => u.email.toLowerCase() === input.email.toLowerCase() && !u.deletedAt)) {
+    if (db.users.some((u) => u.email.toLowerCase() === email && !u.deletedAt)) {
       throw new Error("EMAIL_TAKEN");
     }
+
+    const cityMeta =
+      SERVICE_CITIES.find(
+        (c) => c.name.toLowerCase() === cityName.toLowerCase() || c.slug === cityName.toLowerCase(),
+      ) ?? null;
+    if (!cityMeta) throw new Error("CITY_UNSUPPORTED");
+    const lat = Number(input.lat ?? cityMeta.lat);
+    const lng = Number(input.lng ?? cityMeta.lng);
+
     const user = {
       id: nid("usr"),
       role: "pro" as const,
-      email: input.email.toLowerCase(),
-      passwordHash: hashPassword(input.password),
-      firstName: input.firstName,
-      lastName: input.lastName,
-      phone: input.phone,
-      avatar: `${input.firstName[0] ?? "P"}${input.lastName[0] ?? ""}`.toUpperCase(),
+      email,
+      passwordHash: hashPassword(password),
+      firstName,
+      lastName,
+      phone,
+      avatar: `${firstName[0] ?? "P"}${lastName[0] ?? ""}`.toUpperCase(),
       createdAt: new Date().toISOString(),
       suspended: false,
       privacyConsentAt: new Date().toISOString(),
@@ -359,14 +622,14 @@ export async function registerPro(input: {
     db.pros.push({
       id: nid("pro"),
       userId: user.id,
-      company: input.company,
-      siret: input.siret,
-      description: input.description,
+      company,
+      siret,
+      description: String(input.description || "").trim(),
       experienceYears: 0,
       radiusKm: input.radiusKm,
-      lat: input.lat,
-      lng: input.lng,
-      city: input.city,
+      lat,
+      lng,
+      city: cityMeta.name,
       online: false,
       verified: false,
       status: "pending",
@@ -404,8 +667,8 @@ export async function registerPro(input: {
       team: [
         {
           id: nid("tm"),
-          name: `${input.firstName} ${input.lastName}`.trim(),
-          phone: input.phone,
+          name: `${firstName} ${lastName}`.trim(),
+          phone,
           role: "owner",
           active: true,
         },
@@ -612,14 +875,22 @@ export async function listPros(params: {
     if (params.categoryId) list = list.filter((p) => p.categoryIds.includes(params.categoryId!));
     if (params.minRating) list = list.filter((p) => p.rating >= params.minRating!);
     if (params.maxPrice) list = list.filter((p) => p.startingPrice <= params.maxPrice!);
-    if (params.q) {
+    // Free-text need ("évier fuit") is handled via categoryId from home search.
+    // Only apply q as name/company filter when no category is selected.
+    if (params.q && !params.categoryId) {
       const q = params.q.toLowerCase();
+      const catHits = new Set(
+        db.categories
+          .filter((c) => c.name.toLowerCase().includes(q) || q.includes(c.name.toLowerCase()))
+          .map((c) => c.id),
+      );
       list = list.filter((p) => {
         const u = db.users.find((x) => x.id === p.userId);
         return (
           p.company.toLowerCase().includes(q) ||
           u?.firstName.toLowerCase().includes(q) ||
-          u?.lastName.toLowerCase().includes(q)
+          u?.lastName.toLowerCase().includes(q) ||
+          p.categoryIds.some((id) => catHits.has(id))
         );
       });
     }
@@ -959,14 +1230,21 @@ export async function missionAction(userId: string, id: string, action: string, 
       m.liveLng = null;
       m.liveUpdatedAt = null;
       m.timeline.push({ status: "accepted", at: now, label: labelFor("accepted") });
-      const held = holdClientFunds(db, m, now, "card");
+      const held = holdClientFunds(db, m, now, process.env.STRIPE_SECRET_KEY ? "stripe" : "card");
+      if (process.env.STRIPE_SECRET_KEY) {
+        // Real card capture happens via Stripe Checkout (client confirms on mission page).
+        held.status = "pending";
+        m.paymentStatus = "pending";
+      }
       ensureInvoice(db, m, now);
       notify(db, m.clientId, "Mission confirmée ✅", `${user.firstName} a accepté votre mission. Coordonnées débloquées.`, `/app/missions/${m.id}`);
       notify(
         db,
         m.clientId,
-        "Paiement sécurisé chez Appo",
-        `${held.amount} € prélevés. Appo conserve ce montant jusqu’à la fin de l’intervention.`,
+        process.env.STRIPE_SECRET_KEY ? "Confirmer le paiement Stripe" : "Paiement sécurisé chez Appo",
+        process.env.STRIPE_SECRET_KEY
+          ? `${held.amount} € à confirmer sur la mission — séquestre AppO jusqu’à la fin de l’intervention.`
+          : `${held.amount} € prélevés. Appo conserve ce montant jusqu’à la fin de l’intervention.`,
         `/app/missions/${m.id}`,
       );
       notify(db, m.clientId, "Confidentialité", "Téléphone et adresse exacte sont maintenant visibles des deux côtés.", `/app/missions/${m.id}`);
@@ -1626,6 +1904,14 @@ export async function proStats(userId: string) {
         .reduce((a, p) => a + p.proAmount, 0),
       held: escrow.filter((p) => p.status === "held").reduce((a, p) => a + p.proAmount, 0),
       payoutDelayDays: clampPayoutDelay(pro.payoutDelayDays, 7),
+      stripeConnect: {
+        accountId: pro.stripeAccountId ?? null,
+        ready: Boolean(pro.stripeAccountId && pro.stripePayoutsEnabled),
+        detailsSubmitted: Boolean(pro.stripeDetailsSubmitted),
+        chargesEnabled: Boolean(pro.stripeChargesEnabled),
+        payoutsEnabled: Boolean(pro.stripePayoutsEnabled),
+        onboardingComplete: Boolean(pro.stripeOnboardingComplete),
+      },
       escrow: escrow.sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? "")).map(stripPay),
       payments: pays.sort((a, b) => (b.paidAt ?? "").localeCompare(a.paidAt ?? "")).map(stripPay),
       missions: myMissions.length,
@@ -2163,6 +2449,7 @@ export async function adminAction(userId: string, action: string, payload: Recor
       };
     }
     if (action === "reset") {
+      if (!isDemoUiEnabled()) throw new Error("FORBIDDEN");
       if (payload.confirm !== "RESET") throw new Error("CONFIRM_REQUIRED");
       return { ok: true, reset: true };
     }
@@ -2229,6 +2516,13 @@ export function errorStatus(e: unknown) {
     INVALID_STATE: 409,
     ORG_REQUIRED: 400,
     ADDRESS_REQUIRED: 400,
+    NAME_REQUIRED: 400,
+    EMAIL_REQUIRED: 400,
+    PHONE_REQUIRED: 400,
+    PASSWORD_TOO_SHORT: 400,
+    CITY_UNSUPPORTED: 400,
+    COMPANY_REQUIRED: 400,
+    SIRET_REQUIRED: 400,
     PHOTO_TOO_LARGE: 400,
     INVALID_LOCATION: 400,
     FILE_TOO_LARGE: 400,
@@ -2243,6 +2537,12 @@ export function errorStatus(e: unknown) {
     DISPUTE_EXISTS: 409,
     MESSAGE_REQUIRED: 400,
     DOCS_INCOMPLETE: 400,
+    ONBOARDING_REQUIRED: 400,
+    STRIPE_ACCOUNT_MISSING: 400,
+    STRIPE_NOT_CONFIGURED: 503,
+    RESET_TOKEN_INVALID: 400,
+    RESET_TOKEN_EXPIRED: 400,
+    RESET_IDENTITY_INVALID: 400,
   };
   return { status: map[msg] ?? 400, error: msg };
 }

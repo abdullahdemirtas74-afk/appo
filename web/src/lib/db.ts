@@ -20,6 +20,8 @@ import { createSeed } from "./seed";
 import { maskEmail, maskPhone, openPii, sealPii } from "./privacy";
 import { enqueueProEmail, flushProEmailQueue, withMailSettings } from "./mail";
 import { releaseDuePayouts } from "./escrow";
+import { processConnectPayouts } from "./stripe-connect";
+import { isStripeEnabled } from "./stripe";
 import { applyElectronicInvoiceFields } from "./invoice";
 import { defaultCatalogProducts, ensureUserGrowthFields, withGrowthSettings } from "./growth";
 import { backupDir, dbPath, ensureDataDirs } from "./paths";
@@ -50,6 +52,7 @@ function migrate(db: DB): DB {
   if (!db.requests) db.requests = [];
   if (!db.offers) db.offers = [];
   if (!db.outboundEmails) db.outboundEmails = [];
+  if (!db.passwordResets) db.passwordResets = [];
   if (!db.supportTickets) db.supportTickets = [];
   if (!db.walletLedgers) db.walletLedgers = [];
   if (!db.referrals) db.referrals = [];
@@ -276,6 +279,18 @@ export function mutate<T>(fn: (db: DB) => T | Promise<T>, persist = true) {
     const db = await readFile();
     processDispatch(db);
     broadcastRfqToFreePros(db);
+    if (persist && isStripeEnabled()) {
+      const connectReleased = await processConnectPayouts(db);
+      for (const released of connectReleased) {
+        notify(
+          db,
+          released.proUserId,
+          "Versement effectué",
+          `${released.proAmount} € versés sur votre compte Stripe`,
+          "/pro/revenus",
+        );
+      }
+    }
     const result = await fn(db);
     if (persist) {
       await flushProEmailQueue(db);

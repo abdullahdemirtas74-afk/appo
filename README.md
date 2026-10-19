@@ -3,6 +3,8 @@
 Plateforme de mise en relation particuliers / professionnels.
 **Le bon pro, sans attendre.**
 
+**Prod :** [https://appo-ad.com](https://appo-ad.com) · DNS Cloudflare → Railway ([docs/DOMAIN.md](docs/DOMAIN.md))
+
 ## Lancer en local
 
 Depuis PowerShell, à la racine du projet :
@@ -46,7 +48,7 @@ Cette V1 couvre le MVP du cahier des charges (Client, Pro, Admin) en web local.
 
 ## Apps stores (Capacitor)
 
-Shell natif iOS / Android dans [`mobile/`](mobile/) (`com.appo.app`), WebView → prod Railway.
+Shell natif iOS / Android dans [`mobile/`](mobile/) (`com.appo.app`), WebView → [https://appo-ad.com](https://appo-ad.com).
 
 ```bash
 cd mobile
