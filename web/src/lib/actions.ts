@@ -71,10 +71,23 @@ import type {
 import { mailQuotaSnapshot, promotePendingProEmails, sendTransactionalEmail, withMailSettings } from "./mail";
 import { normalizePhotoUrls } from "./uploads";
 
-const RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
+const RESET_TTL_MS = 60 * 60 * 1000; // 1 hour (e-mail link)
+const RESET_ONSITE_TTL_MS = 15 * 60 * 1000; // 15 min (vérif e-mail + téléphone)
 
 function hashResetToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
+}
+
+/** Compare phones ignoring spaces / +33 vs 0. */
+function phoneDigitsMatch(a: string, b: string): boolean {
+  const norm = (raw: string) => {
+    let d = normalizePhone(raw).replace(/\D/g, "");
+    if (d.startsWith("33") && d.length >= 11) d = `0${d.slice(2)}`;
+    return d;
+  };
+  const left = norm(a);
+  const right = norm(b);
+  return Boolean(left && right && left === right);
 }
 
 export async function login(email: string, password: string) {
@@ -90,25 +103,28 @@ export async function login(email: string, password: string) {
 }
 
 /**
- * Always returns ok (no email enumeration). Sends reset mail when the account exists.
+ * Réinitialisation sur le site : e-mail + téléphone du compte → token court.
+ * Pas d’énumération : erreur générique si l’identité ne correspond pas.
+ * Envoie aussi un e-mail avec lien (si le provider mail fonctionne).
  */
-export async function requestPasswordReset(emailRaw: string) {
+export async function requestPasswordReset(emailRaw: string, phoneRaw?: string) {
   const email = String(emailRaw || "").trim().toLowerCase();
+  const phone = String(phoneRaw || "").trim();
   if (!email || !email.includes("@")) throw new Error("EMAIL_REQUIRED");
+  if (!phone) throw new Error("PHONE_REQUIRED");
 
   const token = randomBytes(32).toString("hex");
   const tokenHash = hashResetToken(token);
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + RESET_TTL_MS).toISOString();
+  const expiresAt = new Date(now.getTime() + RESET_ONSITE_TTL_MS).toISOString();
 
   const prepared = await mutate((db) => {
     if (!db.passwordResets) db.passwordResets = [];
     const user = db.users.find(
       (u) => u.email.toLowerCase() === email && !u.deletedAt && !u.suspended,
     );
-    if (!user) return null;
+    if (!user || !phoneDigitsMatch(user.phone, phone)) return null;
 
-    // Invalidate previous unused tokens for this user
     for (const row of db.passwordResets) {
       if (row.userId === user.id && !row.usedAt) row.usedAt = now.toISOString();
     }
@@ -131,65 +147,105 @@ export async function requestPasswordReset(emailRaw: string) {
     };
   });
 
-  if (prepared) {
-    const link = `${publicBaseUrl()}/reset-password?token=${token}`;
-    const subject = "Réinitialisation de votre mot de passe AppO";
-    const text = [
-      `Bonjour ${prepared.firstName || ""},`.trim() + ",",
-      "",
-      "Vous avez demandé à réinitialiser votre mot de passe AppO.",
-      "Cliquez sur le lien ci-dessous (valable 1 heure) :",
-      "",
-      link,
-      "",
-      "Si vous n’êtes pas à l’origine de cette demande, ignorez cet e-mail.",
-      "",
-      "— L’équipe AppO",
-    ].join("\n");
+  if (!prepared) {
+    // Timing-ish pad + generic error (no leak)
+    await new Promise((r) => setTimeout(r, 350 + Math.floor(Math.random() * 200)));
+    throw new Error("RESET_IDENTITY_INVALID");
+  }
 
-    try {
-      const mail = await sendTransactionalEmail({
+  // Best-effort e-mail backup (Railway Hobby may block SMTP)
+  const link = `${publicBaseUrl()}/reset-password?token=${token}`;
+  const subject = "Réinitialisation de votre mot de passe AppO";
+  const text = [
+    `Bonjour ${prepared.firstName || ""},`.trim() + ",",
+    "",
+    "Vous avez demandé à réinitialiser votre mot de passe AppO.",
+    "Sur le site, poursuivez la saisie du nouveau mot de passe,",
+    "ou utilisez ce lien (valable 15 minutes) :",
+    "",
+    link,
+    "",
+    "Si vous n’êtes pas à l’origine de cette demande, ignorez cet e-mail.",
+    "",
+    "— L’équipe AppO",
+  ].join("\n");
+
+  try {
+    const mail = await sendTransactionalEmail({
+      to: prepared.email,
+      subject,
+      text,
+      href: `/reset-password?token=${token}`,
+    });
+    await mutate((db) => {
+      if (!db.outboundEmails) db.outboundEmails = [];
+      db.outboundEmails.unshift({
+        id: nid("mail"),
+        audience: "auth",
+        userId: prepared.userId,
         to: prepared.email,
         subject,
-        text,
-        href: `/reset-password?token=${token}`,
+        body: "Lien de réinitialisation du mot de passe",
+        href: "/reset-password",
+        status: mail.sent ? "sent" : "pending_account",
+        day: now.toISOString().slice(0, 10),
+        createdAt: now.toISOString(),
+        sentAt: mail.sent ? now.toISOString() : null,
+        error: mail.sent ? null : mail.reason || null,
       });
-      await mutate((db) => {
-        if (!db.outboundEmails) db.outboundEmails = [];
-        db.outboundEmails.unshift({
-          id: nid("mail"),
-          audience: "auth",
-          userId: prepared.userId,
-          to: prepared.email,
-          subject,
-          body: "Lien de réinitialisation du mot de passe",
-          href: "/reset-password",
-          status: mail.sent ? "sent" : "pending_account",
-          day: now.toISOString().slice(0, 10),
-          createdAt: now.toISOString(),
-          sentAt: mail.sent ? now.toISOString() : null,
-          error: mail.sent ? null : mail.reason || null,
-        });
-        if (db.outboundEmails.length > 500) db.outboundEmails = db.outboundEmails.slice(0, 500);
-      });
-    } catch (e) {
-      // Don't leak mail failures to the client
-      console.error(
-        JSON.stringify({
-          ts: new Date().toISOString(),
-          level: "error",
-          event: "password_reset_mail_failed",
-          error: e instanceof Error ? e.message : String(e),
-        }),
-      );
-    }
+      if (db.outboundEmails.length > 500) db.outboundEmails = db.outboundEmails.slice(0, 500);
+    });
+  } catch (e) {
+    console.error(
+      JSON.stringify({
+        ts: new Date().toISOString(),
+        level: "error",
+        event: "password_reset_mail_failed",
+        error: e instanceof Error ? e.message : String(e),
+      }),
+    );
   }
 
   return {
     ok: true,
-    message:
-      "Si un compte existe pour cet e-mail, un lien de réinitialisation vient d’être envoyé.",
+    mode: "onsite" as const,
+    resetToken: token,
+    message: "Identité vérifiée. Choisissez votre nouveau mot de passe.",
   };
+}
+
+/** Change password while logged in (compte / profil). */
+export async function changePassword(
+  userId: string,
+  currentPasswordRaw: string,
+  newPasswordRaw: string,
+) {
+  const currentPassword = String(currentPasswordRaw || "");
+  const newPassword = String(newPasswordRaw || "");
+  if (newPassword.length < 8) throw new Error("PASSWORD_TOO_SHORT");
+
+  return mutate((db) => {
+    const user = db.users.find((u) => u.id === userId && !u.deletedAt);
+    if (!user || user.suspended) throw new Error("UNAUTHORIZED");
+    if (!verifyPassword(currentPassword, user.passwordHash)) {
+      throw new Error("INVALID_CREDENTIALS");
+    }
+    user.passwordHash = hashPassword(newPassword);
+    if (db.passwordResets) {
+      const now = new Date().toISOString();
+      for (const row of db.passwordResets) {
+        if (row.userId === user.id && !row.usedAt) row.usedAt = now;
+      }
+    }
+    notify(
+      db,
+      user.id,
+      "Mot de passe modifié",
+      "Votre mot de passe AppO a été changé depuis votre compte.",
+      user.role === "pro" ? "/pro/profil" : "/app/compte",
+    );
+    return { ok: true };
+  });
 }
 
 export async function resetPasswordWithToken(tokenRaw: string, passwordRaw: string) {
@@ -2486,6 +2542,7 @@ export function errorStatus(e: unknown) {
     STRIPE_NOT_CONFIGURED: 503,
     RESET_TOKEN_INVALID: 400,
     RESET_TOKEN_EXPIRED: 400,
+    RESET_IDENTITY_INVALID: 400,
   };
   return { status: map[msg] ?? 400, error: msg };
 }

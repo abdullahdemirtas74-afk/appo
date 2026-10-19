@@ -17,11 +17,16 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const result = await requestPasswordReset(String(body.email ?? ""));
-    log("info", "forgot_password_requested", { emailDomain: String(body.email ?? "").split("@")[1] || "" });
+    const email = String(body.email ?? "");
+    const phone = String(body.phone ?? "");
+    const result = await requestPasswordReset(email, phone);
+    log("info", "forgot_password_onsite_ok", {
+      emailDomain: email.split("@")[1] || "",
+    });
     return NextResponse.json(result);
   } catch (e) {
     const { status, error } = errorStatus(e);
+    log("warn", "forgot_password_failed", { error });
     return NextResponse.json({ error }, { status });
   }
 }
