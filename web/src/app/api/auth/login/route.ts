@@ -54,27 +54,27 @@ export async function POST(req: Request) {
     await setSession(user.id, user.role);
     log("info", "login_ok", { userId: user.id, role: user.role });
 
-    // Fire login confirmation email — never fail the login response
-    void (async () => {
-      try {
-        const result = await sendLoginConfirmationEmail({
-          id: user.id,
-          email: user.email,
-          firstName: user.firstName,
-          role: user.role,
-        });
-        await logLoginEmail(user.id, user.email, result);
-        log(result.sent ? "info" : "warn", "login_email", {
-          userId: user.id,
-          sent: result.sent,
-          reason: "reason" in result ? result.reason : undefined,
-        });
-      } catch (e) {
-        const message = e instanceof Error ? e.message : "SEND_FAILED";
-        await logLoginEmail(user.id, user.email, { sent: false }, message);
-        log("warn", "login_email_failed", { userId: user.id, error: message });
-      }
-    })();
+    // Await send so the Node process cannot exit before SMTP completes.
+    // Never fail the login response if mail fails.
+    try {
+      const result = await sendLoginConfirmationEmail({
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        role: user.role,
+      });
+      await logLoginEmail(user.id, user.email, result);
+      log(result.sent ? "info" : "warn", "login_email", {
+        userId: user.id,
+        to: user.email,
+        sent: result.sent,
+        reason: "reason" in result ? result.reason : undefined,
+      });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "SEND_FAILED";
+      await logLoginEmail(user.id, user.email, { sent: false }, message);
+      log("warn", "login_email_failed", { userId: user.id, to: user.email, error: message });
+    }
 
     return NextResponse.json({ user });
   } catch (e) {

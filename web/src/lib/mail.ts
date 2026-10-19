@@ -3,7 +3,7 @@ import type { DB, OutboundEmail, Settings } from "./types";
 
 export const PRO_EMAIL_DAILY_LIMIT_DEFAULT = 100;
 
-export type MailProviderKind = "gmail" | "smtp" | "resend" | "none";
+export type MailProviderKind = "resend" | "brevo" | "gmail" | "smtp" | "none";
 
 export type MailProviderStatus = {
   enabled: boolean;
@@ -11,6 +11,8 @@ export type MailProviderStatus = {
   from: string | null;
   provider: MailProviderKind;
   dailyLimit: number;
+  /** Railway Hobby/Trial blocks outbound SMTP — HTTPS APIs required. */
+  smtpLikelyBlocked: boolean;
 };
 
 function dayKey(d = new Date()) {
@@ -33,7 +35,8 @@ function mailFrom() {
 
 function smtpConfigured() {
   const user = process.env.APPO_SMTP_USER?.trim() || "";
-  const pass = process.env.APPO_SMTP_PASS?.trim() || "";
+  // Match sendViaSmtp: Google app passwords are often pasted with spaces
+  const pass = (process.env.APPO_SMTP_PASS || "").replace(/\s+/g, "");
   return Boolean(user && pass);
 }
 
@@ -41,12 +44,27 @@ function resendConfigured() {
   return Boolean(process.env.APPO_RESEND_API_KEY?.trim());
 }
 
+function brevoConfigured() {
+  return Boolean(
+    process.env.APPO_BREVO_API_KEY?.trim() || process.env.BREVO_API_KEY?.trim(),
+  );
+}
+
+function brevoApiKey() {
+  return (process.env.APPO_BREVO_API_KEY || process.env.BREVO_API_KEY || "").trim();
+}
+
+/**
+ * Prefer HTTPS APIs (Resend / Brevo) over SMTP.
+ * Railway Free/Trial/Hobby blocks outbound SMTP (465/587) — connection timeouts.
+ */
 function detectProvider(): MailProviderKind {
+  if (resendConfigured()) return "resend";
+  if (brevoConfigured()) return "brevo";
   if (smtpConfigured()) {
     const host = (process.env.APPO_SMTP_HOST?.trim() || "smtp.gmail.com").toLowerCase();
     return host.includes("gmail") || host.includes("google") ? "gmail" : "smtp";
   }
-  if (resendConfigured()) return "resend";
   return "none";
 }
 
@@ -61,6 +79,8 @@ export function getMailProviderStatus(settings?: Settings): MailProviderStatus {
     from,
     provider,
     dailyLimit: settings?.proEmailDailyLimit ?? PRO_EMAIL_DAILY_LIMIT_DEFAULT,
+    // Hint for admin UI / health: SMTP alone will fail on Railway Hobby
+    smtpLikelyBlocked: smtpConfigured() && !resendConfigured() && !brevoConfigured(),
   };
 }
 
@@ -130,10 +150,44 @@ async function sendViaResend(to: string, subject: string, text: string, href?: s
   }
 }
 
+/** Brevo (Sendinblue) transactional HTTP API — works on Railway Hobby (HTTPS). */
+async function sendViaBrevo(to: string, subject: string, text: string, href?: string) {
+  const key = brevoApiKey();
+  const fromRaw = mailFrom();
+  const fromMatch = fromRaw.match(/^(.*?)\s*<([^>]+)>$/);
+  const sender = fromMatch
+    ? { name: fromMatch[1].trim().replace(/^"|"$/g, ""), email: fromMatch[2].trim() }
+    : { name: "AppO", email: fromRaw };
+  const { html, plain } = buildBodies(text, href);
+  const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+    method: "POST",
+    headers: {
+      "api-key": key,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({
+      sender,
+      to: [{ email: to }],
+      subject: `[AppO] ${subject}`,
+      htmlContent: html,
+      textContent: plain,
+      replyTo: {
+        email: process.env.APPO_MAIL_REPLY_TO?.trim() || "contact@appo-ad.com",
+      },
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`BREVO_${res.status}:${body.slice(0, 200)}`);
+  }
+}
+
 /** Gmail / Google Workspace (smtp.gmail.com) or any SMTP via APPO_SMTP_*. */
 async function sendViaSmtp(to: string, subject: string, text: string, href?: string) {
   const user = process.env.APPO_SMTP_USER!.trim();
-  const pass = process.env.APPO_SMTP_PASS!.trim();
+  // App passwords are often pasted with spaces (xxxx xxxx xxxx xxxx)
+  const pass = (process.env.APPO_SMTP_PASS || "").replace(/\s+/g, "");
   const host = process.env.APPO_SMTP_HOST?.trim() || "smtp.gmail.com";
   const port = Number(process.env.APPO_SMTP_PORT || "465");
   const secure = process.env.APPO_SMTP_SECURE === "false" ? false : port === 465;
@@ -144,23 +198,38 @@ async function sendViaSmtp(to: string, subject: string, text: string, href?: str
     host,
     port,
     secure,
+    connectionTimeout: 12_000,
+    greetingTimeout: 12_000,
+    socketTimeout: 20_000,
     auth: { user, pass },
   });
 
-  await transport.sendMail({
-    from,
-    to,
-    subject: `[AppO] ${subject}`,
-    text: plain,
-    html,
-    replyTo: process.env.APPO_MAIL_REPLY_TO?.trim() || "contact@appo-ad.com",
-  });
+  try {
+    await transport.sendMail({
+      from,
+      to,
+      subject: `[AppO] ${subject}`,
+      text: plain,
+      html,
+      replyTo: process.env.APPO_MAIL_REPLY_TO?.trim() || "contact@appo-ad.com",
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    // Railway Hobby/Trial: outbound SMTP is firewalled → Connection timeout
+    if (/timeout|ETIMEDOUT|ECONNREFUSED|ENETUNREACH/i.test(msg)) {
+      throw new Error(
+        `SMTP_BLOCKED:${msg}. Railway Hobby blocks outbound SMTP — set APPO_RESEND_API_KEY or APPO_BREVO_API_KEY (HTTPS).`,
+      );
+    }
+    throw e;
+  }
 }
 
 async function sendOutbound(to: string, subject: string, text: string, href?: string) {
   const kind = detectProvider();
-  if (kind === "gmail" || kind === "smtp") return sendViaSmtp(to, subject, text, href);
   if (kind === "resend") return sendViaResend(to, subject, text, href);
+  if (kind === "brevo") return sendViaBrevo(to, subject, text, href);
+  if (kind === "gmail" || kind === "smtp") return sendViaSmtp(to, subject, text, href);
   throw new Error("MAIL_NOT_CONFIGURED");
 }
 

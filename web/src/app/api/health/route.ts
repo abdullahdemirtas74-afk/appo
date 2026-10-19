@@ -41,6 +41,7 @@ export async function GET() {
         configured: mail.configured,
         provider: mail.provider,
         from: mail.from,
+        smtpLikelyBlocked: mail.smtpLikelyBlocked,
       },
       persistence,
       database,

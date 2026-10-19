@@ -31,9 +31,22 @@ export default function AdminEmails() {
           <div className="mt-1 text-xl font-black">{active ? "Actif" : "Fermé"}</div>
           <div className="mt-1 text-xs text-muted">
             {provider?.configured
-              ? `${provider.provider === "gmail" ? "Gmail SMTP" : provider.provider === "smtp" ? "SMTP" : "Resend"} · ${provider.from}`
-              : "Configurer Gmail SMTP (APPO_SMTP_*) ou Resend + APPO_MAIL_ENABLED=true"}
+              ? `${
+                  provider.provider === "gmail"
+                    ? "Gmail SMTP"
+                    : provider.provider === "smtp"
+                      ? "SMTP"
+                      : provider.provider === "brevo"
+                        ? "Brevo API"
+                        : "Resend"
+                } · ${provider.from}`
+              : "Configurer Resend (APPO_RESEND_API_KEY) ou Brevo + APPO_MAIL_ENABLED=true"}
           </div>
+          {provider?.smtpLikelyBlocked ? (
+            <div className="mt-2 text-xs font-medium text-amber-700">
+              SMTP seul : bloqué sur Railway Hobby. Ajoutez APPO_RESEND_API_KEY (HTTPS).
+            </div>
+          ) : null}
         </div>
         <div className="rounded-3xl border border-line bg-white p-4">
           <div className="text-xs text-muted">Aujourd’hui ({mail?.day ?? "—"})</div>
