@@ -45,6 +45,14 @@ function LoginForm() {
         <Field label="Mot de passe">
           <input className={inputClass} value={password} onChange={(e) => setPassword(e.target.value)} type="password" required />
         </Field>
+        <div className="text-right">
+          <a
+            className="text-sm font-semibold text-appo"
+            href={`/forgot-password${email ? `?email=${encodeURIComponent(email)}` : ""}`}
+          >
+            Mot de passe oublié ?
+          </a>
+        </div>
         {error ? <p className="text-sm text-red-600">{error === "INVALID_CREDENTIALS" ? "Identifiants incorrects" : error}</p> : null}
         <Button type="submit" variant="now" className="w-full" disabled={loading}>
           {loading ? "Connexion…" : "Se connecter"}

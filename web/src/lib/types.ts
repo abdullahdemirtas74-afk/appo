@@ -556,6 +556,17 @@ export type OutboundEmail = {
   error: string | null;
 };
 
+/** One-time password reset token (store hashed token only). */
+export type PasswordReset = {
+  id: string;
+  userId: string;
+  email: string;
+  tokenHash: string;
+  createdAt: string;
+  expiresAt: string;
+  usedAt: string | null;
+};
+
 export type ServiceRequestStatus = "open" | "awarded" | "cancelled" | "expired";
 
 export type ServiceRequest = {
@@ -617,6 +628,7 @@ export type DB = {
   requests: ServiceRequest[];
   offers: ProOffer[];
   outboundEmails: OutboundEmail[];
+  passwordResets: PasswordReset[];
   settings: Settings;
   walletLedgers: WalletLedger[];
   referrals: Referral[];

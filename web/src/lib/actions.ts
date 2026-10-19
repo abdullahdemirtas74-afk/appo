@@ -1,6 +1,8 @@
+import { createHash, randomBytes } from "crypto";
 import { hashPassword, verifyPassword } from "./auth";
 import { makeReferralCode, creditWallet, withGrowthSettings } from "./growth";
 import { isValidLanguageCode } from "./languages";
+import { publicBaseUrl } from "./stripe";
 import {
   enrichMission,
   ensureInvoice,
@@ -66,8 +68,14 @@ import type {
   Role,
   ScheduleDay,
 } from "./types";
-import { mailQuotaSnapshot, promotePendingProEmails, withMailSettings } from "./mail";
+import { mailQuotaSnapshot, promotePendingProEmails, sendTransactionalEmail, withMailSettings } from "./mail";
 import { normalizePhotoUrls } from "./uploads";
+
+const RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+function hashResetToken(token: string) {
+  return createHash("sha256").update(token).digest("hex");
+}
 
 export async function login(email: string, password: string) {
   return mutate((db) => {
@@ -79,6 +87,146 @@ export async function login(email: string, password: string) {
     if (user.deletedAt) throw new Error("ACCOUNT_DELETED");
     return publicUser(user);
   }, false);
+}
+
+/**
+ * Always returns ok (no email enumeration). Sends reset mail when the account exists.
+ */
+export async function requestPasswordReset(emailRaw: string) {
+  const email = String(emailRaw || "").trim().toLowerCase();
+  if (!email || !email.includes("@")) throw new Error("EMAIL_REQUIRED");
+
+  const token = randomBytes(32).toString("hex");
+  const tokenHash = hashResetToken(token);
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + RESET_TTL_MS).toISOString();
+
+  const prepared = await mutate((db) => {
+    if (!db.passwordResets) db.passwordResets = [];
+    const user = db.users.find(
+      (u) => u.email.toLowerCase() === email && !u.deletedAt && !u.suspended,
+    );
+    if (!user) return null;
+
+    // Invalidate previous unused tokens for this user
+    for (const row of db.passwordResets) {
+      if (row.userId === user.id && !row.usedAt) row.usedAt = now.toISOString();
+    }
+
+    db.passwordResets.unshift({
+      id: nid("pwr"),
+      userId: user.id,
+      email: user.email,
+      tokenHash,
+      createdAt: now.toISOString(),
+      expiresAt,
+      usedAt: null,
+    });
+    if (db.passwordResets.length > 200) db.passwordResets = db.passwordResets.slice(0, 200);
+
+    return {
+      userId: user.id,
+      email: user.email,
+      firstName: user.firstName,
+    };
+  });
+
+  if (prepared) {
+    const link = `${publicBaseUrl()}/reset-password?token=${token}`;
+    const subject = "Réinitialisation de votre mot de passe AppO";
+    const text = [
+      `Bonjour ${prepared.firstName || ""},`.trim() + ",",
+      "",
+      "Vous avez demandé à réinitialiser votre mot de passe AppO.",
+      "Cliquez sur le lien ci-dessous (valable 1 heure) :",
+      "",
+      link,
+      "",
+      "Si vous n’êtes pas à l’origine de cette demande, ignorez cet e-mail.",
+      "",
+      "— L’équipe AppO",
+    ].join("\n");
+
+    try {
+      const mail = await sendTransactionalEmail({
+        to: prepared.email,
+        subject,
+        text,
+        href: `/reset-password?token=${token}`,
+      });
+      await mutate((db) => {
+        if (!db.outboundEmails) db.outboundEmails = [];
+        db.outboundEmails.unshift({
+          id: nid("mail"),
+          audience: "auth",
+          userId: prepared.userId,
+          to: prepared.email,
+          subject,
+          body: "Lien de réinitialisation du mot de passe",
+          href: "/reset-password",
+          status: mail.sent ? "sent" : "pending_account",
+          day: now.toISOString().slice(0, 10),
+          createdAt: now.toISOString(),
+          sentAt: mail.sent ? now.toISOString() : null,
+          error: mail.sent ? null : mail.reason || null,
+        });
+        if (db.outboundEmails.length > 500) db.outboundEmails = db.outboundEmails.slice(0, 500);
+      });
+    } catch (e) {
+      // Don't leak mail failures to the client
+      console.error(
+        JSON.stringify({
+          ts: new Date().toISOString(),
+          level: "error",
+          event: "password_reset_mail_failed",
+          error: e instanceof Error ? e.message : String(e),
+        }),
+      );
+    }
+  }
+
+  return {
+    ok: true,
+    message:
+      "Si un compte existe pour cet e-mail, un lien de réinitialisation vient d’être envoyé.",
+  };
+}
+
+export async function resetPasswordWithToken(tokenRaw: string, passwordRaw: string) {
+  const token = String(tokenRaw || "").trim();
+  const password = String(passwordRaw || "");
+  if (!token) throw new Error("RESET_TOKEN_INVALID");
+  if (password.length < 8) throw new Error("PASSWORD_TOO_SHORT");
+
+  const tokenHash = hashResetToken(token);
+  const now = new Date().toISOString();
+
+  return mutate((db) => {
+    if (!db.passwordResets) db.passwordResets = [];
+    const row = db.passwordResets.find((r) => r.tokenHash === tokenHash);
+    if (!row || row.usedAt) throw new Error("RESET_TOKEN_INVALID");
+    if (new Date(row.expiresAt).getTime() < Date.now()) throw new Error("RESET_TOKEN_EXPIRED");
+
+    const user = db.users.find((u) => u.id === row.userId && !u.deletedAt);
+    if (!user || user.suspended) throw new Error("RESET_TOKEN_INVALID");
+
+    user.passwordHash = hashPassword(password);
+    row.usedAt = now;
+    // Invalidate any other outstanding tokens
+    for (const other of db.passwordResets) {
+      if (other.userId === user.id && !other.usedAt) other.usedAt = now;
+    }
+
+    notify(
+      db,
+      user.id,
+      "Mot de passe modifié",
+      "Votre mot de passe AppO a été réinitialisé avec succès.",
+      "/login",
+    );
+
+    return { ok: true, email: user.email };
+  });
 }
 
 export async function registerClient(input: {
@@ -2336,6 +2484,8 @@ export function errorStatus(e: unknown) {
     ONBOARDING_REQUIRED: 400,
     STRIPE_ACCOUNT_MISSING: 400,
     STRIPE_NOT_CONFIGURED: 503,
+    RESET_TOKEN_INVALID: 400,
+    RESET_TOKEN_EXPIRED: 400,
   };
   return { status: map[msg] ?? 400, error: msg };
 }

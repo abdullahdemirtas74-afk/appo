@@ -52,6 +52,7 @@ function migrate(db: DB): DB {
   if (!db.requests) db.requests = [];
   if (!db.offers) db.offers = [];
   if (!db.outboundEmails) db.outboundEmails = [];
+  if (!db.passwordResets) db.passwordResets = [];
   if (!db.supportTickets) db.supportTickets = [];
   if (!db.walletLedgers) db.walletLedgers = [];
   if (!db.referrals) db.referrals = [];
